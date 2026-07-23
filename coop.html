@@ -614,8 +614,8 @@ function initGameEngine() {
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
 
-      // PARED INTERIOR 100% SÓLIDA EN SECTORES 0,1,2,4..7 | PUERTA EN SECTOR 3
-      if(s !== 3){
+      // PARED INTERIOR 100% SÓLIDA — TODOS LOS SECTORES (curva completa, sin huecos)
+      {
         const iw=[],ii=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
           const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);}
@@ -625,23 +625,30 @@ function initGameEngine() {
         const innerSolidMesh=new THREE.Mesh(ig,M.tile);
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
-      } else {
-        // SECTOR 3: PUERTA DE ACCESO AL MAPA SECRETO CENTRAL
-        const p10=trackPos(t0), n0=outN(t0);
-        const pFrameL=box(.45, wH, 1.2, M.concrete);
-        pFrameL.position.set(p10.x + n0.x*-3, wH/2, p10.z - 4.5);g.add(pFrameL);
-        const pFrameR=box(.45, wH, 1.2, M.concrete);
-        pFrameR.position.set(p10.x + n0.x*-3, wH/2, p10.z + 4.5);g.add(pFrameR);
-        const pFrameTop=box(.45, 1.2, 10.2, M.concrete);
-        pFrameTop.position.set(p10.x + n0.x*-3, wH - .6, p10.z);g.add(pFrameTop);
-
-        // PUERTA METALICA BLINDADA DE SEGURIDAD EN SECTOR 1 (portalDoor)
-        const portalDoor=box(.15, 3.8, 8.0, M.steel);
-        portalDoor.position.set(p10.x + n0.x*-2.85, 1.9, p10.z);g.add(portalDoor);
-
-        const doorLedMat=std({color:0xff0000,emissive:0xff0044,emissiveIntensity:4.5,roughness:.2},.2);
-        const doorLed=box(.2, .18, .6, doorLedMat);
-        doorLed.position.set(p10.x + n0.x*-2.7, 3.6, p10.z);g.add(doorLed);
+      }
+      // PUERTA BLINDADA EN SECTOR 4 — montada encima de la pared curva sólida
+      if(s===4){
+        const pMid=trackPos((t0+t1)/2), pN=outN((t0+t1)/2), pTan=trackTan((t0+t1)/2);
+        const doorAngle=Math.atan2(pTan.x,pTan.z);
+        // Marco de hormigón (jambas + dintel)
+        const frameL=box(.42, wH, 1.1, M.concrete);
+        frameL.position.set(pMid.x+pN.x*-3.1, wH/2, pMid.z-3.8);
+        frameL.rotation.y=doorAngle;g.add(frameL);
+        const frameR=box(.42, wH, 1.1, M.concrete);
+        frameR.position.set(pMid.x+pN.x*-3.1, wH/2, pMid.z+3.8);
+        frameR.rotation.y=doorAngle;g.add(frameR);
+        const frameTop=box(.42, 1.0, 8.8, M.concrete);
+        frameTop.position.set(pMid.x+pN.x*-3.1, wH-.5, pMid.z);
+        frameTop.rotation.y=doorAngle;g.add(frameTop);
+        // Panel de puerta metálica (montado sobre la pared, ligeramente por delante)
+        const doorPanel=box(.18, 3.6, 7.6, M.steel);
+        doorPanel.position.set(pMid.x+pN.x*-2.92, 1.8, pMid.z);
+        doorPanel.rotation.y=doorAngle;g.add(doorPanel);
+        // LED de estado
+        const dLedMat=std({color:0xff0000,emissive:0xff0044,emissiveIntensity:5.0,roughness:.2},.2);
+        const dLed=box(.18, .16, .55, dLedMat);
+        dLed.position.set(pMid.x+pN.x*-2.74, 3.4, pMid.z+3.2);
+        dLed.rotation.y=doorAngle;g.add(dLed);
       }
 
       // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
