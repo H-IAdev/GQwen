@@ -1030,7 +1030,7 @@ function initGameEngine() {
   }
   function spawnZombie(type,hpMul,spMul){
     const z=buildZombieMesh(type);zombies.push(z);
-    if(type==='boss_rockhurler'){z.isHurler=true;z.rockT=R(3,5);z.grabT=R(9,13);z.chargeT=0;z.charging=false;z.grabbed=null;z.grabAnimT=0;}
+    if(type==='boss_rockhurler'){z.isHurler=true;z.rockT=R(2,4);z.grabT=R(3,5);z.chargeT=0;z.charging=false;z.grabbed=null;z.grabAnimT=0;z.grabVictim=null;}
     const d=ZDEF[type] || ZDEF.walker;
     z.hp=d.hp*hpMul;z.speed=R(...d.spd)*spMul;z.dmg=d.dmg;z.score=d.score;
     if(type==='boss_juggernaut'){
@@ -1183,8 +1183,41 @@ function initGameEngine() {
             }
           }
         }
-        if(z.grabT<=0 && dist>3.5 && dist<14.0 && !z.grabbed && !z.charging){
-          doGrabAndThrow(z,nearest);
+        // GRAB TICK — buscar victima cercana y aproximarse a ella
+        if(z.grabT<=0 && !z.grabbed && !z.charging){
+          // Buscar zombie más cercano al hurler en radio amplio (10m)
+          let bestVic=null, bestVicD=10.0;
+          for(const oz of zombies){
+            if(oz===z||oz.dead||oz.isHurler||oz.type==='boss_juggernaut'||oz.type==='boss_stalker') continue;
+            const dd=Math.abs(oz.t-z.t); const vd=Math.min(dd,1-dd)*TRACK_LEN;
+            if(vd<bestVicD){bestVicD=vd;bestVic=oz;}
+          }
+          if(bestVic){
+            z.grabVictim=bestVic; // marcar objetivo de agarre
+            if(bestVicD<2.5){
+              // ¡Cerca! — ejecutar agarre inmediato
+              doGrabAndThrow(z,nearest,bestVic);
+            }
+            // Si está lejos: el hurler se acerca al zombie objetivo (ver movimiento abajo)
+          } else {
+            // No hay zombies disponibles — resetear timer corto y lanzar roca
+            z.grabT=R(3,5);
+            z.grabVictim=null;
+          }
+        }
+        // Si hay victima marcada y no la hemos agarrado aún: moverse hacia ella
+        if(z.grabVictim && !z.grabbed && !z.charging && !z.grabVictim.dead){
+          const vdd=Math.abs(z.grabVictim.t-z.t); const vd2=Math.min(vdd,1-vdd)*TRACK_LEN;
+          if(vd2<2.0){
+            // ¡Al alcance! — agarrar ahora
+            doGrabAndThrow(z,nearest,z.grabVictim);
+          } else if(vd2<10.0){
+            // Acercarse al zombie objetivo a paso rápido
+            const vDir2=z.grabVictim.t-z.t; const vSign=vDir2>0.5?-1:vDir2<-0.5?1:Math.sign(vDir2);
+            z.t+=vSign*z.speed*1.4*dt/TRACK_LEN;
+          } else {
+            z.grabVictim=null; // perdió al objetivo
+          }
         }
       }
 
@@ -1329,20 +1362,27 @@ function initGameEngine() {
       dst:{x:_vRock.x,y:_vRock.y,z:_vRock.z},dmg:30});
   }
 
-  function doGrabAndThrow(z, nearest){
-    let victim=null; let bestD=3.5;
-    for(const oz of zombies){
-      if(oz===z||oz.dead||oz.isHurler||oz.type==='boss_juggernaut'||oz.type==='boss_stalker') continue;
-      const dd=Math.abs(oz.t-z.t); const d=Math.min(dd,1-dd)*TRACK_LEN;
-      if(d<bestD){bestD=d;victim=oz;}
+  function doGrabAndThrow(z, nearest, forcedVictim){
+    // Usar victima forzada si se proporciona, sino buscar la más cercana
+    let victim=forcedVictim||null;
+    if(!victim){
+      let bestD=10.0;
+      for(const oz of zombies){
+        if(oz===z||oz.dead||oz.isHurler||oz.type==='boss_juggernaut'||oz.type==='boss_stalker') continue;
+        const dd=Math.abs(oz.t-z.t); const d=Math.min(dd,1-dd)*TRACK_LEN;
+        if(d<bestD){bestD=d;victim=oz;}
+      }
     }
-    if(!victim){z.grabT=R(4,7);return;}
+    if(!victim||victim.dead||victim.grabbed){z.grabT=R(3,5);z.grabVictim=null;return;}
     z.grabbed=victim;victim.grabbed=true;
-    feed('ROCK HURLER agarro un zombie!','k');
-    victim.g.position.y+=0.8;
-    z.grabAnimT=0.6;
+    z.grabVictim=null;
+    feed('⚠ ROCK HURLER agarró un '+victim.type.toUpperCase()+'!','k');
+    sfx.moan(4);
+    // Elevar víctima visualmente
+    victim.g.position.y=2.2;
+    z.grabAnimT=0.55;
     z.grabTarget=nearest;
-    z.grabT=R(10,15);
+    z.grabT=R(8,12);
   }
 
   function doThrowVictim(z){
