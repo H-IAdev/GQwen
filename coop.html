@@ -383,6 +383,9 @@ window.onerror = function(msg, url, line) {
 logDiag('Verificando motor WebGL...', 'info');
 
 function initGameEngine() {
+  const statusEl = $('#lobbyStatus');
+  if (statusEl) { statusEl.textContent = 'CARGANDO MOTOR 3D...'; statusEl.className = 'lobbyStatus info'; }
+
   if (typeof THREE === 'undefined') {
     logDiag('Iniciando cargador de respaldo multi-CDN...', 'info');
     if(window.__initEngineLoaders){
@@ -396,6 +399,7 @@ function initGameEngine() {
   }
 
   logDiag('Three.js cargado exitosamente.', 'ok');
+  if (statusEl) { statusEl.textContent = 'MOTOR 3D LISTO — SELECCIONA MODO DE JUEGO'; statusEl.className = 'lobbyStatus ok'; }
 
   if (typeof Peer === 'undefined') {
     logDiag('Aviso: PeerJS offline. Modo solo 100% activo.', 'info');
