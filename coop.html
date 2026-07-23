@@ -1118,6 +1118,7 @@ function initGameEngine() {
             x:0,y:1.7,z:-30,yaw:0,hp:100,state:'alive',trackT:.5,trackLat:3,color:PCOLORS[idx%4]};
           updatePlayerList();feed('PLAYER JOINED','h');$('#playerCount').textContent=numPlayers();
           setNetStatus('HOST · '+Object.keys(remotePlayers).length+' CONNECTED','ok');
+          if(playing){ conn.send({type:'start', lateJoin:true, wave}); }
         });
         conn.on('data',d=>handleNetData(conn.peer,d));
         conn.on('close',()=>{
@@ -1220,7 +1221,7 @@ function initGameEngine() {
         if(d.score!==undefined)score=d.score;
         if(d.kills!==undefined)kills=d.kills;
         hudScore();}break;}
-      case'start':{if(!isHost)resetGame(false);break;}
+      case'start':{if(!isHost){resetGame(false);if(d.lateJoin){feed('JOINED IN PROGRESS','h');banner('MISSION IN PROGRESS','DEPLOYED TO ACTIVE WAVE '+String(d.wave||1).padStart(2,'0'));}}break;}
       case'wave':{if(!isHost){wave=d.n;hudScore();
         banner('WAVE '+String(d.n).padStart(2,'0'),'INCOMING',d.n>=4);sfx.wave();}break;}
       case'gameover':{if(!isHost)gameOver();break;}
