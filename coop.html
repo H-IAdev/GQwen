@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <link rel="icon" href="data:,">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -875,8 +876,11 @@ function initGameEngine() {
     const rec={id:zId++,g,type,torso,clothM,head,jaw,aL,aR,lL,lR,
       hp:0,t:Math.random(),lat:R(2,4.5),speed:1,dmg:5,score:10,scale:d.sc,
       dead:false,deathT:0,loosened:false,cool:R(.5,1.5),windup:0,hitT:0,fade:0,
-      fallDir:Math.random()<.5?-1:1};
-    g.traverse(c=>{if(c.isMesh){c.userData.z=rec;c.userData.part='body';}});
+      fallDir:Math.random()<.5?-1:1,rockT:R(2,4),grabT:R(4,6)};
+    g.traverse(c=>{if(c.isMesh){c.userData.z=rec;c.userData.part='body';
+      if(!window.zombieHitboxes) window.zombieHitboxes=[];
+      window.zombieHitboxes.push(c);
+    }});
     head.userData.part='head';jaw.userData.part='head';
     const p=trackPos(rec.t),n=outN(rec.t);
     g.position.set(p.x+n.x*rec.lat,0,p.z+n.z*rec.lat);
@@ -899,11 +903,16 @@ function initGameEngine() {
   }
   function killZombie(z,hs){
     z.dead=true;z.deathT=0;kills++;headshots+=hs?1:0;score+=z.score+(hs?15:0);
+    if(window.zombieHitboxes){
+      window.zombieHitboxes = window.zombieHitboxes.filter(m => m && m.userData.z !== z);
+    }
+    gTraverseNull(z.g);
     feed((hs?'CRANIAL +':'DOWN +')+(z.score+(hs?15:0)),hs?'h':'k');
     sfx.die();burst(_v1.copy(z.g.position).setY(1.1),'ichor',hs?12:7,2.8);
     hitmark(true);hudScore();
     netSend({type:'zkill',id:z.id,hs});
   }
+  function gTraverseNull(g){if(!g)return;g.traverse(c=>{if(c.isMesh)c.userData.z=null;});}
   function hurtZombie(z,part,pt,customDmg=null){
     if(z.dead)return;const hs=part==='head';
     const dmg = customDmg !== null ? customDmg : (hs ? 50 : 25);
@@ -1158,26 +1167,26 @@ function initGameEngine() {
     punchCd=.18;punchT=1;punchSide=1-punchSide;
     shake=Math.max(shake,.015);sfx.flesh();
     _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
+    ray.camera = camera;
     ray.set(camera.getWorldPosition(_v2),_v1);
-    ray.far=3.2;
-    const hits=ray.intersectObjects(scene.children,true);
+    ray.far=3.5;
+    const validTargets = (window.zombieHitboxes || []).filter(m => m && m.parent && m.userData && m.userData.z && !m.userData.z.dead);
+    const hits=ray.intersectObjects(validTargets,false);
     ray.far=90;
     let hitFound=false;
     if(hits.length){
-      for(const h of hits){
-        const z=h.object.userData.z;
-        if(z&&!z.dead){
-          const hs=h.object.userData.part==='head';
-          const pDmg=hs?60:35;
-          burst(h.point,'ichor',hs?14:8,3.2);hitmark(hs);
-          if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:pDmg});
-          else hurtZombie(z,h.object.userData.part,h.point,pDmg);
-          hitFound=true;break;
-        }
+      const h=hits[0];
+      const z=h.object.userData.z;
+      if(z&&!z.dead){
+        const hs=h.object.userData.part==='head';
+        const pDmg=hs?60:35;
+        burst(h.point,'ichor',hs?14:8,3.2);hitmark(hs);
+        if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:pDmg});
+        else hurtZombie(z,h.object.userData.part,h.point,pDmg);
+        hitFound=true;
       }
     }
     if(!hitFound){
-      // Direct Proximity Check Fallback (punches zombies right in front)
       const pPos=camera.position;
       for(const z of zombies){
         if(z.dead)continue;
@@ -1207,12 +1216,15 @@ function initGameEngine() {
     const spread=.006+(vel.length()>1.2?.01:0)+(jumpY>.02?.018:0);
     _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
     _v1.x+=R(-1,1)*spread;_v1.y+=R(-1,1)*spread;_v1.normalize();
+    ray.camera = camera;
     ray.set(camera.getWorldPosition(_v2),_v1);
-    const hits=ray.intersectObjects(scene.children,true);
+    const validTargets = (window.zombieHitboxes || []).filter(m => m && m.parent && m.userData && m.userData.z && !m.userData.z.dead);
+    const hits=ray.intersectObjects(validTargets,false);
     let end=_v3.copy(_v2).addScaledVector(_v1,70);
-    if(hits.length){const h=hits[0];end=h.point;
+    if(hits.length){
+      const h=hits[0];end=h.point;
       const z=h.object.userData.z;
-      if(z){
+      if(z&&!z.dead){
         if(z.isRemote){
           const hs=h.object.userData.part==='head';
           const bDmg=hs?50:25;
@@ -1221,7 +1233,12 @@ function initGameEngine() {
         }else{
           hurtZombie(z,h.object.userData.part,h.point);
         }
-      }else burst(h.point,'spark',3,2);}
+      }
+    }else{
+      // Fallback raycast to render wall sparks
+      const envHits=ray.intersectObjects(sectorGroups,true);
+      if(envHits.length){end=envHits[0].point;burst(end,'spark',3,2);}
+    }
     tip.getWorldPosition(_v2);fireTracer(_v2.clone(),end.clone());
     hudAmmo();
     if(ammo===0&&reserve===0){switchWeapon('fists');feed('OUT OF AMMO — BARE FISTS ENGAGED','k');}
@@ -1520,6 +1537,7 @@ function initGameEngine() {
 
   function resetGame(sendNet=true){
     zombies.forEach(z=>scene.remove(z.g));zombies.length=0;
+    window.zombieHitboxes=[];
     for(const[,rz]of remoteZombies)scene.remove(rz.mesh);remoteZombies.clear();
     pickups.forEach(p=>scene.remove(p.m));pickups.length=0;
     queue=[];clearing=true;clearT=2.5;
