@@ -110,7 +110,7 @@ opacity:0;transition:all .4s;pointer-events:none;width:90vw}
 font-size:10px;letter-spacing:.18em;color:var(--amber2);opacity:0;transition:opacity .3s;pointer-events:auto;cursor:pointer;
 border-left:3px solid var(--amber)}
 #paused.show{opacity:1}
-#minimap{display:none !important;position:absolute;bottom:14px;left:50%;transform:translateX(-50%);border:1px solid var(--line);
+#minimap{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);border:1px solid var(--line);
 background:#0a0c0fcc;border-radius:4px}
 #teamPanel{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
 .tm{padding:5px 10px;font-size:9px;letter-spacing:.1em;border-top:2px solid var(--amber);min-width:90px;text-align:center}
@@ -660,20 +660,15 @@ function initGameEngine() {
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
     }
-    // CONSTRUCCIÓN 3D ARQUITECTÓNICA DE INTERIOR CON PAREDES HERMÉTICAS HERMÉTICAS ANTI-TRASPASO
+    // CONSTRUCCIÓN ARQUITECTÓNICA ADOSADA AL PERÍMETRO DEL TÚNEL (SIN MUROS FLOTANTES EN EL CENTRO)
     const intGroup=new THREE.Group();
     const concMat=std({color:0x22262d,roughness:.75},.3);
     const whiteTileMat=std({map:mk(whiteTileCnv()),roughness:.35,transparent:true},.4);
     const metalGateMat=std({color:0x0d1015,metalness:.9,roughness:.3},.6);
     const termMat=std({color:0x090b0e,emissive:0x3f8cff,emissiveIntensity:.9,roughness:.3},.5);
     
-    // Muros Herméticos de Respaldo Anti-Vacío
-    const endCapL=box(.3, 6.0, 36, whiteTileMat);endCapL.position.set(-1.4, 3.0, 0);intGroup.add(endCapL);
-    const endCapR=box(.3, 6.0, 36, whiteTileMat);endCapR.position.set(6.2, 3.0, 0);intGroup.add(endCapR);
-
-    // Balcón de Mezzanine Central (Y = 3.5m)
-    const mFloor=box(7, .25, 10, concMat);mFloor.position.set(2.4, 3.48, 0);mFloor.receiveShadow=true;intGroup.add(mFloor);
-    const mWallBack=box(.3, 3.2, 10, whiteTileMat);mWallBack.position.set(-.8, 5.0, 0);intGroup.add(mWallBack);
+    // Balcón de Mezzanine Central Adosado a la Plataforma (Y = 3.5m)
+    const mFloor=box(6, .25, 10, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
 
     // Escalera Sur (z = -12 a -4)
     for(let step=0; step<14; step++){
@@ -701,18 +696,20 @@ function initGameEngine() {
     const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
     scene.add(intGroup);
 
-    // Cajas de Munición 3D Recogibles en el Pasillo de la Plataforma (x = 2.0m)
-    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.6,roughness:.3},.5);
-    const ammoZPos=[-30, -15, 0, 15, 30];
+    // SISTEMA DINÁMICO DE GENERACIÓN DE MUNICIÓN DINÁMICA DELANTE DEL JUGADOR
+    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.7,roughness:.3},.5);
     window.ammoCrates=[];
-    ammoZPos.forEach((zVal)=>{
+    for(let i=0; i<4; i++){
       const crGroup=new THREE.Group();
       const bMesh=box(.65,.4,.4,ammoCrateMat);bMesh.position.y=.2;bMesh.castShadow=true;crGroup.add(bMesh);
       const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:1.0}));
       glowSpr.position.set(0,.55,0);glowSpr.scale.set(1.4,1.4,1.4);crGroup.add(glowSpr);
-      crGroup.position.set(2.0, 0.2, zVal);scene.add(crGroup);
-      window.ammoCrates.push({g:crGroup,x:2.0,z:zVal,cooldown:0,active:true});
-    });
+      scene.add(crGroup);
+      const initialT = (i * 0.25);
+      const p=trackPos(initialT), n=outN(initialT);
+      crGroup.position.set(p.x + n.x * 1.8, 0.2, p.z + n.z * 1.8);
+      window.ammoCrates.push({g:crGroup, tVal:initialT, cooldown:0, active:true});
+    }
 
     // Rieles
     const slCount=Math.floor(TRACK_LEN/1.3);
@@ -1115,20 +1112,27 @@ function initGameEngine() {
         scene.remove(p.m);pickups.splice(i,1);hudAmmo();
       }
     }
-    // 2. Station Platform 3D Military Ammo Crates (2D Proximity < 3.8m)
+    // 2. SISTEMA DINÁMICO DE MUNICIÓN (SE REUBICA DINÁMICAMENTE ADELANTE DEL JUGADOR < 3.8M)
     if(window.ammoCrates){
       for(const cr of window.ammoCrates){
         if(!cr.active){
           cr.cooldown-=dt;
-          if(cr.cooldown<=0){cr.active=true;cr.g.visible=true;cr.g.scale.setScalar(1);}
+          if(cr.cooldown<=0){
+            // Reubicar dinámicamente la caja adelante del avance del jugador
+            const nextT = (playerT + R(0.08, 0.22)) % 1;
+            const p=trackPos(nextT), n=outN(nextT);
+            cr.g.position.set(p.x + n.x * 1.8, 0.2, p.z + n.z * 1.8);
+            cr.tVal = nextT;
+            cr.active=true;cr.g.visible=true;cr.g.scale.setScalar(1);
+          }
           continue;
         }
-        const d2D = Math.hypot((cr.x||cr.g.position.x) - cP.x, (cr.z||cr.g.position.z) - cP.z);
+        const d2D = Math.hypot(cr.g.position.x - cP.x, cr.g.position.z - cP.z);
         if(d2D < 3.8){
-          burst(cr.g.position,'spark',22,3.8);
+          burst(cr.g.position,'spark',24,4.0);
           reserve=Math.min(240, reserve+60);
           sfx.pickup();feed('⚡ AMMO REFILLED +60 ROUNDS','h');hudAmmo();
-          cr.active=false;cr.cooldown=10;cr.g.visible=false;cr.g.scale.setScalar(0);
+          cr.active=false;cr.cooldown=8;cr.g.visible=false;cr.g.scale.setScalar(0);
           banner('AMMO REFILLED (+60 ROUNDS)', 'SUPPLY CRATE COLLECTED FROM PLATFORM', false, 2400);
           break;
         }
