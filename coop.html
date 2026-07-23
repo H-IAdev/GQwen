@@ -660,14 +660,14 @@ function initGameEngine() {
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
     }
-    // CONSTRUCCIÓN ARQUITECTÓNICA ADOSADA AL PERÍMETRO DEL TÚNEL (SIN MUROS FLOTANTES EN EL CENTRO)
+    // CONSTRUCCIÓN ARQUITECTÓNICA ADOSADA A SECTORGROUPS[0] (CERO MUROS FLOTANTES EN EL VACÍO)
     const intGroup=new THREE.Group();
     const concMat=std({color:0x22262d,roughness:.75},.3);
     const whiteTileMat=std({map:mk(whiteTileCnv()),roughness:.35,transparent:true},.4);
     const metalGateMat=std({color:0x0d1015,metalness:.9,roughness:.3},.6);
     const termMat=std({color:0x090b0e,emissive:0x3f8cff,emissiveIntensity:.9,roughness:.3},.5);
     
-    // Balcón de Mezzanine Central Adosado a la Plataforma (Y = 3.5m)
+    // Balcón de Mezzanine Central (Y = 3.5m)
     const mFloor=box(6, .25, 10, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
 
     // Escalera Sur (z = -12 a -4)
@@ -694,7 +694,7 @@ function initGameEngine() {
     // Casillero Maestro de Munición 3D en Mezzanine
     const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.8,roughness:.3},.5);
     const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
-    scene.add(intGroup);
+    if(sectorGroups[0]) sectorGroups[0].add(intGroup); else scene.add(intGroup);
 
     // SISTEMA DINÁMICO DE GENERACIÓN DE MUNICIÓN DINÁMICA DELANTE DEL JUGADOR
     const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.7,roughness:.3},.5);
