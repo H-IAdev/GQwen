@@ -191,6 +191,48 @@ border:1px solid var(--line);margin:20px 0 26px;max-width:420px}
 .stat b{font-size:22px;font-weight:600;color:var(--amber2)}
 .stat.red b{color:var(--red)}
 #over{background:rgba(8,4,4,.93)}
+
+/* ===== CONTROLES TÁCTILES Y RESPONSIVE MÓVIL ===== */
+#touchHud{position:fixed;inset:0;pointer-events:none;z-index:15;display:none;user-select:none}
+body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:block}
+
+/* Joystick Analógico Izquierdo */
+#joyContainer{position:absolute;left:20px;bottom:25px;width:130px;height:130px;pointer-events:auto;
+background:rgba(18,22,28,0.55);border:2px solid var(--amber);border-radius:50%;touch-action:none;
+box-shadow:0 0 16px rgba(255,180,0,0.25)}
+#joyKnob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin-left:-25px;margin-top:-25px;
+background:var(--amber);border:2px solid #111;border-radius:50%;pointer-events:none;
+box-shadow:0 0 10px rgba(255,210,87,0.6);transition:transform 0.04s ease-out}
+
+/* Zona de Apuntado Derecho */
+#touchLookZone{position:absolute;right:0;top:0;width:55vw;height:100vh;pointer-events:auto;touch-action:none}
+
+/* Botonera de Acción Derecha */
+#touchActions{position:absolute;right:18px;bottom:25px;display:flex;flex-direction:column;gap:12px;
+align-items:flex-end;pointer-events:auto;touch-action:none}
+.tBtn{width:64px;height:64px;border-radius:50%;background:linear-gradient(180deg,#232a33ee,#12161cee);
+border:2px solid var(--amber);color:var(--amber2);font-family:var(--disp);font-size:11px;
+display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,0.6);cursor:pointer;touch-action:none}
+.tBtn:active, .tBtn.active{background:var(--amber);color:#111;transform:scale(0.92)}
+#tBtnFire{width:80px;height:80px;border-color:var(--red);color:var(--paper);background:linear-gradient(180deg,#9e1b12ee,#540a05ee);font-size:14px}
+#tBtnFire:active, #tBtnFire.active{background:var(--red);color:#fff}
+.tRow{display:flex;gap:12px;align-items:center}
+
+/* Orientación Vertical (Portrait) */
+@media (orientation: portrait){
+  #stationSign{top:10px;left:10px;transform:scale(0.85);transform-origin:top left}
+  #scorePanel{top:10px;right:10px;transform:scale(0.85);transform-origin:top right}
+  #breakers{display:none}
+  #health{bottom:170px;left:10px;min-width:160px;transform:scale(0.9);transform-origin:bottom left}
+  #ammoPanel{bottom:170px;right:10px;min-width:140px;transform:scale(0.9);transform-origin:bottom right}
+  #minimap{bottom:auto;top:10px;left:50%;transform:translateX(-50%) scale(0.8)}
+  #joyContainer{left:14px;bottom:20px;width:115px;height:115px}
+  #joyKnob{width:44px;height:44px;margin-left:-22px;margin-top:-22px}
+  #touchActions{right:14px;bottom:20px;gap:10px}
+  .tBtn{width:56px;height:56px;font-size:10px}
+  #tBtnFire{width:70px;height:70px;font-size:12px}
+}
+
 </style>
 </head>
 <body>
@@ -217,6 +259,23 @@ border:1px solid var(--line);margin:20px 0 26px;max-width:420px}
   <div id="ammoPanel" class="pnl"><div class="wn">M-42 "TOKEN" · 9MM</div>
     <div class="amR"><span id="ammoNum">30</span><span>/</span><span id="ammoRes">120</span></div>
     <div class="relBar" id="relBar"><div id="relFill"></div></div><div id="relTxt"></div></div>
+  
+  <!-- CONTROLES TÁCTILES MÓVILES -->
+  <div id="touchHud">
+    <div id="touchLookZone"></div>
+    <div id="joyContainer"><div id="joyKnob"></div></div>
+    <div id="touchActions">
+      <div class="tRow">
+        <div class="tBtn" id="tBtnReload">R<br><small style="font-size:7px">RELOAD</small></div>
+        <div class="tBtn" id="tBtnJump">JUMP</div>
+      </div>
+      <div class="tRow">
+        <div class="tBtn" id="tBtnRevive">E<br><small style="font-size:7px">REVIVE</small></div>
+        <div class="tBtn" id="tBtnFire">FIRE</div>
+      </div>
+    </div>
+  </div>
+
   <canvas id="minimap" width="140" height="90"></canvas>
   <div id="ch"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><b></b></div>
   <div id="hm"><i></i><i></i><i></i><i></i></div>
@@ -1107,6 +1166,21 @@ function initGameEngine() {
       case'zkill':{if(!isHost){
         feed((d.hs?'CRANIAL':'KILL')+' CONFIRMED',d.hs?'h':'k');sfx.die();}break;}
       case'zstate':{if(!isHost){updateRemoteZombiesFromState(d.zs);
+        if(d.players){
+          for(const pData of d.players){
+            if(pData.id===peer?.id)continue;
+            let rp=remotePlayers[pData.id];
+            if(!rp){
+              rp={mesh:buildPlayerMesh(pData.color||0x3f8cff),x:pData.x,y:pData.y,z:pData.z,
+                yaw:pData.yaw,hp:pData.hp,state:pData.state,trackT:pData.trackT,trackLat:pData.trackLat,color:pData.color||0x3f8cff};
+              remotePlayers[pData.id]=rp;
+              updatePlayerList();
+              $('#playerCount').textContent=numPlayers();
+            }else{
+              Object.assign(rp,{x:pData.x,y:pData.y,z:pData.z,yaw:pData.yaw,hp:pData.hp,state:pData.state,trackT:pData.trackT,trackLat:pData.trackLat});
+            }
+          }
+        }
         if(d.wave!==undefined)wave=d.wave;
         if(d.score!==undefined)score=d.score;
         if(d.kills!==undefined)kills=d.kills;
@@ -1125,7 +1199,12 @@ function initGameEngine() {
   function netSync(dt){netTimer+=dt;if(netTimer<.05)return;netTimer=0;
     if(isHost){
       const zs=zombies.filter(z=>!z.dead).map(z=>({id:z.id,t:z.t,lat:z.lat,hp:Math.ceil(z.hp),type:z.type,dead:z.dead}));
-      netSend({type:'zstate',zs,wave,score,kills,breakers:Math.round(B*100)});
+      const plist=[{id:peer?.id||'host',x:camera.position.x,y:camera.position.y,z:camera.position.z,
+        yaw,hp:Math.ceil(hp),state:playerState,trackT:playerT,trackLat:playerLat,color:myColor}];
+      for(const[id,rp]of Object.entries(remotePlayers)){
+        plist.push({id,x:rp.x,y:rp.y,z:rp.z,yaw:rp.yaw,hp:rp.hp,state:rp.state,trackT:rp.trackT,trackLat:rp.trackLat,color:rp.color||0x3f8cff});
+      }
+      netSend({type:'zstate',zs,wave,score,kills,breakers:Math.round(B*100),players:plist});
     }else{
       netSend({type:'player',x:camera.position.x,y:camera.position.y,z:camera.position.z,
         yaw,hp:Math.ceil(hp),state:playerState,trackT:playerT,trackLat:playerLat});
@@ -1367,6 +1446,136 @@ function initGameEngine() {
   }
   animate();
 
+  /* ===== GESTOR DE CONTROLES TÁCTILES MÓVILES ===== */
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if(isTouchDevice) document.body.classList.add('is-touch');
+
+  const joyContainer = $('#joyContainer');
+  const joyKnob = $('#joyKnob');
+  const touchLookZone = $('#touchLookZone');
+  let joyTouchId = null, joyCenter = {x:0, y:0};
+  let joyVector = {x:0, y:0};
+
+  if(joyContainer) {
+    joyContainer.addEventListener('touchstart', e => {
+      e.preventDefault();
+      if(joyTouchId !== null) return;
+      const touch = e.changedTouches[0];
+      joyTouchId = touch.identifier;
+      const rect = joyContainer.getBoundingClientRect();
+      joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+      updateJoy(touch.clientX, touch.clientY);
+    }, {passive:false});
+
+    joyContainer.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for(let i=0; i<e.changedTouches.length; i++) {
+        if(e.changedTouches[i].identifier === joyTouchId) {
+          updateJoy(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+          break;
+        }
+      }
+    }, {passive:false});
+
+    const resetJoy = e => {
+      for(let i=0; i<e.changedTouches.length; i++) {
+        if(e.changedTouches[i].identifier === joyTouchId) {
+          joyTouchId = null;
+          joyVector = {x:0, y:0};
+          joyKnob.style.transform = 'translate(0px, 0px)';
+          keys['KeyW'] = false; keys['KeyS'] = false;
+          keys['KeyA'] = false; keys['KeyD'] = false;
+          break;
+        }
+      }
+    };
+    joyContainer.addEventListener('touchend', resetJoy);
+    joyContainer.addEventListener('touchcancel', resetJoy);
+  }
+
+  function updateJoy(clientX, clientY) {
+    const dx = clientX - joyCenter.x;
+    const dy = clientY - joyCenter.y;
+    const maxR = 45;
+    const dist = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    const clampedR = Math.min(dist, maxR);
+    const kx = Math.cos(angle) * clampedR;
+    const ky = Math.sin(angle) * clampedR;
+    joyKnob.style.transform = 'translate('+kx+'px, '+ky+'px)';
+    
+    // Convertir dirección analógica a estado de movimiento WASD
+    const normX = kx / maxR;
+    const normY = ky / maxR;
+    joyVector.x = normX; joyVector.y = normY;
+
+    keys['KeyW'] = normY < -0.25;
+    keys['KeyS'] = normY > 0.25;
+    keys['KeyA'] = normX < -0.25;
+    keys['KeyD'] = normX > 0.25;
+  }
+
+  // Apuntado arrastrando el pulgar en el lado derecho
+  let lookTouchId = null, lastLook = {x:0, y:0};
+  if(touchLookZone) {
+    touchLookZone.addEventListener('touchstart', e => {
+      e.preventDefault();
+      if(lookTouchId !== null) return;
+      const touch = e.changedTouches[0];
+      lookTouchId = touch.identifier;
+      lastLook = { x: touch.clientX, y: touch.clientY };
+    }, {passive:false});
+
+    touchLookZone.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for(let i=0; i<e.changedTouches.length; i++) {
+        if(e.changedTouches[i].identifier === lookTouchId) {
+          const touch = e.changedTouches[i];
+          const dx = touch.clientX - lastLook.x;
+          const dy = touch.clientY - lastLook.y;
+          lastLook = { x: touch.clientX, y: touch.clientY };
+          yaw -= dx * 0.004;
+          pitch = clamp(pitch - dy * 0.004, -1.45, 1.45);
+          break;
+        }
+      }
+    }, {passive:false});
+
+    const resetLook = e => {
+      for(let i=0; i<e.changedTouches.length; i++) {
+        if(e.changedTouches[i].identifier === lookTouchId) {
+          lookTouchId = null; break;
+        }
+      }
+    };
+    touchLookZone.addEventListener('touchend', resetLook);
+    touchLookZone.addEventListener('touchcancel', resetLook);
+  }
+
+  // Botones táctiles de Disparo, Salto, Recarga y Revivir
+  const bindTouchBtn = (id, onDown, onUp) => {
+    const btn = $(id);
+    if(!btn) return;
+    btn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      btn.classList.add('active');
+      if(onDown) onDown();
+    }, {passive:false});
+    const handleUp = e => {
+      e.preventDefault();
+      btn.classList.remove('active');
+      if(onUp) onUp();
+    };
+    btn.addEventListener('touchend', handleUp);
+    btn.addEventListener('touchcancel', handleUp);
+  };
+
+  bindTouchBtn('#tBtnFire', () => { if(playing && playerState === 'alive') firing = true; }, () => { firing = false; });
+  bindTouchBtn('#tBtnJump', () => { if(jumpY <= 0 && playerState === 'alive') vy = 4.6; });
+  bindTouchBtn('#tBtnReload', () => { if(playing && !reloading && ammo < MAG && reserve > 0) startReload(); });
+  bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });
+
+
   addEventListener('resize',()=>{
     if(camera&&renderer) {
       camera.aspect=innerWidth/innerHeight;
@@ -1376,7 +1585,8 @@ function initGameEngine() {
   });
 }
 
-// Iniciar motor cuando el DOM esté completamente listo
+
+  // Iniciar motor cuando el DOM esté completamente listo
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initGameEngine);
 } else {
