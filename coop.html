@@ -384,7 +384,13 @@ logDiag('Verificando motor WebGL...', 'info');
 
 function initGameEngine() {
   if (typeof THREE === 'undefined') {
-    logDiag('Cargando Three.js desde servidor de respaldo...', 'info');
+    logDiag('Iniciando cargador de respaldo multi-CDN...', 'info');
+    if(window.__initEngineLoaders){
+      window.__initEngineLoaders(function(){
+        setTimeout(initGameEngine, 50);
+      });
+      return;
+    }
     setTimeout(initGameEngine, 100);
     return;
   }
