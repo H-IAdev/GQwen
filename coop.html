@@ -690,6 +690,27 @@ function initGameEngine() {
     // ILUMINACIÓN AMBIENTAL DE SODIO CÁLIDA INTERIOR (0xffaa22)
     const sodLight2=new THREE.PointLight(0xffaa22, 3.5, 20);
     sodLight2.position.set(2.4, 3.2, -16.0);intGroup.add(sodLight2);
+
+    // PASO 3: ARQUITECTURA INTERIOR (BALCÓN DE MEZZANINE, ESCALERAS Y CABINA DE CONTROL)
+    const mFloor=box(6.0, .25, 10.0, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
+
+    // Escalera Sur (z = -12 a -4)
+    for(let step=0; step<14; step++){
+      const stMesh=box(2.2, .26, .55, concMat);
+      stMesh.position.set(2.4, step * .25 + .13, -4 - step * .55);
+      stMesh.receiveShadow=true;intGroup.add(stMesh);
+    }
+
+    // Escalera Norte (z = 4 a 12)
+    for(let step=0; step<14; step++){
+      const stMesh=box(2.2, .26, .55, concMat);
+      stMesh.position.set(2.4, step * .25 + .13, 4 + step * .55);
+      stMesh.receiveShadow=true;intGroup.add(stMesh);
+    }
+
+    // Cabina de Control de Seguridad con Monitores Iluminados Neón (0x3f8cff)
+    const term=box(1.8, .9, .5, termMat);term.position.set(2.4, 4.4, 0);term.layers.set(2);intGroup.add(term);
+    const termLight=new THREE.PointLight(0x3f8cff, 4.0, 12);termLight.position.set(2.4, 4.6, 0.5);intGroup.add(termLight);
     
     // Balcón de Mezzanine Central (Y = 3.5m)
     const mFloor=box(6, .25, 10, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
