@@ -651,17 +651,18 @@ function initGameEngine() {
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
     }
-    // Cajas de Munición 3D Recogibles
-    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.3,roughness:.6},.3);
-    const ammoPositions=[-40,-20,0,20,40];
+    // Cajas de Munición 3D Recogibles en la Plataforma de la Estación
+    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.4,roughness:.5},.4);
+    const ammoSectors=[0.05, 0.15, 0.45, 0.55, 0.85, 0.95];
     window.ammoCrates=[];
-    ammoPositions.forEach((zPos,idx)=>{
+    ammoSectors.forEach((tVal)=>{
+      const p=trackPos(tVal), n=outN(tVal);
       const crGroup=new THREE.Group();
-      const bMesh=box(.45,.3,.3,ammoCrateMat);bMesh.position.y=.15;crGroup.add(bMesh);
-      const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:.6}));
-      glowSpr.position.set(0,.3,0);glowSpr.scale.set(.8,.8,.8);crGroup.add(glowSpr);
-      crGroup.position.set(2.4,.15,zPos);scene.add(crGroup);
-      window.ammoCrates.push({g:crGroup,z:zPos,cooldown:0,active:true});
+      const bMesh=box(.5,.32,.32,ammoCrateMat);bMesh.position.y=.16;bMesh.castShadow=true;crGroup.add(bMesh);
+      const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:.8}));
+      glowSpr.position.set(0,.35,0);glowSpr.scale.set(1.0,1.0,1.0);crGroup.add(glowSpr);
+      crGroup.position.set(p.x + n.x * 2.1, 0.16, p.z + n.z * 2.1);scene.add(crGroup);
+      window.ammoCrates.push({g:crGroup,cooldown:0,active:true});
     });
 
     // Rieles
@@ -843,8 +844,9 @@ function initGameEngine() {
     const g=new THREE.Group();
     const isJuggernaut = type === 'boss_juggernaut';
     const isStalker = type === 'boss_stalker';
-    const skinColor = isJuggernaut ? 0x0c120e : isStalker ? 0x2e0828 : pick(SKINS);
-    const clothColor = isJuggernaut ? 0x05070a : isStalker ? 0x180516 : pick(CLOTH);
+    const isRockHurler = type === 'boss_rockhurler';
+    const skinColor = isJuggernaut ? 0x0c120e : isStalker ? 0x2e0828 : isRockHurler ? 0x38322c : pick(SKINS);
+    const clothColor = isJuggernaut ? 0x05070a : isStalker ? 0x180516 : isRockHurler ? 0x1c1714 : pick(CLOTH);
     const skin=std({color:skinColor,roughness:.8},.1);
     const clothM=std({color:clothColor,roughness:.95},.08).clone();
     const dark=std({color:0x111317,roughness:.9},.08);
@@ -904,10 +906,10 @@ function initGameEngine() {
   }
   function hurtZombie(z,part,pt,customDmg=null){
     if(z.dead)return;const hs=part==='head';
-    const dmg = customDmg !== null ? customDmg : (hs ? 22 : 10);
-    z.hp-=dmg;z.hitT=.15;
-    burst(pt,'ichor',hs?9:5,2.4);
-    if(z.hp<=0)killZombie(z,hs);else{hitmark(false);sfx.flesh();}
+    const dmg = customDmg !== null ? customDmg : (hs ? 50 : 25);
+    z.hp-=dmg;z.hitT=.22;
+    burst(pt,'ichor',hs?12:7,2.8);
+    if(z.hp<=0)killZombie(z,hs);else{hitmark(hs);sfx.flesh();}
     netSend({type:'zhit',id:z.id,dmg});
   }
   function getAlivePlayers(){
@@ -956,8 +958,13 @@ function initGameEngine() {
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       z.g.position.set(p.x+n.x*z.lat,Math.max(0,z.g.position.y),p.z+n.z*z.lat);
       z.g.rotation.y=Math.atan2(tn.x*Math.sign(dir),tn.z*Math.sign(dir));
-      if(z.hitT>0){z.clothM.emissive.set(0xff2010);z.clothM.emissiveIntensity=z.hitT*5;}
-      else z.clothM.emissiveIntensity=0;}
+      if(z.hitT>0){
+        z.clothM.emissive.set(0xff0000);z.clothM.emissiveIntensity=4.0;
+        if(z.head&&z.head.material) { z.head.material.emissive.set(0xff0000); z.head.material.emissiveIntensity=3.5; }
+      }else{
+        z.clothM.emissiveIntensity=0;
+        if(z.head&&z.head.material) z.head.material.emissiveIntensity=0;
+      }}
   }
 
   /* ===== ZOMBIS REMOTOS ===== */
@@ -1059,9 +1066,9 @@ function initGameEngine() {
   function startWave(n){wave=n;queue=[];const N=numPlayers();
     queue.push('walker','walker','runner');
     if(n>=2) queue.push('boss_juggernaut');
-    if(n>=3) queue.push('boss_stalker');
-    if(n>=4) queue.push('boss_juggernaut','brute');
-    if(n>=5) queue.push('boss_juggernaut','boss_stalker');
+    if(n>=3) queue.push('boss_stalker','boss_rockhurler');
+    if(n>=4) queue.push('boss_juggernaut','boss_rockhurler','brute');
+    if(n>=5) queue.push('boss_juggernaut','boss_stalker','boss_rockhurler');
     queue.sort(()=>Math.random()-.5);
     spawnInt=Math.max(2.0, 4.0 - n * 0.2);spawnT=1.0;
     hpMul=(1 + (n-1)*0.7) * (1 + 0.3 * (N - 1));
@@ -1148,23 +1155,40 @@ function initGameEngine() {
   function startReload(){if(reloading||reserve<=0)return;reloading=true;relT=0;sfx.reload();
     $('#relBar').classList.add('on');$('#relTxt').textContent='RELOADING';}
   function punch(){
-    punchCd=.24;punchT=1;punchSide=1-punchSide;
-    shake=Math.max(shake,.012);sfx.flesh();
+    punchCd=.18;punchT=1;punchSide=1-punchSide;
+    shake=Math.max(shake,.015);sfx.flesh();
     _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
     ray.set(camera.getWorldPosition(_v2),_v1);
-    ray.far=2.2;
+    ray.far=3.2;
     const hits=ray.intersectObjects(scene.children,true);
     ray.far=90;
+    let hitFound=false;
     if(hits.length){
-      const h=hits[0];
-      const z=h.object.userData.z;
-      if(z){
-        const hs=h.object.userData.part==='head';
-        const pDmg=hs?28:18;
-        burst(h.point,'ichor',hs?12:7,3.0);hitmark(hs);
-        if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:pDmg});
-        else hurtZombie(z,h.object.userData.part,h.point,pDmg);
-      }else burst(h.point,'spark',4,2.2);
+      for(const h of hits){
+        const z=h.object.userData.z;
+        if(z&&!z.dead){
+          const hs=h.object.userData.part==='head';
+          const pDmg=hs?60:35;
+          burst(h.point,'ichor',hs?14:8,3.2);hitmark(hs);
+          if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:pDmg});
+          else hurtZombie(z,h.object.userData.part,h.point,pDmg);
+          hitFound=true;break;
+        }
+      }
+    }
+    if(!hitFound){
+      // Direct Proximity Check Fallback (punches zombies right in front)
+      const pPos=camera.position;
+      for(const z of zombies){
+        if(z.dead)continue;
+        const d=z.g.position.distanceTo(pPos);
+        if(d<2.8){
+          burst(z.g.position,'ichor',10,2.8);hitmark(false);
+          hurtZombie(z,'body',z.g.position,35);
+          hitFound=true;break;
+        }
+      }
+      if(!hitFound) burst(camera.getWorldPosition(_v2).addScaledVector(_v1,1.5),'spark',3,1.8);
     }
   }
 
@@ -1191,8 +1215,8 @@ function initGameEngine() {
       if(z){
         if(z.isRemote){
           const hs=h.object.userData.part==='head';
-          const bDmg=hs?22:10;
-          burst(h.point,'ichor',hs?9:5,2.4);hitmark(hs);sfx.flesh();
+          const bDmg=hs?50:25;
+          burst(h.point,'ichor',hs?12:7,2.8);hitmark(hs);sfx.flesh();
           netSend({type:'zhit',id:z.id,dmg:bDmg});
         }else{
           hurtZombie(z,h.object.userData.part,h.point);
