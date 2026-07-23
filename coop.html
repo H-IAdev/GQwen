@@ -592,7 +592,10 @@ function initGameEngine() {
       const g=new THREE.Group();scene.add(g);sectorGroups.push(g);
       const t0=s/SECTORS,t1=(s+1)/SECTORS;
       const st=stationness((t0+t1)/2);
-      const outerW=lerp(3.0,5.8,st),wH=lerp(3.4,4.3,st);
+      const outerW=lerp(3.0,5.8,st);
+      // ALTURA DE BÓVEDA DE TECHO ELEVADA DE 4.3M A 5.2M
+      const wH=lerp(4.2,5.2,st);
+
       // Suelo
       const fp=[],fi=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
@@ -601,6 +604,7 @@ function initGameEngine() {
       const fg=new THREE.BufferGeometry();
       fg.setAttribute('position',new THREE.Float32BufferAttribute(fp,3));fg.setIndex(fi);fg.computeVertexNormals();
       const fm=new THREE.Mesh(fg,st>.3?M.floor:M.concrete);fm.receiveShadow=true;g.add(fm);
+
       // Pared exterior
       const wp=[],wi=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
@@ -610,11 +614,12 @@ function initGameEngine() {
       const wg=new THREE.BufferGeometry();
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
-      // Pared interior 100% sólida (Sectores 1..7) + Marco Portal (Sector 0)
+
+      // PARED INTERIOR 100% SÓLIDA EN SECTORES 1..7 (CERO TRANSPARENCIA) + PORTAL CON PUERTA EN SECTOR 0
       if(s !== 0){
         const iw=[],ii=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,4.3,z);}
+          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);}
         for(let i=0;i<SPS;i++){const a=i*2;ii.push(a,a+1,a+2,a+1,a+3,a+2);}
         const ig=new THREE.BufferGeometry();
         ig.setAttribute('position',new THREE.Float32BufferAttribute(iw,3));ig.setIndex(ii);ig.computeVertexNormals();
@@ -622,22 +627,33 @@ function initGameEngine() {
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
       } else {
+        // SECTOR 0: MARCO DE PORTAL CON PUERTA BLINDADA DE SEGURIDAD
         const p10=trackPos(t0), n0=outN(t0);
-        const pFrameL=box(.45, 4.3, 1.2, M.concrete);
-        pFrameL.position.set(p10.x + n0.x*-3, 2.15, p10.z - 4.5);g.add(pFrameL);
-        const pFrameR=box(.45, 4.3, 1.2, M.concrete);
-        pFrameR.position.set(p10.x + n0.x*-3, 2.15, p10.z + 4.5);g.add(pFrameR);
-        const pFrameTop=box(.45, 1.1, 10.2, M.concrete);
-        pFrameTop.position.set(p10.x + n0.x*-3, 3.75, p10.z);g.add(pFrameTop);
+        const pFrameL=box(.45, wH, 1.2, M.concrete);
+        pFrameL.position.set(p10.x + n0.x*-3, wH/2, p10.z - 4.5);g.add(pFrameL);
+        const pFrameR=box(.45, wH, 1.2, M.concrete);
+        pFrameR.position.set(p10.x + n0.x*-3, wH/2, p10.z + 4.5);g.add(pFrameR);
+        const pFrameTop=box(.45, 1.2, 10.2, M.concrete);
+        pFrameTop.position.set(p10.x + n0.x*-3, wH - .6, p10.z);g.add(pFrameTop);
+
+        // PUERTA METALICA BLINDADA DE SEGURIDAD EN SECTOR 0 (portalDoor)
+        const portalDoor=box(.15, 3.8, 8.0, M.steel);
+        portalDoor.position.set(p10.x + n0.x*-2.85, 1.9, p10.z);g.add(portalDoor);
+
+        const doorLedMat=std({color:0xff0000,emissive:0xff0044,emissiveIntensity:4.5,roughness:.2},.2);
+        const doorLed=box(.2, .18, .6, doorLedMat);
+        doorLed.position.set(p10.x + n0.x*-2.7, 3.6, p10.z);g.add(doorLed);
       }
-      // Techo
-      const cp=[],ci=[];const cIn=st>.3?.5:-3;
+
+      // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
+      const cp=[],ci=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        cp.push(p.x+n.x*cIn,wH,p.z+n.z*cIn, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
+        cp.push(p.x+n.x*-3.2,wH,p.z+n.z*-3.2, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
       for(let i=0;i<SPS;i++){const a=i*2;ci.push(a,a+1,a+2,a+1,a+3,a+2);}
       const cg=new THREE.BufferGeometry();
       cg.setAttribute('position',new THREE.Float32BufferAttribute(cp,3));cg.setIndex(ci);cg.computeVertexNormals();
       g.add(new THREE.Mesh(cg,M.ceil));
+
       // Vías
       const tp=[],ti=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
@@ -646,7 +662,8 @@ function initGameEngine() {
       const tg=new THREE.BufferGeometry();
       tg.setAttribute('position',new THREE.Float32BufferAttribute(tp,3));tg.setIndex(ti);tg.computeVertexNormals();
       g.add(new THREE.Mesh(tg,M.dark));
-      // PASO 5: PROPS, SEÑALÉTICA Y GRAFITIS URBANOS
+
+      // Props
       if(st>.5){
         for(let ci2=0;ci2<2;ci2++){const ct=t0+(t1-t0)*(.3+ci2*.4);
           const cp2=trackPos(ct),cn=outN(ct);
@@ -679,19 +696,19 @@ function initGameEngine() {
     const metalGateMat=std({color:0x0d1015,metalness:.9,roughness:.3},.6);
     const termMat=std({color:0x090b0e,emissive:0x3f8cff,emissiveIntensity:.9,roughness:.3},.5);
 
-    // PASO 2: CIMENTACIÓN Y PISO DEL MAPA SECRETO CENTRAL (secretMapBase)
+    // CIMENTACIÓN Y PISO DEL MAPA SECRETO CENTRAL (secretMapBase)
     const secretMapBase=box(12.0, .3, 24.0, concMat);
     secretMapBase.position.set(2.4, -.12, -16.0);secretMapBase.receiveShadow=true;intGroup.add(secretMapBase);
 
     const secretMapCeil=box(12.0, .3, 24.0, M.ceil);
-    secretMapCeil.position.set(2.4, 4.35, -16.0);intGroup.add(secretMapCeil);
+    secretMapCeil.position.set(2.4, 5.15, -16.0);intGroup.add(secretMapCeil);
 
     // ILUMINACIÓN AMBIENTAL DE SODIO CÁLIDA INTERIOR (0xffaa22)
     const sodLight2=new THREE.PointLight(0xffaa22, 3.5, 20);
-    sodLight2.position.set(2.4, 3.2, -16.0);intGroup.add(sodLight2);
-    const sodLight=new THREE.PointLight(0xffaa22, 2.8, 14);sodLight.position.set(2.4, 2.8, 0);intGroup.add(sodLight);
+    sodLight2.position.set(2.4, 3.8, -16.0);intGroup.add(sodLight2);
+    const sodLight=new THREE.PointLight(0xffaa22, 2.8, 14);sodLight.position.set(2.4, 3.2, 0);intGroup.add(sodLight);
 
-    // PASO 3: BALCÓN DE MEZZANINE, ESCALERAS 3D Y CABINA DE CONTROL
+    // BALCÓN DE MEZZANINE, ESCALERAS 3D Y CABINA DE CONTROL
     const mFloor=box(6.0, .25, 10.0, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
 
     // Escalera Sur (z = -12 a -4)
@@ -712,7 +729,7 @@ function initGameEngine() {
     const secBooth=box(1.8, .9, .5, termMat);secBooth.position.set(2.4, 4.4, 0);secBooth.layers.set(2);intGroup.add(secBooth);
     const secBoothLight=new THREE.PointLight(0x3f8cff, 4.0, 12);secBoothLight.position.set(2.4, 4.6, 0.5);intGroup.add(secBoothLight);
 
-    // PASO 4: CASILLERO MAESTRO DE MUNICIÓN EN MEZZANINE Y MOLINETES DE SEGURIDAD
+    // CASILLERO MAESTRO DE MUNICIÓN EN MEZZANINE Y MOLINETES DE SEGURIDAD
     const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.8,roughness:.3},.5);
     const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
 
