@@ -412,9 +412,10 @@ function initGameEngine() {
   const METERED_API='https://shoot.metered.live/api/v1/turn/credentials?apiKey=c41ca05d8045fb71d6d190584d0ede531293';
   const METERED_FALLBACK=[
     {urls:'stun:stun.relay.metered.ca:80'},
-    {urls:'turn:global.relay.metered.ca:80',username:'daea0099fa352a8a00f1a2bf',credential:'cj6m/Q3QepuD79ax'},
+    {urls:'stun:stun.relay.metered.ca:443'},
+    {urls:'turn:global.relay.metered.ca:80?transport=udp',username:'daea0099fa352a8a00f1a2bf',credential:'cj6m/Q3QepuD79ax'},
     {urls:'turn:global.relay.metered.ca:80?transport=tcp',username:'daea0099fa352a8a00f1a2bf',credential:'cj6m/Q3QepuD79ax'},
-    {urls:'turn:global.relay.metered.ca:443',username:'daea0099fa352a8a00f1a2bf',credential:'cj6m/Q3QepuD79ax'},
+    {urls:'turn:global.relay.metered.ca:443?transport=tcp',username:'daea0099fa352a8a00f1a2bf',credential:'cj6m/Q3QepuD79ax'},
     {urls:'turns:global.relay.metered.ca:443?transport=tcp',username:'daea0099fa352a8a00f1a2bf',credential:'cj6m/Q3QepuD79ax'},
     {urls:'stun:stun.l.google.com:19302'}
   ];
@@ -1039,7 +1040,24 @@ function initGameEngine() {
   const PCOLORS=[0xffb400,0x3f8cff,0x14a44d,0xff4b3e];
   let myColor=PCOLORS[0];
   function genCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=c[Math.random()*c.length|0];return s;}
-  function peerConfig(){return{config:{iceServers,sdpSemantics:'unified-plan'},debug:1};}
+  function peerConfig(){return{config:{iceServers,sdpSemantics:'unified-plan',iceCandidatePoolSize:10},debug:1};}
+
+  function setupIceWatchdog(conn, peerName){
+    if(!conn || !conn.peerConnection) return;
+    const pc = conn.peerConnection;
+    pc.oniceconnectionstatechange = () => {
+      const st = pc.iceConnectionState;
+      logDiag('WebRTC ICE ('+peerName+'): ' + st, st === 'connected' || st === 'completed' ? 'ok' : 'info');
+      if(st === 'checking') setNetStatus('CROSS-CITY CONNECTING...', 'info');
+      else if(st === 'connected' || st === 'completed') setNetStatus('WAN ONLINE (P2P OK)', 'ok');
+      else if(st === 'disconnected') {
+        setNetStatus('RECONNECTING WAN...', 'err');
+        try{ if(pc.restartIce) pc.restartIce(); }catch(e){}
+      } else if(st === 'failed') {
+        setNetStatus('WAN ICE FAILED — RETRYING', 'err');
+      }
+    };
+  }
   function buildPlayerMesh(color){const g=new THREE.Group();
     const m=std({color,roughness:.6,metalness:.2},.3);
     g.add(setTF(box(.4,.55,.25,m),[0,1.05,0]));
@@ -1087,7 +1105,7 @@ function initGameEngine() {
         logDiag('Sala P2P Creada: ' + code, 'ok');
       });
       peer.on('connection',conn=>{
-        conn.on('open',()=>{
+        conn.on('open',()=>{ setupIceWatchdog(conn, conn.peer);
           const id=conn.peer;const idx=Object.keys(remotePlayers).length+1;
           remotePlayers[id]={conn,mesh:buildPlayerMesh(PCOLORS[idx%4]),
             x:0,y:0,z:0,yaw:0,hp:100,state:'alive',trackT:.5,trackLat:3,color:PCOLORS[idx%4]};
