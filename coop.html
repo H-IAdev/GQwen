@@ -614,8 +614,8 @@ function initGameEngine() {
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
 
-      // PARED INTERIOR 100% SÓLIDA EN SECTORES 0, 2..7 | PUERTA EN SECTOR 1
-      if(s !== 1){
+      // PARED INTERIOR 100% SÓLIDA EN SECTORES 0,1,2,4..7 | PUERTA EN SECTOR 3
+      if(s !== 3){
         const iw=[],ii=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
           const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);}
@@ -626,7 +626,7 @@ function initGameEngine() {
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
       } else {
-        // SECTOR 1: PUERTA DE ACCESO Y MARCO DE PORTAL BLINDADO
+        // SECTOR 3: PUERTA DE ACCESO AL MAPA SECRETO CENTRAL
         const p10=trackPos(t0), n0=outN(t0);
         const pFrameL=box(.45, wH, 1.2, M.concrete);
         pFrameL.position.set(p10.x + n0.x*-3, wH/2, p10.z - 4.5);g.add(pFrameL);
@@ -927,8 +927,9 @@ function initGameEngine() {
     walker:{hp:25,spd:[3.2,4.0],dmg:12,score:10,sc:1},
     runner:{hp:18,spd:[5.5,6.8],dmg:10,score:15,sc:.88},
     brute:{hp:60,spd:[2.5,3.2],dmg:20,score:30,sc:1.35},
-    boss_juggernaut:{hp:450,spd:[2.6,3.2],dmg:45,score:250,sc:2.4},
-    boss_stalker:{hp:280,spd:[6.5,8.0],dmg:30,score:180,sc:1.6}
+    boss_juggernaut:{hp:550,spd:[2.6,3.2],dmg:45,score:350,sc:2.4,armor:.45},
+    boss_stalker:{hp:280,spd:[6.5,8.0],dmg:30,score:180,sc:1.6,armor:.30},
+    boss_rockhurler:{hp:380,spd:[2.2,2.8],dmg:35,score:220,sc:2.1,armor:.35}
   };
 
   function buildZombieMesh(type){
@@ -985,6 +986,9 @@ function initGameEngine() {
       sfx.down();
     }else if(type==='boss_stalker'){
       feed('⚡ BOSS SPAWNED: NEON STALKER ('+Math.round(z.hp)+' HP)','k');
+      sfx.down();
+    }else if(type==='boss_rockhurler'){
+      feed('🪨 BOSS SPAWNED: ROCK HURLER ('+Math.round(z.hp)+' HP)','k');
       sfx.down();
     }else if(Math.random()<.5){
       sfx.moan(6);
@@ -1217,21 +1221,40 @@ function initGameEngine() {
   /* ===== OLEADAS ===== */
   function numPlayers(){return 1+Object.keys(remotePlayers).length;}
   function startWave(n){wave=n;queue=[];const N=numPlayers();
-    queue.push('walker','walker','runner');
-    if(n>=2) queue.push('boss_juggernaut');
-    if(n>=3) queue.push('boss_stalker','boss_rockhurler');
-    if(n>=4) queue.push('boss_juggernaut','boss_rockhurler','brute');
-    if(n>=5) queue.push('boss_juggernaut','boss_stalker','boss_rockhurler');
-    queue.sort(()=>Math.random()-.5);
-    spawnInt=Math.max(2.0, 4.0 - n * 0.2);spawnT=1.0;
     hpMul=(1 + (n-1)*0.7) * (1 + 0.3 * (N - 1));
     spMul=1 + Math.min(0.3, (n-1) * 0.05);
-    const hasBoss = n >= 2;
-    if(hasBoss){
-      banner('⚠️ ELITE BOSS DETECTED ⚠️', 'TOXIC CONTAINMENT BREACH — HIGH THREAT MONSTER INCOMING', true, 4200);
-      feed('⚠️ BOSS WARNING: OLEADA '+n,'k');
-    }else{
-      banner('WAVE '+String(n).padStart(2,'0'), 'HOLD THE LOOP LINE', false, 2800);
+    spawnInt=Math.max(1.8, 4.0 - n * 0.2);spawnT=1.0;
+
+    // BOSS FINAL LOGIC: Juggernaut puede aparecer en CUALQUIER ola con prob creciente
+    // Cuando aparece → EXCLUSIVO: solo walkers + runners, cero otros bosses
+    const finalBossProb = Math.min(0.90, 0.20 + (n-1) * 0.08);
+    const finalBossWave = n >= 1 && Math.random() < finalBossProb;
+
+    // BOSS ROCKHURLER: aparece siempre desde ola 2
+    const rockhurlerWave = !finalBossWave && n >= 2;
+
+    if(finalBossWave){
+      // OLEADA BOSS FINAL: solo walkers/runners + Juggernaut exclusivo
+      for(let i=0;i<Math.min(3+n,8);i++) queue.push(Math.random()<.55?'walker':'runner');
+      queue.push('boss_juggernaut');
+      queue.sort(()=>Math.random()-.5);
+      banner('🚨 FINAL BOSS INCOMING 🚨','ALPHA JUGGERNAUT — CONTAINMENT FAILURE',true,5000);
+      feed('🚨 BOSS FINAL: ALPHA JUGGERNAUT — OLEADA '+n,'k');
+    } else if(rockhurlerWave){
+      // OLEADA CON BOSS ROCKHURLER + posible Stalker en olas altas
+      for(let i=0;i<Math.min(2+n,7);i++) queue.push(Math.random()<.55?'walker':'runner');
+      queue.push('boss_rockhurler');
+      if(n>=4) queue.push('boss_stalker');
+      if(n>=6) queue.push('brute','brute');
+      queue.sort(()=>Math.random()-.5);
+      banner('⚠️ ROCK HURLER DETECTED ⚠️','TOXIC BOULDER ENTITY INCOMING — TAKE COVER',true,4200);
+      feed('⚠️ ROCK HURLER — OLEADA '+n,'k');
+    } else {
+      // OLEADA NORMAL
+      for(let i=0;i<Math.min(3+n,10);i++) queue.push(Math.random()<.6?'walker':Math.random()<.5?'runner':'brute');
+      if(n>=3) queue.push('boss_stalker');
+      queue.sort(()=>Math.random()-.5);
+      banner('WAVE '+String(n).padStart(2,'0'),'HOLD THE LOOP LINE',false,2800);
     }
     sfx.wave();hudScore();netSend({type:'wave',n});}
 
