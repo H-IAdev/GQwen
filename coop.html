@@ -610,14 +610,27 @@ function initGameEngine() {
       const wg=new THREE.BufferGeometry();
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
-      // Pared interior
-      if(st<.7){const iw=[],ii=[];
+      // PASO 1: PARED INTERIOR 100% SÓLIDA E IMPENETRABLE EN SECTORES 1..7 (CERO TRANSPARENCIA)
+      if(s !== 0){
+        const iw=[],ii=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,3.4,z);}
+          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,4.3,z);}
         for(let i=0;i<SPS;i++){const a=i*2;ii.push(a,a+1,a+2,a+1,a+3,a+2);}
         const ig=new THREE.BufferGeometry();
         ig.setAttribute('position',new THREE.Float32BufferAttribute(iw,3));ig.setIndex(ii);ig.computeVertexNormals();
-        g.add(new THREE.Mesh(ig,M.tileDk));}
+        const innerSolidMesh=new THREE.Mesh(ig,M.tile);
+        innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
+        g.add(innerSolidMesh);
+      } else {
+        // SECTOR 0: ÚNICO PORTAL DE ACCESO / MARCO DE OBSERVACIÓN AL MAPA SECRETO CENTRAL
+        const p10=trackPos(t0), n0=outN(t0);
+        const pFrameL=box(.45, 4.3, 1.2, M.concrete);
+        pFrameL.position.set(p10.x + n0.x*-3, 2.15, p10.z - 4.5);g.add(pFrameL);
+        const pFrameR=box(.45, 4.3, 1.2, M.concrete);
+        pFrameR.position.set(p10.x + n0.x*-3, 2.15, p10.z + 4.5);g.add(pFrameR);
+        const pFrameTop=box(.45, 1.1, 10.2, M.concrete);
+        pFrameTop.position.set(p10.x + n0.x*-3, 3.75, p10.z);g.add(pFrameTop);
+      }
       // Techo
       const cp=[],ci=[];const cIn=st>.3?.5:-3;
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
