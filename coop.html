@@ -1108,7 +1108,7 @@ function initGameEngine() {
         conn.on('open',()=>{ setupIceWatchdog(conn, conn.peer);
           const id=conn.peer;const idx=Object.keys(remotePlayers).length+1;
           remotePlayers[id]={conn,mesh:buildPlayerMesh(PCOLORS[idx%4]),
-            x:0,y:0,z:0,yaw:0,hp:100,state:'alive',trackT:.5,trackLat:3,color:PCOLORS[idx%4]};
+            x:0,y:1.7,z:-30,yaw:0,hp:100,state:'alive',trackT:.5,trackLat:3,color:PCOLORS[idx%4]};
           updatePlayerList();feed('PLAYER JOINED','h');$('#playerCount').textContent=numPlayers();
           setNetStatus('HOST · '+Object.keys(remotePlayers).length+' CONNECTED','ok');
         });
@@ -1172,8 +1172,18 @@ function initGameEngine() {
 
   function handleNetData(from,d){
     switch(d.type){
-      case'player':{const rp=remotePlayers[from];if(!rp)return;
-        Object.assign(rp,{x:d.x,y:d.y,z:d.z,yaw:d.yaw,hp:d.hp,state:d.state,trackT:d.trackT,trackLat:d.trackLat});break;}
+      case'player':{
+        let rp=remotePlayers[from];
+        if(!rp){
+          const idx=Object.keys(remotePlayers).length+1;
+          rp={mesh:buildPlayerMesh(PCOLORS[idx%4]),x:d.x,y:d.y,z:d.z,yaw:d.yaw,hp:d.hp,state:d.state,trackT:d.trackT,trackLat:d.trackLat,color:PCOLORS[idx%4]};
+          remotePlayers[from]=rp;
+          updatePlayerList();
+          $('#playerCount').textContent=numPlayers();
+        }else{
+          Object.assign(rp,{x:d.x,y:d.y,z:d.z,yaw:d.yaw,hp:d.hp,state:d.state,trackT:d.trackT,trackLat:d.trackLat});
+        }
+        break;}
       case'pstate':{if(isHost){const rp=remotePlayers[from];if(rp)rp.state=d.state;
         netSend({type:'pstateEcho',from,state:d.state});checkGameOver();}
         break;}
@@ -1237,8 +1247,9 @@ function initGameEngine() {
 
   function updateRemotePlayers(dt){
     for(const rp of Object.values(remotePlayers)){if(!rp.mesh)continue;
-      rp.mesh.position.lerp(_v1.set(rp.x,rp.y-1.65,rp.z),dt*12);
-      rp.mesh.rotation.y=rp.yaw;
+      const targetY=Math.max(0,(rp.y||1.7)-1.7);
+      rp.mesh.position.lerp(_v1.set(rp.x||0,targetY,rp.z||-30),dt*12);
+      rp.mesh.rotation.y=rp.yaw||0;
       if(rp.state==='downed'||rp.state==='dead')rp.mesh.rotation.x=lerp(rp.mesh.rotation.x,-1.4,dt*5);
       else rp.mesh.rotation.x=lerp(rp.mesh.rotation.x,0,dt*5);}
   }
