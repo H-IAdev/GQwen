@@ -1101,10 +1101,40 @@ function initGameEngine() {
   function spawnPickup(pos){if(pickups.length>5){scene.remove(pickups.shift().m);}
     const m=new THREE.Mesh(new THREE.BoxGeometry(.2,.13,.28),pickMat);
     m.position.copy(pos);m.position.y=.16;m.layers.set(2);scene.add(m);pickups.push({m,t:R(0,6)});}
-  function updatePickups(dt){for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.t+=dt;
-    p.m.position.y=.16+Math.sin(p.t*3)*.04;p.m.rotation.y+=dt*2.2;
-    if(p.m.position.distanceTo(camera.position)<1){reserve+=15;sfx.pickup();feed('+15 ROUNDS','');
-      scene.remove(p.m);pickups.splice(i,1);hudAmmo();}}}
+  function updatePickups(dt){
+    const cP=camera.position;
+    // 1. Dropped Zombie Ammo Boxes (2D Proximity < 2.4m)
+    for(let i=pickups.length-1;i>=0;i--){
+      const p=pickups[i];p.t+=dt;
+      p.m.position.y=.16+Math.sin(p.t*3)*.04;p.m.rotation.y+=dt*2.2;
+      const d2D = Math.hypot(p.m.position.x - cP.x, p.m.position.z - cP.z);
+      if(d2D < 2.4){
+        burst(p.m.position, 'spark', 12, 2.5);
+        reserve=Math.min(240, reserve+30);
+        sfx.pickup();feed('⚡ +30 ROUNDS PICKED UP','h');
+        scene.remove(p.m);pickups.splice(i,1);hudAmmo();
+      }
+    }
+    // 2. Station Platform 3D Military Ammo Crates (2D Proximity < 3.8m)
+    if(window.ammoCrates){
+      for(const cr of window.ammoCrates){
+        if(!cr.active){
+          cr.cooldown-=dt;
+          if(cr.cooldown<=0){cr.active=true;cr.g.visible=true;cr.g.scale.setScalar(1);}
+          continue;
+        }
+        const d2D = Math.hypot((cr.x||cr.g.position.x) - cP.x, (cr.z||cr.g.position.z) - cP.z);
+        if(d2D < 3.8){
+          burst(cr.g.position,'spark',22,3.8);
+          reserve=Math.min(240, reserve+60);
+          sfx.pickup();feed('⚡ AMMO REFILLED +60 ROUNDS','h');hudAmmo();
+          cr.active=false;cr.cooldown=10;cr.g.visible=false;cr.g.scale.setScalar(0);
+          banner('AMMO REFILLED (+60 ROUNDS)', 'SUPPLY CRATE COLLECTED FROM PLATFORM', false, 2400);
+          break;
+        }
+      }
+    }
+  }
 
   /* ===== JUGADOR Y ESTADO ===== */
   let playing=false,locked=false;
