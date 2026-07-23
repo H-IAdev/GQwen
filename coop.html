@@ -524,6 +524,14 @@ function initGameEngine() {
   function glowCnv(){const[c,x]=cnv(64,64);const g=x.createRadialGradient(32,32,1,32,32,30);
     g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(.4,'rgba(255,255,255,.25)');g.addColorStop(1,'rgba(255,255,255,0)');
     x.fillStyle=g;x.fillRect(0,0,64,64);return c;}
+  function whiteTileCnv(){const[c,x]=cnv(256,256);
+    x.fillStyle='#ece9e2';x.fillRect(0,0,256,256);
+    x.strokeStyle='#bcbaaf';x.lineWidth=3;
+    for(let i=0;i<=256;i+=32){x.beginPath();x.moveTo(0,i);x.lineTo(256,i);x.stroke();}
+    for(let r=0;r<8;r++){const off=(r%2)*32;
+      for(let j=off;j<=256;j+=64){x.beginPath();x.moveTo(j,r*32);x.lineTo(j,(r+1)*32);x.stroke();}}
+    return c;}
+
   function signCnv(txt,w=512,h=140,bg='#f2efe6',fg='#111'){const[c,x]=cnv(w,h);
     x.fillStyle=bg;x.fillRect(0,0,w,h);x.strokeStyle=fg;x.lineWidth=7;x.strokeRect(8,8,w-16,h-16);
     x.fillStyle=fg;x.font=(h*.44)+'px "Archivo Black", sans-serif';x.textAlign='center';x.textBaseline='middle';
@@ -652,57 +660,54 @@ function initGameEngine() {
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
     }
-    // CONSTRUCCIÓN 3D ARQUITECTÓNICA DE INTERIOR: VESTÍBULO, ESCALERAS Y MEZZANINE DE CONTROL
+    // CONSTRUCCIÓN 3D ARQUITECTÓNICA DE INTERIOR: MEZZANINE CENTRAL Y DOBLE ESCALERA 3D (Z=0, Y=3.5M)
     const intGroup=new THREE.Group();
     const concMat=std({color:0x22262d,roughness:.75},.3);
-    const wallTileMat=std({color:0x161a22,roughness:.85},.2);
+    const whiteTileMat=std({map:mk(whiteTileCnv()),roughness:.35},.4);
     const metalGateMat=std({color:0x0d1015,metalness:.9,roughness:.3},.6);
-    const termMat=std({color:0x090b0e,emissive:0x3f8cff,emissiveIntensity:.8,roughness:.3},.5);
+    const termMat=std({color:0x090b0e,emissive:0x3f8cff,emissiveIntensity:.9,roughness:.3},.5);
     
-    // Vestíbulo Principal de la Estación (Plataforma a Mezzanine)
-    const lobbyFloor=box(8, .25, 22, concMat);lobbyFloor.position.set(2.4, -.12, -26);intGroup.add(lobbyFloor);
-    const lobbyWallL=box(.3, 4.5, 22, wallTileMat);lobbyWallL.position.set(-1.6, 2.1, -26);intGroup.add(lobbyWallL);
-    const lobbyWallR=box(.3, 4.5, 22, wallTileMat);lobbyWallR.position.set(6.4, 2.1, -26);intGroup.add(lobbyWallR);
+    // Balcón de Mezzanine Central (Y = 3.5m)
+    const mFloor=box(7, .25, 10, concMat);mFloor.position.set(2.4, 3.48, 0);mFloor.receiveShadow=true;intGroup.add(mFloor);
+    const mWallBack=box(.3, 3.2, 10, whiteTileMat);mWallBack.position.set(-.8, 5.0, 0);intGroup.add(mWallBack);
 
-    // Molinetes y Barreras de Entrada 3D
-    for(let g=-1; g<=1; g++){
-      const gate=box(.15, .9, .6, metalGateMat);gate.position.set(1.2 + g*1.2, .45, -20);intGroup.add(gate);
+    // Escalera Sur (z = -12 a -4)
+    for(let step=0; step<14; step++){
+      const stMesh=box(2.2, .26, .55, concMat);
+      stMesh.position.set(2.4, step * .25 + .13, -4 - step * .55);
+      stMesh.receiveShadow=true;intGroup.add(stMesh);
     }
-    
-    // Escalera Amplia de 12 Peldaños Transitables
-    for(let step=0; step<12; step++){
-      const stMesh=box(2.4, .3, .5, concMat);
-      stMesh.position.set(2.4, step * .3 + .15, -22 - step * .45);
+
+    // Escalera Norte (z = 4 a 12)
+    for(let step=0; step<14; step++){
+      const stMesh=box(2.2, .26, .55, concMat);
+      stMesh.position.set(2.4, step * .25 + .13, 4 + step * .55);
       stMesh.receiveShadow=true;intGroup.add(stMesh);
     }
     
-    // Piso de Mezzanine Superior (Y = 3.6m)
-    const mFloor=box(8, .25, 12, concMat);mFloor.position.set(2.4, 3.48, -31);mFloor.receiveShadow=true;intGroup.add(mFloor);
-    
     // Cabina de Control de Seguridad con Monitores Iluminados
-    const ctrlW1=box(.25, 2.6, 6, wallTileMat);ctrlW1.position.set(-.8, 4.8, -31);intGroup.add(ctrlW1);
-    const ctrlW2=box(6, 2.6, .25, wallTileMat);ctrlW2.position.set(2.2, 4.8, -34);intGroup.add(ctrlW2);
-    
-    const term=box(1.8, .9, .5, termMat);term.position.set(2.2, 4.4, -33.6);term.layers.set(2);intGroup.add(term);
-    const termLight=new THREE.PointLight(0x3f8cff, 3.5, 10);termLight.position.set(2.2, 4.6, -33.0);intGroup.add(termLight);
+    const term=box(1.8, .9, .5, termMat);term.position.set(2.4, 4.4, 0);term.layers.set(2);intGroup.add(term);
+    const termLight=new THREE.PointLight(0x3f8cff, 4.0, 12);termLight.position.set(2.4, 4.6, 0.5);intGroup.add(termLight);
+
+    // Lámpara de Sodio Tenue Flotante (0xffaa22)
+    const sodLight=new THREE.PointLight(0xffaa22, 2.8, 14);sodLight.position.set(2.4, 2.8, 0);intGroup.add(sodLight);
 
     // Casillero Maestro de Munición 3D en Mezzanine
-    const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.7,roughness:.3},.5);
-    const mBox=box(.9,.55,.55,masterLockerMat);mBox.position.set(4.2, 3.88, -31);intGroup.add(mBox);
+    const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.8,roughness:.3},.5);
+    const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
     scene.add(intGroup);
 
-    // Cajas de Munición 3D Recogibles en la Plataforma de la Estación (lat = 1.8m)
-    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.5,roughness:.4},.5);
-    const ammoSectors=[0.05, 0.15, 0.45, 0.55, 0.85, 0.95];
+    // Cajas de Munición 3D Recogibles en el Pasillo de la Plataforma (x = 2.0m)
+    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.6,roughness:.3},.5);
+    const ammoZPos=[-30, -15, 0, 15, 30];
     window.ammoCrates=[];
-    ammoSectors.forEach((tVal)=>{
-      const p=trackPos(tVal), n=outN(tVal);
+    ammoZPos.forEach((zVal)=>{
       const crGroup=new THREE.Group();
-      const bMesh=box(.6,.38,.38,ammoCrateMat);bMesh.position.y=.19;bMesh.castShadow=true;crGroup.add(bMesh);
+      const bMesh=box(.65,.4,.4,ammoCrateMat);bMesh.position.y=.2;bMesh.castShadow=true;crGroup.add(bMesh);
       const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:1.0}));
-      glowSpr.position.set(0,.45,0);glowSpr.scale.set(1.2,1.2,1.2);crGroup.add(glowSpr);
-      crGroup.position.set(p.x + n.x * 1.8, 0.19, p.z + n.z * 1.8);scene.add(crGroup);
-      window.ammoCrates.push({g:crGroup,cooldown:0,active:true});
+      glowSpr.position.set(0,.55,0);glowSpr.scale.set(1.4,1.4,1.4);crGroup.add(glowSpr);
+      crGroup.position.set(2.0, 0.2, zVal);scene.add(crGroup);
+      window.ammoCrates.push({g:crGroup,x:2.0,z:zVal,cooldown:0,active:true});
     });
 
     // Rieles
@@ -963,10 +968,16 @@ function initGameEngine() {
     netSend({type:'zhit',id:z.id,dmg});
   }
   function getFloorY(x,z){
-    if(z<=-18 && z>=-24.5 && x>=0.8 && x<=4.2){
-      return Math.min(3.5, Math.max(0, (-18 - z) * 0.58));
+    // Escalera Sur (z = -12 a -4)
+    if(z>=-12 && z<=-4 && x>=0.5 && x<=4.5){
+      return Math.min(3.5, Math.max(0, (-4 - z) * 0.44));
     }
-    if(z<-24.5 && z>=-36 && x>=0.2 && x<=4.8){
+    // Escalera Norte (z = 4 a 12)
+    if(z>=4 && z<=12 && x>=0.5 && x<=4.5){
+      return Math.min(3.5, Math.max(0, (z - 4) * 0.44));
+    }
+    // Balcón de Mezzanine Central (z = -4 a 4)
+    if(z>-4 && z<4 && x>=0.2 && x<=4.8){
       return 3.5;
     }
     return 0;
