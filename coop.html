@@ -45,7 +45,7 @@ display:grid;place-items:center;font-family:var(--disp);font-size:18px}
 #breakers{position:absolute;top:76px;left:14px;padding:8px 12px 6px;border-left:3px solid var(--amber)}
 #breakers label{font-size:8px;letter-spacing:.2em;color:var(--dim);display:block;margin-bottom:4px}
 #breakers label b{color:var(--amber2)}
-input[type=range]{-webkit-appearance:none;width:130px;height:20px;background:transparent;cursor:pointer;--p:66%;pointer-events:auto}
+input[type=range]{-webkit-appearance:none;width:130px;height:20px;background:transparent;cursor:pointer;--p:66%;pointer-events:auto;touch-action:none}
 input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:2px;
 background:linear-gradient(90deg,var(--amber) var(--p),#242b34 var(--p))}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-4px;border-radius:50%;
@@ -527,6 +527,11 @@ function initGameEngine() {
     x.fillStyle=bg;x.fillRect(0,0,w,h);x.strokeStyle=fg;x.lineWidth=7;x.strokeRect(8,8,w-16,h-16);
     x.fillStyle=fg;x.font=(h*.44)+'px "Archivo Black", sans-serif';x.textAlign='center';x.textBaseline='middle';
     x.fillText(txt,w/2,h/2+3);return c;}
+
+  function ammoCnv(){const[c,x]=cnv(256,256);x.fillStyle='#1e2b1e';x.fillRect(0,0,256,256);
+    x.strokeStyle='#ffb400';x.lineWidth=10;x.strokeRect(12,12,232,232);
+    x.fillStyle='#ffb400';x.font='600 42px "Archivo Black", sans-serif';x.textAlign='center';
+    x.fillText('AMMO 9MM',128,110);x.fillText('+60',128,170);return c;}
   function ledCnv(){const[c,x]=cnv(1024,96);x.fillStyle='#050505';x.fillRect(0,0,1024,96);
     x.font='600 36px "IBM Plex Mono", monospace';x.textBaseline='middle';
     x.fillStyle='#ff4b3e';x.shadowColor='#ff4b3e';x.shadowBlur=12;x.fillText('SERVICE SUSPENDED',30,50);
@@ -646,6 +651,19 @@ function initGameEngine() {
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
     }
+    // Cajas de Munición 3D Recogibles
+    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.3,roughness:.6},.3);
+    const ammoPositions=[-40,-20,0,20,40];
+    window.ammoCrates=[];
+    ammoPositions.forEach((zPos,idx)=>{
+      const crGroup=new THREE.Group();
+      const bMesh=box(.45,.3,.3,ammoCrateMat);bMesh.position.y=.15;crGroup.add(bMesh);
+      const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:.6}));
+      glowSpr.position.set(0,.3,0);glowSpr.scale.set(.8,.8,.8);crGroup.add(glowSpr);
+      crGroup.position.set(2.4,.15,zPos);scene.add(crGroup);
+      window.ammoCrates.push({g:crGroup,z:zPos,cooldown:0,active:true});
+    });
+
     // Rieles
     const slCount=Math.floor(TRACK_LEN/1.3);
     const sleepers=new THREE.InstancedMesh(new THREE.BoxGeometry(2.4,.07,.18),M.dark,slCount);
@@ -1078,6 +1096,11 @@ function initGameEngine() {
     if(e.code==='Tab'&&playing){e.preventDefault();switchWeapon();}
     if((e.code==='Digit1'||e.code==='Numpad1')&&playing)switchWeapon('gun');
     if((e.code==='Digit2'||e.code==='Numpad2')&&playing)switchWeapon('fists');
+    if((e.code==='KeyP'||e.code==='Escape')&&playing){
+      e.preventDefault();
+      if(locked){ try{ document.exitPointerLock(); }catch(err){} }
+      else { requestLock(); }
+    }
     if((e.code==='KeyR'||e.key==='r'||e.key==='R')&&playing&&!reloading&&ammo<MAG&&reserve>0)startReload();
     if(e.code==='Enter'){if(!$('#over').classList.contains('gone'))resetGame();}
   });
@@ -1086,6 +1109,7 @@ function initGameEngine() {
 
   let isMouseDown=false;
   window.addEventListener('mousedown',e=>{
+    if(e.target.closest('#breakers, .pnl, .ov, input, button, #hud, #touchHud')) return;
     if(e.button===0){
       isMouseDown=true;
       if(playing&&playerState==='alive')firing=true;
@@ -1094,11 +1118,12 @@ function initGameEngine() {
   });
   window.addEventListener('mouseup',e=>{if(e.button===0){isMouseDown=false;firing=false;}});
   window.addEventListener('mousemove',e=>{
-    if(locked || isMouseDown){
+    if(locked){
       yaw-=e.movementX*.0021;
       pitch=clamp(pitch-e.movementY*.0021,-1.45,1.45);
     }
   });
+  window.addEventListener('blur',()=>{isMouseDown=false;firing=false;for(const k in keys)keys[k]=false;});
   window.addEventListener('contextmenu',e=>e.preventDefault());
 
   function requestLock(){
