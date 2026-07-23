@@ -691,7 +691,7 @@ function initGameEngine() {
     const sodLight2=new THREE.PointLight(0xffaa22, 3.5, 20);
     sodLight2.position.set(2.4, 3.2, -16.0);intGroup.add(sodLight2);
 
-    // PASO 3: ARQUITECTURA INTERIOR (BALCÓN DE MEZZANINE, ESCALERAS Y CABINA DE CONTROL)
+    // PASO 3 Y PASO 4: BALCÓN DE MEZZANINE, ESCALERAS 3D, CABINA DE CONTROL Y CASILLERO MAESTRO DE MUNICIÓN
     const mFloor=box(6.0, .25, 10.0, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
 
     // Escalera Sur (z = -12 a -4)
@@ -712,7 +712,7 @@ function initGameEngine() {
     const term=box(1.8, .9, .5, termMat);term.position.set(2.4, 4.4, 0);term.layers.set(2);intGroup.add(term);
     const termLight=new THREE.PointLight(0x3f8cff, 4.0, 12);termLight.position.set(2.4, 4.6, 0.5);intGroup.add(termLight);
 
-    // PASO 4: ELEMENTOS DE UTILERÍA Y CASILLERO MAESTRO DE MUNICIÓN EN MEZZANINE (mBox)
+    // CASILLERO MAESTRO DE MUNICIÓN EN MEZZANINE (mBox)
     const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.8,roughness:.3},.5);
     const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
 
@@ -722,9 +722,6 @@ function initGameEngine() {
       const tsBody=box(.4, 1.0, .8, turnstileMat);tsBody.position.set(2.4, .5, offZ);intGroup.add(tsBody);
       const tsBar=box(1.2, .08, .08, metalGateMat);tsBar.position.set(2.4, .85, offZ);intGroup.add(tsBar);
     });
-    
-    // Balcón de Mezzanine Central (Y = 3.5m)
-    const mFloor=box(6, .25, 10, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
 
     // Escalera Sur (z = -12 a -4)
     for(let step=0; step<14; step++){
