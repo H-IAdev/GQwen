@@ -872,9 +872,9 @@ function initGameEngine() {
       sh.add(setTF(mkB(.1,.34,.1,skin),[0,-.17,0]));
       sh.add(setTF(mkB(.1,.06,.18,dark),[0,-.35,.04]));return{p,s:sh};}
     const aL=arm(-1),aR=arm(1),lL=leg(-1),lR=leg(1);
-    const d=ZDEF[type];
+    const d=ZDEF[type] || ZDEF.walker;
     const rec={id:zId++,g,type,torso,clothM,head,jaw,aL,aR,lL,lR,
-      hp:0,t:Math.random(),lat:R(2,4.5),speed:1,dmg:5,score:10,scale:d.sc,
+      hp:0,t:Math.random(),lat:R(2,4.5),speed:1,dmg:5,score:10,scale:d.sc || 1,
       dead:false,deathT:0,loosened:false,cool:R(.5,1.5),windup:0,hitT:0,fade:0,
       fallDir:Math.random()<.5?-1:1,rockT:R(2,4),grabT:R(4,6)};
     g.traverse(c=>{if(c.isMesh){c.userData.z=rec;c.userData.part='body';
@@ -915,7 +915,9 @@ function initGameEngine() {
   function gTraverseNull(g){if(!g)return;g.traverse(c=>{if(c.isMesh)c.userData.z=null;});}
   function hurtZombie(z,part,pt,customDmg=null){
     if(z.dead)return;const hs=part==='head';
-    const dmg = customDmg !== null ? customDmg : (hs ? 50 : 25);
+    const rawDmg = customDmg !== null ? customDmg : (hs ? 50 : 25);
+    const armor = ZDEF[z.type]?.armor || 0;
+    const dmg = Math.max(1, Math.round(rawDmg * (1 - armor)));
     z.hp-=dmg;z.hitT=.22;
     burst(pt,'ichor',hs?12:7,2.8);
     if(z.hp<=0)killZombie(z,hs);else{hitmark(hs);sfx.flesh();}
@@ -1190,9 +1192,9 @@ function initGameEngine() {
       const pPos=camera.position;
       for(const z of zombies){
         if(z.dead)continue;
-        const d=z.g.position.distanceTo(pPos);
-        if(d<2.8){
-          burst(z.g.position,'ichor',10,2.8);hitmark(false);
+        const d2D = Math.hypot(z.g.position.x - pPos.x, z.g.position.z - pPos.z);
+        if(d2D < 3.2){
+          burst(z.g.position,'ichor',12,3.0);hitmark(true);
           hurtZombie(z,'body',z.g.position,35);
           hitFound=true;break;
         }
@@ -1205,7 +1207,7 @@ function initGameEngine() {
     if(activeWeapon==='fists'){punch();return;}
     if(ammo===0){
       if(reserve>0)startReload();
-      else{switchWeapon('fists');feed('OUT OF AMMO — BARE FISTS ENGAGED','k');}
+      else{switchWeapon('fists');feed('OUT OF AMMO — BARE FISTS ENGAGED','k');punch();}
       return;
     }
     ammo--;fireCd=.092;wKick=1;
