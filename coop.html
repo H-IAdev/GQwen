@@ -861,12 +861,13 @@ function initGameEngine() {
     hitmark(true);hudScore();
     netSend({type:'zkill',id:z.id,hs});
   }
-  function hurtZombie(z,part,pt){
+  function hurtZombie(z,part,pt,customDmg=null){
     if(z.dead)return;const hs=part==='head';
-    z.hp-=hs?34:15;z.hitT=.15;
+    const dmg = customDmg !== null ? customDmg : (hs ? 22 : 10);
+    z.hp-=dmg;z.hitT=.15;
     burst(pt,'ichor',hs?9:5,2.4);
     if(z.hp<=0)killZombie(z,hs);else{hitmark(false);sfx.flesh();}
-    netSend({type:'zhit',id:z.id,dmg:hs?34:15});
+    netSend({type:'zhit',id:z.id,dmg});
   }
   function getAlivePlayers(){
     const list=[];
@@ -1104,8 +1105,10 @@ function initGameEngine() {
       if(z){
         const hs=h.object.userData.part==='head';
         burst(h.point,'ichor',hs?12:7,3.0);hitmark(hs);
-        if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:40});
-        else hurtZombie(z,h.object.userData.part,h.point);
+        const hs=h.object.userData.part==='head';
+        const pDmg=hs?28:18;
+        if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:pDmg});
+        else hurtZombie(z,h.object.userData.part,h.point,pDmg);
       }else burst(h.point,'spark',4,2.2);
     }
   }
@@ -1133,8 +1136,9 @@ function initGameEngine() {
       if(z){
         if(z.isRemote){
           const hs=h.object.userData.part==='head';
+          const bDmg=hs?22:10;
           burst(h.point,'ichor',hs?9:5,2.4);hitmark(hs);sfx.flesh();
-          netSend({type:'zhit',id:z.id,dmg:hs?34:15});
+          netSend({type:'zhit',id:z.id,dmg:bDmg});
         }else{
           hurtZombie(z,h.object.userData.part,h.point);
         }
