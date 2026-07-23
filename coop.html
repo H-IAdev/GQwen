@@ -909,7 +909,7 @@ function initGameEngine() {
   function fireTracer(a,b){const t=tracers[trIdx++%24];t.m.position.lerpVectors(a,b,.5);t.m.lookAt(b);
     t.m.scale.set(.018,.018,Math.max(.1,a.distanceTo(b)));t.m.visible=true;t.life=.065;t.m.material.opacity=.9;}
   const pGeo=new THREE.TetrahedronGeometry(.04);
-  const pMats={ichor:new THREE.MeshBasicMaterial({color:0x7aa03c}),spark:new THREE.MeshBasicMaterial({color:0xffc870})};
+  const pMats={ichor:new THREE.MeshBasicMaterial({color:0x7aa03c}),spark:new THREE.MeshBasicMaterial({color:0xffc870}),stone:new THREE.MeshBasicMaterial({color:0xd4763a})};
   const parts=[];let pIdx=0;
   function burst(pos,key,n,spd){for(let i=0;i<n;i++){let p=parts[pIdx++%180];
     if(!p){p={m:new THREE.Mesh(pGeo,pMats.spark),v:new THREE.Vector3(),life:0};p.m.layers.set(2);scene.add(p.m);parts.push(p);pIdx=parts.length;}
@@ -986,6 +986,7 @@ function initGameEngine() {
   }
   function spawnZombie(type,hpMul,spMul){
     const z=buildZombieMesh(type);zombies.push(z);
+    if(type==='boss_rockhurler'){z.isHurler=true;z.rockT=R(3,5);z.grabT=R(9,13);z.chargeT=0;z.charging=false;z.grabbed=null;z.grabAnimT=0;}
     const d=ZDEF[type] || ZDEF.walker;
     z.hp=d.hp*hpMul;z.speed=R(...d.spd)*spMul;z.dmg=d.dmg;z.score=d.score;
     if(type==='boss_juggernaut'){
@@ -1004,6 +1005,8 @@ function initGameEngine() {
   }
   function killZombie(z,hs){
     z.dead=true;z.deathT=0;kills++;headshots+=hs?1:0;score+=z.score+(hs?15:0);
+    if(z.chargeRockMesh){scene.remove(z.chargeRockMesh);z.chargeRockMesh=null;}
+    if(z.grabbed){z.grabbed.grabbed=false;z.grabbed=null;}
     if(window.zombieHitboxes){
       window.zombieHitboxes = window.zombieHitboxes.filter(m => m && m.userData.z !== z);
     }
@@ -1056,6 +1059,19 @@ function initGameEngine() {
           z.aL.p.rotation.set(R(-.3,.5),0,R(-1,.2));z.aR.p.rotation.set(R(-.3,.5),0,R(-.2,1));}
         if(z.deathT>1.2)z.g.position.y=-(z.deathT-1.2)*.5;
         if(z.deathT>2.2){scene.remove(z.g);zombies.splice(i,1);}continue;}
+      if(z.isThrown && !z.dead){
+        z.g.position.addScaledVector(z.throwVel,dt);
+        z.throwVel.y-=12*dt;
+        z.g.rotation.z+=dt*6;
+        const camPos2=camera.getWorldPosition(new THREE.Vector3());
+        if(z.g.position.distanceTo(camPos2)<1.1 && playerState==='alive'){
+          damagePlayer(z.thrownDmg||30);
+          burst(z.g.position,'ichor',16,4.0);
+          feed('ZOMBIE IMPACTO — -'+z.thrownDmg+' HP','k');
+          killZombie(z,false);continue;
+        }
+        if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
+      }
       z.fade=Math.min(1,z.fade+dt*2);z.g.scale.setScalar(z.scale*(.5+.5*z.fade));
       z.cool-=dt;z.hitT-=dt;
       let nearest=null,nearD=Infinity;
@@ -1085,6 +1101,50 @@ function initGameEngine() {
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       z.g.position.set(p.x+n.x*z.lat,Math.max(0,z.g.position.y),p.z+n.z*z.lat);
       z.g.rotation.y=Math.atan2(tn.x*Math.sign(dir),tn.z*Math.sign(dir));
+      // ===== ROCK HURLER AI =====
+      if(z.isHurler && !z.dead){
+        z.rockT-=dt; z.grabT-=dt;
+        if(z.throwAnim>0){
+          z.throwAnim-=dt;
+          const wp=Math.max(0,z.throwAnim/.35);
+          z.aR.p.rotation.x=-2.5+wp*2.8;
+          z.aL.p.rotation.x=-1.0;
+        }
+        if(z.grabbed&&!z.grabbed.dead){
+          z.grabAnimT-=dt;
+          z.grabbed.g.position.copy(z.g.position);
+          z.grabbed.g.position.y=2.2;
+          z.aR.p.rotation.x=-2.8;
+          if(z.grabAnimT<=0) doThrowVictim(z);
+        }
+        if(z.rockT<=0 && dist>4.0 && !z.grabbed){
+          if(!z.charging){
+            z.charging=true; z.chargeT=0.9;
+            if(!z.chargeRockMesh){
+              const crm=new THREE.Mesh(rockGeo,rockMat);crm.scale.setScalar(0.7);
+              z.chargeRockMesh=crm; scene.add(crm);
+            }
+            feed('ROCK HURLER cargando ataque!','k');
+          } else {
+            z.chargeT-=dt;
+            if(z.chargeRockMesh){
+              const hp2=new THREE.Vector3();
+              z.aR.p.getWorldPosition(hp2);hp2.y+=0.7+Math.sin(Date.now()*.008)*.08;
+              z.chargeRockMesh.position.copy(hp2);
+              z.chargeRockMesh.rotation.y+=dt*3;
+            }
+            z.aR.p.rotation.x=-2.6;
+            if(z.chargeT<=0){
+              if(z.chargeRockMesh){scene.remove(z.chargeRockMesh);z.chargeRockMesh=null;}
+              doRockThrow(z,nearest);
+            }
+          }
+        }
+        if(z.grabT<=0 && dist>3.5 && dist<14.0 && !z.grabbed && !z.charging){
+          doGrabAndThrow(z,nearest);
+        }
+      }
+
       if(z.hitT>0){
         z.clothM.emissive.set(0xff0000);z.clothM.emissiveIntensity=4.0;
         if(z.head&&z.head.material) { z.head.material.emissive.set(0xff0000); z.head.material.emissiveIntensity=3.5; }
@@ -1092,6 +1152,107 @@ function initGameEngine() {
         z.clothM.emissiveIntensity=0;
         if(z.head&&z.head.material) z.head.material.emissiveIntensity=0;
       }}
+  }
+
+
+  /* ===== ROCK HURLER — PROYECTILES Y GRAB ===== */
+  const rocks=[];
+  const rockGeo=new THREE.DodecahedronGeometry(.28,0);
+  const rockMat=new THREE.MeshStandardMaterial({color:0x8b5c2a,roughness:.95,metalness:.05});
+
+  function spawnRock(fromPos, toPos, dmg){
+    const m=new THREE.Mesh(rockGeo,rockMat);
+    m.castShadow=true;
+    m.position.copy(fromPos);
+    const dir=new THREE.Vector3().subVectors(toPos,fromPos).normalize();
+    const spd=14;
+    const light=new THREE.PointLight(0xff7020,1.8,3.5,2);
+    light.position.copy(fromPos);
+    light.layers.set(2);
+    scene.add(light);
+    scene.add(m);
+    rocks.push({m,light,v:dir.multiplyScalar(spd),life:2.2,dmg,hit:false});
+  }
+
+  function updateRocks(dt){
+    for(let i=rocks.length-1;i>=0;i--){
+      const r=rocks[i];
+      r.life-=dt;
+      r.v.y-=8*dt;
+      r.m.position.addScaledVector(r.v,dt);
+      r.m.rotation.x+=dt*4;r.m.rotation.z+=dt*2.5;
+      r.light.position.copy(r.m.position);
+      if(!r.hit){
+        const camPos=camera.getWorldPosition(new THREE.Vector3());
+        if(r.m.position.distanceTo(camPos)<0.9 && playerState==='alive'){
+          r.hit=true;damagePlayer(r.dmg);
+          burst(r.m.position,'stone',14,3.5);
+          sfx.moan(3);
+          feed('GOLPEADO POR ROCA — -'+r.dmg+' HP','k');
+        }
+      }
+      if(r.life<=0||r.hit){
+        if(!r.hit) burst(r.m.position,'stone',8,2.5);
+        scene.remove(r.m);scene.remove(r.light);rocks.splice(i,1);
+      }
+    }
+  }
+
+  function getPlayerWorldPos(){
+    return camera.getWorldPosition(new THREE.Vector3());
+  }
+
+  function doRockThrow(z, nearest){
+    const handPos=new THREE.Vector3();
+    z.aR.p.getWorldPosition(handPos);
+    handPos.y+=0.55;
+    let targetPos;
+    if(nearest.isLocal){
+      targetPos=getPlayerWorldPos();
+    } else {
+      const rp=remotePlayers[nearest.id];
+      if(rp){const tp=trackPos(rp.trackT),tn=outN(rp.trackT);
+        targetPos=new THREE.Vector3(tp.x+tn.x*(rp.trackLat||3),1.2,tp.z+tn.z*(rp.trackLat||3));}
+      else targetPos=getPlayerWorldPos();
+    }
+    spawnRock(handPos, targetPos, 30);
+    burst(handPos,'stone',10,3.0);
+    z.throwAnim=0.35;
+    z.rockT=R(4.5,7.0);
+    z.charging=false;z.chargeT=0;
+    netSend({type:'hurler_rock',pos:{x:handPos.x,y:handPos.y,z:handPos.z},
+      dst:{x:targetPos.x,y:targetPos.y,z:targetPos.z},dmg:30});
+  }
+
+  function doGrabAndThrow(z, nearest){
+    let victim=null; let bestD=3.5;
+    for(const oz of zombies){
+      if(oz===z||oz.dead||oz.isHurler||oz.type==='boss_juggernaut'||oz.type==='boss_stalker') continue;
+      const dd=Math.abs(oz.t-z.t); const d=Math.min(dd,1-dd)*TRACK_LEN;
+      if(d<bestD){bestD=d;victim=oz;}
+    }
+    if(!victim){z.grabT=R(4,7);return;}
+    z.grabbed=victim;victim.grabbed=true;
+    feed('ROCK HURLER agarro un zombie!','k');
+    victim.g.position.y+=0.8;
+    z.grabAnimT=0.6;
+    z.grabTarget=nearest;
+    z.grabT=R(10,15);
+  }
+
+  function doThrowVictim(z){
+    const victim=z.grabbed;
+    if(!victim||victim.dead){z.grabbed=null;return;}
+    const nearest=z.grabTarget;
+    const targetPos=nearest&&nearest.isLocal?getPlayerWorldPos():getPlayerWorldPos();
+    const from=new THREE.Vector3().copy(victim.g.position);from.y=1.3;
+    const dir=new THREE.Vector3().subVectors(targetPos,from).normalize();
+    victim.throwVel=dir.multiplyScalar(18);
+    victim.isThrown=true;victim.grabbed=false;
+    victim.thrownDmg=Math.round(victim.dmg*1.6);
+    victim.throwTarget=nearest;
+    z.grabbed=null;
+    feed('ZOMBIE LANZADO hacia el jugador!','k');
   }
 
   /* ===== ZOMBIS REMOTOS ===== */
@@ -1851,6 +2012,7 @@ function initGameEngine() {
             banner('SECTOR CLEAR','+60 ROUNDS · WOUNDS PATCHED');sfx.pickup();hudAmmo();hudHP();}
           if(clearing){clearT-=dt;if(clearT<=0){clearing=false;startWave(wave+1);}}
           updateZombies(dt);
+          updateRocks(dt);
         }else{
           interpolateRemoteZombies(dt);
         }
