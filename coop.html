@@ -593,7 +593,6 @@ function initGameEngine() {
       const t0=s/SECTORS,t1=(s+1)/SECTORS;
       const st=stationness((t0+t1)/2);
       const outerW=lerp(3.0,5.8,st);
-      // ALTURA DE BÓVEDA DE TECHO ELEVADA DE 4.3M A 5.2M
       const wH=lerp(4.2,5.2,st);
 
       // Suelo
@@ -615,8 +614,8 @@ function initGameEngine() {
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
 
-      // PARED INTERIOR 100% SÓLIDA EN SECTORES 1..7 (CERO TRANSPARENCIA) + PORTAL CON PUERTA EN SECTOR 0
-      if(s !== 0){
+      // PARED INTERIOR 100% SÓLIDA EN SECTORES 0, 2..7 | PUERTA EN SECTOR 1
+      if(s !== 1){
         const iw=[],ii=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
           const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);}
@@ -627,7 +626,7 @@ function initGameEngine() {
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
       } else {
-        // SECTOR 0: MARCO DE PORTAL CON PUERTA BLINDADA DE SEGURIDAD
+        // SECTOR 1: PUERTA DE ACCESO Y MARCO DE PORTAL BLINDADO
         const p10=trackPos(t0), n0=outN(t0);
         const pFrameL=box(.45, wH, 1.2, M.concrete);
         pFrameL.position.set(p10.x + n0.x*-3, wH/2, p10.z - 4.5);g.add(pFrameL);
@@ -636,7 +635,7 @@ function initGameEngine() {
         const pFrameTop=box(.45, 1.2, 10.2, M.concrete);
         pFrameTop.position.set(p10.x + n0.x*-3, wH - .6, p10.z);g.add(pFrameTop);
 
-        // PUERTA METALICA BLINDADA DE SEGURIDAD EN SECTOR 0 (portalDoor)
+        // PUERTA METALICA BLINDADA DE SEGURIDAD EN SECTOR 1 (portalDoor)
         const portalDoor=box(.15, 3.8, 8.0, M.steel);
         portalDoor.position.set(p10.x + n0.x*-2.85, 1.9, p10.z);g.add(portalDoor);
 
