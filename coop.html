@@ -498,6 +498,11 @@ function initGameEngine() {
   /* ===== MAPA 3D ===== */
   const sectorGroups=[];
   const box=(w,h,d,m)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+  function pObj(m, x, y, z, rx=0, ry=0, rz=0){
+    m.position.set(x,y,z);
+    if(rx||ry||rz) m.rotation.set(rx,ry,rz);
+    return m;
+  }
   function buildLoop(){
     const SPS=10;
     for(let s=0;s<SECTORS;s++){
@@ -653,12 +658,12 @@ function initGameEngine() {
   const weapon=new THREE.Group();camera.add(weapon);
   {const gm=std({color:0x22252a,roughness:.4,metalness:.8},.5);
    const gm2=std({color:0x141619,roughness:.5,metalness:.7},.4);
-   weapon.add(Object.assign(box(.05,.07,.28,gm),{position:new THREE.Vector3(0,.01,-.04)}));
-   weapon.add(Object.assign(box(.045,.045,.32,gm2),{position:new THREE.Vector3(0,.055,-.05)}));
+   weapon.add(pObj(box(.05,.07,.28,gm), 0, .01, -.04));
+   weapon.add(pObj(box(.045,.045,.32,gm2), 0, .055, -.05));
    const br=new THREE.Mesh(new THREE.CylinderGeometry(.014,.014,.1,10),gm2);
    br.rotation.x=Math.PI/2;br.position.set(0,.05,-.24);weapon.add(br);
-   weapon.add(Object.assign(box(.035,.12,.08,gm2),{position:new THREE.Vector3(0,-.07,.02),rotation:new THREE.Euler(.18,0,0)}));
-   weapon.add(Object.assign(box(.04,.11,.06,gm),{position:new THREE.Vector3(0,-.07,.11),rotation:new THREE.Euler(-.35,0,0)}));
+   weapon.add(pObj(box(.035,.12,.08,gm2), 0, -.07, .02, .18, 0, 0));
+   weapon.add(pObj(box(.04,.11,.06,gm), 0, -.07, .11, -.35, 0, 0));
    const fs=box(.007,.018,.007,std({color:0x111111,emissive:0xffb400,emissiveIntensity:2},.2));
    addE(fs.material,2,true);fs.position.set(0,.085,-.18);weapon.add(fs);
    weapon.traverse(o=>{if(o.isMesh)o.layers.set(2);});}
@@ -709,14 +714,14 @@ function initGameEngine() {
     [-1,1].forEach(s=>{const e=new THREE.Mesh(new THREE.SphereGeometry(.024,6,6),EYE_M);
       e.position.set(s*.06,1.53,.12);e.layers.set(2);g.add(e);});
     function arm(s){const p=new THREE.Group();p.position.set(s*.3,1.28,0);g.add(p);
-      p.add(Object.assign(mkB(.1,.34,.1,skin),{position:new THREE.Vector3(0,-.17,0)}));
+      p.add(pObj(mkB(.1,.34,.1,skin), 0, -.17, 0));
       const f=new THREE.Group();f.position.y=-.34;p.add(f);
-      f.add(Object.assign(mkB(.08,.3,.08,skin),{position:new THREE.Vector3(0,-.15,0)}));return{p,f};}
+      f.add(pObj(mkB(.08,.3,.08,skin), 0, -.15, 0));return{p,f};}
     function leg(s){const p=new THREE.Group();p.position.set(s*.11,.72,0);g.add(p);
-      p.add(Object.assign(mkB(.12,.38,.12,dark),{position:new THREE.Vector3(0,-.19,0)}));
+      p.add(pObj(mkB(.12,.38,.12,dark), 0, -.19, 0));
       const sh=new THREE.Group();sh.position.y=-.38;p.add(sh);
-      sh.add(Object.assign(mkB(.1,.34,.1,skin),{position:new THREE.Vector3(0,-.17,0)}));
-      sh.add(Object.assign(mkB(.1,.06,.18,dark),{position:new THREE.Vector3(0,-.35,.04)}));return{p,s:sh};}
+      sh.add(pObj(mkB(.1,.34,.1,skin), 0, -.17, 0));
+      sh.add(pObj(mkB(.1,.06,.18,dark), 0, -.35, .04));return{p,s:sh};}
     const aL=arm(-1),aR=arm(1),lL=leg(-1),lR=leg(1);
     const d=ZDEF[type];
     const rec={id:zId++,g,type,torso,clothM,head,jaw,aL,aR,lL,lR,
@@ -1004,10 +1009,10 @@ function initGameEngine() {
   function peerConfig(){return{config:{iceServers,sdpSemantics:'unified-plan'},debug:1};}
   function buildPlayerMesh(color){const g=new THREE.Group();
     const m=std({color,roughness:.6,metalness:.2},.3);
-    g.add(Object.assign(box(.4,.55,.25,m),{position:new THREE.Vector3(0,1.05,0)}));
-    g.add(Object.assign(box(.22,.24,.22,std({color:0xd4a574,roughness:.7},.2)),{position:new THREE.Vector3(0,1.5,0)}));
-    [-1,1].forEach(s=>{g.add(Object.assign(box(.1,.4,.1,m),{position:new THREE.Vector3(s*.28,1.0,0)}));
-      g.add(Object.assign(box(.12,.45,.12,std({color:0x2a2d33,roughness:.8},.1)),{position:new THREE.Vector3(s*.1,.5,0)}));});
+    g.add(pObj(box(.4,.55,.25,m), 0, 1.05, 0));
+    g.add(pObj(box(.22,.24,.22,std({color:0xd4a574,roughness:.7},.2)), 0, 1.5, 0));
+    [-1,1].forEach(s=>{g.add(pObj(box(.1,.4,.1,m), s*.28, 1.0, 0));
+      g.add(pObj(box(.12,.45,.12,std({color:0x2a2d33,roughness:.8},.1)), s*.1, .5, 0));});
     g.traverse(o=>{if(o.isMesh)o.castShadow=true;});scene.add(g);return g;}
   function setNetStatus(txt,cls=''){$('#netStatus').textContent=txt;$('#netStatus').className=cls;}
 
