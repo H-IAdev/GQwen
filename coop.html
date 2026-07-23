@@ -1118,9 +1118,8 @@ function initGameEngine() {
       const z=h.object.userData.z;
       if(z){
         const hs=h.object.userData.part==='head';
-        burst(h.point,'ichor',hs?12:7,3.0);hitmark(hs);
-        const hs=h.object.userData.part==='head';
         const pDmg=hs?28:18;
+        burst(h.point,'ichor',hs?12:7,3.0);hitmark(hs);
         if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:pDmg});
         else hurtZombie(z,h.object.userData.part,h.point,pDmg);
       }else burst(h.point,'spark',4,2.2);
