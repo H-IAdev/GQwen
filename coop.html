@@ -646,7 +646,7 @@ function initGameEngine() {
       const tg=new THREE.BufferGeometry();
       tg.setAttribute('position',new THREE.Float32BufferAttribute(tp,3));tg.setIndex(ti);tg.computeVertexNormals();
       g.add(new THREE.Mesh(tg,M.dark));
-      // Props
+      // PASO 5: PROPS, SEÑALÉTICA Y GRAFITIS URBANOS
       if(st>.5){
         for(let ci2=0;ci2<2;ci2++){const ct=t0+(t1-t0)*(.3+ci2*.4);
           const cp2=trackPos(ct),cn=outN(ct);
