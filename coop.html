@@ -267,6 +267,7 @@ display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,0.6);cursor:poi
     <div id="touchActions">
       <div class="tRow">
         <div class="tBtn" id="tBtnReload">R<br><small style="font-size:7px">RELOAD</small></div>
+        <div class="tBtn" id="tBtnWeapon">TAB<br><small style="font-size:7px">WEAPON</small></div>
         <div class="tBtn" id="tBtnJump">JUMP</div>
       </div>
       <div class="tRow">
@@ -527,6 +528,12 @@ function initGameEngine() {
     "SOMOS Y ESTAMOS",
     "HOY NO ES VIERNES",
     "...AH SÍ, TENGO QUE DESPERTAR...",
+    "NO HAY PASAJE",
+    "EL LUNES EMPIEZO",
+    "UN SEGUNDO ES UNA ETERNIDAD",
+    "SI LEES ESTO, CORRE",
+    "¿DÓNDE ESTÁ EL CONDUCTOR?",
+    "SOLO FALTAS TÚ",
     "NO HAY SALIDA",
     "CUIDA TUS ESPALDAS"
   ];
@@ -708,7 +715,10 @@ function initGameEngine() {
     revive(){tH({f0:440,dur:.1,vol:.2});tH({f0:660,dur:.1,vol:.2,at:.12});tH({f0:880,dur:.15,vol:.2,at:.24});}
   };
 
-  /* ===== ARMA ===== */
+  /* ===== SISTEMA DE ARMAS Y PUÑOS 3D ===== */
+  let activeWeapon='gun'; // 'gun' | 'fists'
+  let punchSide=0, punchCd=0, punchT=0;
+
   const weapon=new THREE.Group();camera.add(weapon);
   {const gm=std({color:0x22252a,roughness:.4,metalness:.8},.5);
    const gm2=std({color:0x141619,roughness:.5,metalness:.7},.4);
@@ -721,6 +731,38 @@ function initGameEngine() {
    const fs=setTF(box(.007,.018,.007,std({color:0x111111,emissive:0xffb400,emissiveIntensity:2},.2)),[0,.085,-.18]);
    addE(fs.material,2,true);weapon.add(fs);
    weapon.traverse(o=>{if(o.isMesh)o.layers.set(2);});}
+
+  // MODELO 3D DE PUÑOS Y BRAZOS DE PRIMERA PERSONA
+  const fistsGroup=new THREE.Group();camera.add(fistsGroup);
+  {const skinM=std({color:0xd4a574,roughness:.8},.2);
+   const sleeveM=std({color:0x1b2028,roughness:.9},.1);
+   const fistDark=std({color:0xaa7a50,roughness:.85},.15);
+   
+   // Brazo y Puño Izquierdo
+   const leftArm=new THREE.Group();
+   leftArm.add(setTF(box(.11,.13,.26,sleeveM),[0,0,0]));
+   leftArm.add(setTF(box(.095,.1,.16,skinM),[0,-.01,-.18]));
+   leftArm.add(setTF(box(.085,.08,.08,fistDark),[0,-.01,-.23]));
+   leftArm.position.set(-.24,-.22,-.32);fistsGroup.add(leftArm);
+
+   // Brazo y Puño Derecho
+   const rightArm=new THREE.Group();
+   rightArm.add(setTF(box(.11,.13,.26,sleeveM),[0,0,0]));
+   rightArm.add(setTF(box(.095,.1,.16,skinM),[0,-.01,-.18]));
+   rightArm.add(setTF(box(.085,.08,.08,fistDark),[0,-.01,-.23]));
+   rightArm.position.set(.24,-.22,-.32);fistsGroup.add(rightArm);
+
+   fistsGroup.traverse(o=>{if(o.isMesh)o.layers.set(2);});
+   fistsGroup.visible=false;}
+
+  function switchWeapon(type){
+    if(type) activeWeapon=type;
+    else activeWeapon=activeWeapon==='gun'?'fists':'gun';
+    weapon.visible=(activeWeapon==='gun');
+    fistsGroup.visible=(activeWeapon==='fists');
+    feed(activeWeapon==='gun'?'EQUIPPED: M-42 RIFLE':'EQUIPPED: BARE FISTS','h');
+    hudAmmo();
+  }
   const tip=new THREE.Object3D();tip.position.set(0,.05,-.3);weapon.add(tip);
   const flashSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffc26a,
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -1001,6 +1043,9 @@ function initGameEngine() {
   window.addEventListener('keydown',e=>{
     updateKey(e, true);
     if(e.code==='Space'&&playing)e.preventDefault();
+    if(e.code==='Tab'&&playing){e.preventDefault();switchWeapon();}
+    if((e.code==='Digit1'||e.code==='Numpad1')&&playing)switchWeapon('gun');
+    if((e.code==='Digit2'||e.code==='Numpad2')&&playing)switchWeapon('fists');
     if((e.code==='KeyR'||e.key==='r'||e.key==='R')&&playing&&!reloading&&ammo<MAG&&reserve>0)startReload();
     if(e.code==='Enter'){if(!$('#over').classList.contains('gone'))resetGame();}
   });
@@ -1045,7 +1090,34 @@ function initGameEngine() {
   /* ===== DISPAROS ===== */
   function startReload(){if(reloading||reserve<=0)return;reloading=true;relT=0;sfx.reload();
     $('#relBar').classList.add('on');$('#relTxt').textContent='RELOADING';}
-  function shoot(){ammo--;fireCd=.092;wKick=1;
+  function punch(){
+    punchCd=.24;punchT=1;punchSide=1-punchSide;
+    shake=Math.max(shake,.012);sfx.flesh();
+    _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
+    ray.set(camera.getWorldPosition(_v2),_v1);
+    ray.far=2.2;
+    const hits=ray.intersectObjects(scene.children,true);
+    ray.far=90;
+    if(hits.length){
+      const h=hits[0];
+      const z=h.object.userData.z;
+      if(z){
+        const hs=h.object.userData.part==='head';
+        burst(h.point,'ichor',hs?12:7,3.0);hitmark(hs);
+        if(z.isRemote) netSend({type:'zhit',id:z.id,dmg:40});
+        else hurtZombie(z,h.object.userData.part,h.point);
+      }else burst(h.point,'spark',4,2.2);
+    }
+  }
+
+  function shoot(){
+    if(activeWeapon==='fists'){punch();return;}
+    if(ammo===0){
+      if(reserve>0)startReload();
+      else{switchWeapon('fists');feed('OUT OF AMMO — BARE FISTS ENGAGED','k');}
+      return;
+    }
+    ammo--;fireCd=.092;wKick=1;
     kickP+=.011+R(0,.004);kickY+=(Math.random()-.5)*.006;
     shake=Math.max(shake,REDUCED?.003:.01);
     flashT=.045;flashSpr.visible=true;flashSpr.material.rotation=R(0,6.28);
@@ -1069,7 +1141,8 @@ function initGameEngine() {
       }else burst(h.point,'spark',3,2);}
     tip.getWorldPosition(_v2);fireTracer(_v2.clone(),end.clone());
     hudAmmo();
-    if(ammo===0){if(reserve>0)startReload();else $('#relTxt').textContent='NO RESERVE';}
+    if(ammo===0&&reserve===0){switchWeapon('fists');feed('OUT OF AMMO — BARE FISTS ENGAGED','k');}
+    else if(ammo===0&&reserve>0){startReload();}
     netSend({type:'shot'});}
 
   /* ===== MULTIJUGADOR P2P ===== */
@@ -1306,7 +1379,16 @@ function initGameEngine() {
     }).join('');}
 
   /* ===== HUD & INTERFAZ ===== */
-  function hudAmmo(){const a=$('#ammoNum');a.textContent=ammo;a.classList.toggle('dry',ammo===0);$('#ammoRes').textContent=reserve;}
+  function hudAmmo(){
+    const a=$('#ammoNum');
+    if(activeWeapon==='fists'){
+      a.textContent='FISTS';a.className='dry';$('#ammoRes').textContent='MELEE';
+      const wn=$('#ammoPanel .wn');if(wn)wn.textContent='BARE FISTS · COMBAT';
+    }else{
+      a.textContent=ammo;a.classList.toggle('dry',ammo===0);$('#ammoRes').textContent=reserve;
+      const wn=$('#ammoPanel .wn');if(wn)wn.textContent='M-42 "TOKEN" · 9MM';
+    }
+  }
   function hudHP(){$('#hpNum').textContent=Math.ceil(hp);$('#hpFill').style.width=hp+'%';
     $('#health').classList.toggle('low',hp<32);document.body.classList.toggle('hurt',hp<32&&playing);}
   function hudScore(){$('#waveNum').textContent=String(wave).padStart(2,'0');
@@ -1440,7 +1522,7 @@ function initGameEngine() {
         p.y=eyeH+jumpY+bob;
         
         stepAcc+=dt*sp;if(stepAcc>2&&jumpY<=0&&sp>1&&playerState==='alive'){stepAcc=0;sfx.step();}
-        fireCd-=dt;dryCd-=dt;
+        fireCd-=dt;dryCd-=dt;punchCd-=dt;punchT*=Math.exp(-12*dt);
         if(firing&&fireCd<=0&&playerState==='alive'){
           if(!reloading){if(ammo>0)shoot();else if(dryCd<=0){sfx.dry();dryCd=.3;}}}
         if(reloading){relT+=dt;$('#relFill').style.width=Math.min(100,relT/1.5*100)+'%';
@@ -1491,6 +1573,16 @@ function initGameEngine() {
       const downDip=playerState==='downed'?.3:0;
       weapon.position.set(.22,-.2-downDip+Math.sin(bobT)*.004,-.42+wKick*.08);
       weapon.rotation.set(wKick*.15-dip-downDip,0,wKick*.02);
+      
+      const pOff = Math.sin(punchT * Math.PI) * 0.18;
+      if(fistsGroup){
+        const lFist = fistsGroup.children[0];
+        const rFist = fistsGroup.children[1];
+        if(lFist && rFist){
+          lFist.position.set(-.22, -.22 + Math.sin(bobT)*.005, -.32 - (punchSide===0 ? pOff : 0));
+          rFist.position.set(.22, -.22 + Math.sin(bobT)*.005, -.32 - (punchSide===1 ? pOff : 0));
+        }
+      }
       if(flashT>0){flashT-=dt;if(flashT<=0)flashSpr.visible=false;}
       flashLight.intensity*=Math.exp(-28*dt);
       for(const tr of tracers)if(tr.life>0){tr.life-=dt;tr.m.material.opacity=Math.max(0,tr.life/.065)*.9;
@@ -1641,6 +1733,7 @@ function initGameEngine() {
   bindTouchBtn('#tBtnFire', () => { if(playing && playerState === 'alive') firing = true; }, () => { firing = false; });
   bindTouchBtn('#tBtnJump', () => { if(jumpY <= 0 && playerState === 'alive') vy = 4.6; });
   bindTouchBtn('#tBtnReload', () => { if(playing && !reloading && ammo < MAG && reserve > 0) startReload(); });
+  bindTouchBtn('#tBtnWeapon', () => { if(playing) switchWeapon(); });
   bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });
 
 
