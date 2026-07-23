@@ -1464,12 +1464,14 @@ function initGameEngine() {
   /* ===== HUD & INTERFAZ ===== */
   function hudAmmo(){
     const a=$('#ammoNum');
+    const res=$('#ammoRes');
+    const wn=$('#ammoPanel .wn');
     if(activeWeapon==='fists'){
-      a.textContent='FISTS';a.className='dry';$('#ammoRes').textContent='MELEE';
-      const wn=$('#ammoPanel .wn');if(wn)wn.textContent='BARE FISTS · COMBAT';
+      a.textContent='0';a.className='dry';res.textContent='MELEE';
+      if(wn)wn.textContent='BARE FISTS · MELEE COMBAT';
     }else{
-      a.textContent=ammo;a.classList.toggle('dry',ammo===0);$('#ammoRes').textContent=reserve;
-      const wn=$('#ammoPanel .wn');if(wn)wn.textContent='M-42 "TOKEN" · 9MM';
+      a.textContent=ammo;a.classList.toggle('dry',ammo===0);res.textContent=reserve;
+      if(wn)wn.textContent=ammo===0?'NO AMMO — PRESS [R]':'M-42 "TOKEN" · 9MM';
     }
   }
   function hudHP(){$('#hpNum').textContent=Math.ceil(hp);$('#hpFill').style.width=hp+'%';
@@ -1608,8 +1610,8 @@ function initGameEngine() {
         fireCd-=dt;dryCd-=dt;punchCd-=dt;punchT*=Math.exp(-12*dt);
         if(firing&&fireCd<=0&&playerState==='alive'){
           if(!reloading){if(ammo>0)shoot();else if(dryCd<=0){sfx.dry();dryCd=.3;}}}
-        if(reloading){relT+=dt;$('#relFill').style.width=Math.min(100,relT/1.5*100)+'%';
-          if(relT>=1.5){const take=Math.min(MAG-ammo,reserve);ammo+=take;reserve-=take;
+        if(reloading){relT+=dt;$('#relFill').style.width=Math.min(100,relT/1.0*100)+'%';
+          if(relT>=1.0){const take=Math.min(MAG-ammo,reserve);ammo+=take;reserve-=take;
             reloading=false;$('#relBar').classList.remove('on');$('#relTxt').textContent='';hudAmmo();}}
         if(t-lastHit>5&&hp<100&&playerState==='alive'){hp=Math.min(100,hp+dt*5);hudHP();$('#hpRegen').style.opacity=1;}
         else $('#hpRegen').style.opacity=0;
