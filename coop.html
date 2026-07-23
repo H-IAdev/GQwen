@@ -864,9 +864,18 @@ function initGameEngine() {
   }
   function spawnZombie(type,hpMul,spMul){
     const z=buildZombieMesh(type);zombies.push(z);
-    const d=ZDEF[type];
+    const d=ZDEF[type] || ZDEF.walker;
     z.hp=d.hp*hpMul;z.speed=R(...d.spd)*spMul;z.dmg=d.dmg;z.score=d.score;
-    if(Math.random()<.5)sfx.moan(6);return z;
+    if(type==='boss_juggernaut'){
+      feed('🚨 BOSS SPAWNED: ALPHA JUGGERNAUT ('+Math.round(z.hp)+' HP)','k');
+      sfx.down();
+    }else if(type==='boss_stalker'){
+      feed('⚡ BOSS SPAWNED: NEON STALKER ('+Math.round(z.hp)+' HP)','k');
+      sfx.down();
+    }else if(Math.random()<.5){
+      sfx.moan(6);
+    }
+    return z;
   }
   function killZombie(z,hs){
     z.dead=true;z.deathT=0;kills++;headshots+=hs?1:0;score+=z.score+(hs?15:0);
@@ -1030,14 +1039,22 @@ function initGameEngine() {
   /* ===== OLEADAS ===== */
   function numPlayers(){return 1+Object.keys(remotePlayers).length;}
   function startWave(n){wave=n;queue=[];const N=numPlayers();
-    const base=4+n*2+(N-1)*2;
-    for(let i=0;i<base;i++)queue.push('walker');
-    if(n>=3)for(let i=0;i<n-1+(N-1);i++)queue.push('runner');
-    if(n>=4)for(let i=0;i<Math.floor((n-2)/2)+(N>2?1:0);i++)queue.push('brute');
+    queue.push('walker','walker','runner');
+    if(n>=2) queue.push('boss_juggernaut');
+    if(n>=3) queue.push('boss_stalker');
+    if(n>=4) queue.push('boss_juggernaut','brute');
+    if(n>=5) queue.push('boss_juggernaut','boss_stalker');
     queue.sort(()=>Math.random()-.5);
-    spawnInt=Math.max(1.8,3.5-n*.2);spawnT=1.5;
-    hpMul=(1+n*.1)*(1+.3*(N-1));spMul=1+Math.min(.4,n*.04);
-    banner('WAVE '+String(n).padStart(2,'0'),pick(['THEY COME FROM BOTH TUNNELS','HOLD THE LOOP','NO ESCAPE','STAY IN THE LIGHT']),n>=4);
+    spawnInt=Math.max(2.0, 4.0 - n * 0.2);spawnT=1.0;
+    hpMul=(1 + (n-1)*0.7) * (1 + 0.3 * (N - 1));
+    spMul=1 + Math.min(0.3, (n-1) * 0.05);
+    const hasBoss = n >= 2;
+    if(hasBoss){
+      banner('⚠️ ELITE BOSS DETECTED ⚠️', 'TOXIC CONTAINMENT BREACH — HIGH THREAT MONSTER INCOMING', true, 4200);
+      feed('⚠️ BOSS WARNING: OLEADA '+n,'k');
+    }else{
+      banner('WAVE '+String(n).padStart(2,'0'), 'HOLD THE LOOP LINE', false, 2800);
+    }
     sfx.wave();hudScore();netSend({type:'wave',n});}
 
   /* ===== CONTROLES WASD Y MOUSE ===== */
