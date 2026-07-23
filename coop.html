@@ -516,6 +516,20 @@ function initGameEngine() {
     x.font='600 36px "IBM Plex Mono", monospace';x.textBaseline='middle';
     x.fillStyle='#ff4b3e';x.shadowColor='#ff4b3e';x.shadowBlur=12;x.fillText('SERVICE SUSPENDED',30,50);
     x.fillStyle='#ffb400';x.shadowColor='#ffb400';x.fillText('LOOP SEALED — SHELTER IN PLACE',520,50);return c;}
+
+  function grafCnv(txt,color='#ffb400'){const[c,x]=cnv(512,128);x.clearRect(0,0,512,128);
+    x.font='600 26px "Archivo Black", sans-serif';x.textAlign='center';x.textBaseline='middle';
+    x.shadowColor=color;x.shadowBlur=10;x.fillStyle=color;x.fillText(txt,256,64);
+    x.fillStyle=color;for(let i=0;i<10;i++){x.fillRect(R(40,470),R(70,110),R(1,3),R(4,16));}return c;}
+
+  const WALL_MSGS=[
+    "AQUÍ NO HAY PLATA",
+    "SOMOS Y ESTAMOS",
+    "HOY NO ES VIERNES",
+    "...AH SÍ, TENGO QUE DESPERTAR...",
+    "NO HAY SALIDA",
+    "CUIDA TUS ESPALDAS"
+  ];
   const T={tile:tileCnv(),tileDk:tileCnv([185,183,176],.55),floor:floorCnv(),glow:glowCnv(),
     signA:signCnv('LUMEN ST'),signB:signCnv('MERIDIAN'),signExit:signCnv('EXIT ↑'),led:ledCnv()};
 
@@ -601,6 +615,12 @@ function initGameEngine() {
         const sm=std({map:mk(isA?T.signA:T.signB),roughness:.4},.3);
         const sp2=box(1.4,.4,.05,sm);sp2.position.set(lp.x+ln.x*(outerW+.1),2.8,lp.z+ln.z*(outerW+.1));
         const tn=trackTan(lt);sp2.rotation.y=Math.atan2(tn.x,tn.z);g.add(sp2);
+
+        // Graffiti Pintado en las Paredes de la Estación
+        const msg=WALL_MSGS[s%WALL_MSGS.length];
+        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6']))),transparent:true,opacity:.88,depthWrite:false});
+        const gMesh=box(3.2,.8,.02,gMat);gMesh.position.set(lp.x+ln.x*(outerW+.38),2.1,lp.z+ln.z*(outerW+.38));
+        gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
       }
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
