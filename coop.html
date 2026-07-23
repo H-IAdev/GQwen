@@ -1216,6 +1216,53 @@ function initGameEngine() {
   }
   function releaseRockLight(e){if(!e)return;e.inUse=false;e.light.intensity=0;e.light.visible=false;}
 
+  const AOE_R=3.5;       // radio de explosión en metros
+  const AOE_R2=AOE_R*AOE_R;
+  const ROCK_SPEED=19;   // velocidad de proyectil m/s
+  const ROCK_LIFE=3.2;   // segundos antes de expirar (≈60m de alcance máximo)
+
+  function rockExplode(pos, dmg, sourceIsRock){
+    // Partículas + feedback visual
+    burst(pos,'stone',18,4.5);
+    burst(pos,'spark',8,3.0);
+    sfx.moan(3);
+    // --- Daño al jugador local ---
+    camera.getWorldPosition(_vCam);
+    const dCam=pos.distanceTo(_vCam);
+    if(dCam<AOE_R && playerState==='alive'){
+      const falloff=Math.max(0,1-dCam/AOE_R);
+      const pdmg=Math.round(dmg*falloff);
+      if(pdmg>0){damagePlayer(pdmg);feed('EXPLOSION DE ROCA — -'+pdmg+' HP','k');}
+    }
+    // --- Daño a jugadores remotos ---
+    for(const[id,rp] of Object.entries(remotePlayers)){
+      if(rp.state!=='alive') continue;
+      const tp=trackPos(rp.trackT),tn=outN(rp.trackT);
+      _vRock.set(tp.x+tn.x*(rp.trackLat||3),1.2,tp.z+tn.z*(rp.trackLat||3));
+      const dR=pos.distanceTo(_vRock);
+      if(dR<AOE_R){
+        const fo=Math.max(0,1-dR/AOE_R);
+        const rdmg=Math.round(dmg*fo);
+        if(rdmg>0) netSend({type:'pdmg',dmg:rdmg,target:id});
+      }
+    }
+    // --- Daño+stagger a zombies comunes en radio ---
+    for(const oz of zombies){
+      if(oz.dead||oz.isHurler) continue;
+      const dz=pos.distanceTo(oz.g.position);
+      if(dz<AOE_R){
+        const fo=Math.max(0,1-dz/AOE_R);
+        const zdmg=Math.round(dmg*0.6*fo); // rocas dañan menos a zombies
+        if(zdmg>0){
+          oz.hp-=zdmg;oz.hitT=.3;
+          if(oz.hp<=0) killZombie(oz,false);
+          // Stagger: empujar hacia afuera del centro
+          else oz.t+=(_vDir.set(oz.g.position.x-pos.x,0,oz.g.position.z-pos.z).length()>0.01?Math.sign(oz.g.position.x-pos.x)*0.008:0.006);
+        }
+      }
+    }
+  }
+
   function spawnRock(fromPos, toPos, dmg){
     const m=new THREE.Mesh(rockGeo,rockMat);
     m.castShadow=true;
@@ -1224,7 +1271,7 @@ function initGameEngine() {
     const le=acquireRockLight();
     if(le) le.light.position.copy(fromPos);
     scene.add(m);
-    rocks.push({m,le,v:_vDir.clone().multiplyScalar(14),life:2.2,dmg,hit:false});
+    rocks.push({m,le,v:_vDir.clone().multiplyScalar(ROCK_SPEED),life:ROCK_LIFE,dmg,hit:false});
   }
 
   function updateRocks(dt){
@@ -1232,18 +1279,24 @@ function initGameEngine() {
     for(let i=rocks.length-1;i>=0;i--){
       const r=rocks[i];
       r.life-=dt;
-      r.v.y-=8*dt;
+      r.v.y-=9*dt; // gravedad ligeramente mayor para arco natural
       r.m.position.addScaledVector(r.v,dt);
-      r.m.rotation.x+=dt*4;r.m.rotation.z+=dt*2.5;
+      r.m.rotation.x+=dt*5;r.m.rotation.z+=dt*3;
       if(r.le) r.le.light.position.copy(r.m.position);
-      if(!r.hit && r.m.position.distanceTo(_vCam)<0.9 && playerState==='alive'){
-        r.hit=true;damagePlayer(r.dmg);
-        burst(r.m.position,'stone',10,3.5);
-        sfx.moan(3);
-        feed('GOLPEADO POR ROCA — -'+r.dmg+' HP','k');
+      // Detección de impacto directo (radio 0.7m = hitbox generoso)
+      const directHit=!r.hit && r.m.position.distanceTo(_vCam)<0.7 && playerState==='alive';
+      // Impacto contra el suelo
+      const floorHit=r.m.position.y<0.15;
+      if((directHit||floorHit) && !r.hit){
+        r.hit=true;
+        rockExplode(r.m.position, r.dmg, true);
       }
-      if(r.life<=0||r.hit){
-        if(!r.hit) burst(r.m.position,'stone',6,2.5);
+      if(r.life<=0 && !r.hit){
+        // TTL expirado: explotar en la posición actual (área)
+        r.hit=true;
+        rockExplode(r.m.position, r.dmg*0.7, false);
+      }
+      if(r.hit){
         scene.remove(r.m);
         releaseRockLight(r.le);
         rocks.splice(i,1);
@@ -1295,16 +1348,14 @@ function initGameEngine() {
   function doThrowVictim(z){
     const victim=z.grabbed;
     if(!victim||victim.dead){z.grabbed=null;return;}
-    const nearest=z.grabTarget;
-    const targetPos=nearest&&nearest.isLocal?getPlayerWorldPos():getPlayerWorldPos();
-    const from=new THREE.Vector3().copy(victim.g.position);from.y=1.3;
-    const dir=new THREE.Vector3().subVectors(targetPos,from).normalize();
-    victim.throwVel=dir.multiplyScalar(18);
+    getPlayerWorldPos(); // _vCam = player pos
+    _vRock.copy(victim.g.position);_vRock.y=1.3;
+    _vDir.subVectors(_vCam,_vRock).normalize();
+    victim.throwVel=_vDir.clone().multiplyScalar(20);
     victim.isThrown=true;victim.grabbed=false;
-    victim.thrownDmg=Math.round(victim.dmg*1.6);
-    victim.throwTarget=nearest;
+    victim.thrownDmg=Math.round(victim.dmg*1.8); // impacto más contundente
     z.grabbed=null;
-    feed('ZOMBIE LANZADO hacia el jugador!','k');
+    feed('ZOMBIE LANZADO! ESQUIVA!','k');
   }
 
   /* ===== ZOMBIS REMOTOS ===== */
