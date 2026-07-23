@@ -563,7 +563,29 @@ function initGameEngine() {
     "¿DÓNDE ESTÁ EL CONDUCTOR?",
     "SOLO FALTAS TÚ",
     "NO HAY SALIDA",
-    "CUIDA TUS ESPALDAS"
+    "CUIDA TUS ESPALDAS",
+    "APUNTA A LA CABEZA",
+    "NO PARES DE CORRER",
+    "EL METRO NO VUELVE",
+    "BIENVENIDO AL INFIERNO",
+    "ELLOS NO DUERMEN",
+    "QUEDAN BALAS?",
+    "SECTOR CERO ← PELIGRO",
+    "NADIE SALIÓ POR AQUÍ",
+    "R.I.P. LÍNEA CIRCULAR",
+    "NO ALIMENTES A LOS ZOMBIS",
+    "HOLD THE LINE",
+    "LAST TRAIN TO NOWHERE"
+  ];
+  const CEIL_MSGS=[
+    "↑ DIOS NO ESTÁ AQUÍ ↑",
+    "↑ EL TECHO TAMBIÉN CAE ↑",
+    "↑ BIENVENIDO AL FONDO ↑",
+    "↑ ÚLTIMA PARADA ↑",
+    "↑ SIN SEÑAL ↑",
+    "↑ OLEADA TRAS OLEADA ↑",
+    "↑ CORRE HACIA LA LUZ ↑",
+    "↑ NO MIRES ARRIBA ↑"
   ];
   const T={tile:tileCnv(),tileDk:tileCnv([185,183,176],.55),floor:floorCnv(),glow:glowCnv(),
     signA:signCnv('LUMEN ST'),signB:signCnv('MERIDIAN'),signExit:signCnv('EXIT ↑'),led:ledCnv()};
@@ -691,6 +713,27 @@ function initGameEngine() {
         const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6']))),transparent:true,opacity:.88,depthWrite:false});
         const gMesh=box(3.2,.8,.02,gMat);gMesh.position.set(lp.x+ln.x*(outerW+.38),2.1,lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
+      }
+      // GRAFITI EN PAREDES INTERIORES (todos los sectores, incluyendo túneles)
+      {
+        const glt=(t0+t1)/2;const glp=trackPos(glt),gln=outN(glt),gtn=trackTan(glt);
+        const gColor=pick(['#ff4b3e','#00ffaa','#ffb400','#ff80ff','#80cfff']);
+        const gMsg=WALL_MSGS[(s*3+7)%WALL_MSGS.length];
+        const gMat2=new THREE.MeshBasicMaterial({map:mk(grafCnv(gMsg,gColor)),transparent:true,opacity:.82,depthWrite:false});
+        const gMesh2=box(3.0,.7,.015,gMat2);
+        // Colocar en pared interior (lado -3 del track)
+        gMesh2.position.set(glp.x+gln.x*-2.95,R(1.2,2.5),glp.z+gln.z*-2.95);
+        gMesh2.rotation.y=Math.atan2(gtn.x,gtn.z)+Math.PI;g.add(gMesh2);
+        // Grafiti en TECHO (horizontal, mirando hacia abajo)
+        if(Math.random()<0.6){
+          const cMsg=CEIL_MSGS[s%CEIL_MSGS.length];
+          const cColor=pick(['#ff4b3e','#ffb400','#80cfff','#00ffaa']);
+          const cMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(cMsg,cColor)),transparent:true,opacity:.7,depthWrite:false});
+          const cMesh=box(4.2,.9,.015,cMat);
+          cMesh.position.set(glp.x+gln.x*(outerW*.5),wH-.02,glp.z+gln.z*(outerW*.5));
+          cMesh.rotation.x=-Math.PI/2;
+          cMesh.rotation.z=Math.atan2(gtn.x,gtn.z)+R(-.3,.3);g.add(cMesh);
+        }
       }
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         addL(new THREE.PointLight(0xc8d4e8,12,10,1.8),12).position.set(lp.x,2.8,lp.z);}
@@ -901,6 +944,7 @@ function initGameEngine() {
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
   const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3();
+  const _vRock=new THREE.Vector3(), _vCam=new THREE.Vector3(), _vHand=new THREE.Vector3(), _vDir=new THREE.Vector3();
   const trGeo=new THREE.BoxGeometry(1,1,1),tracers=[];
   for(let i=0;i<24;i++){const m=new THREE.Mesh(trGeo,new THREE.MeshBasicMaterial({color:0xffd9a0,
     transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -1063,7 +1107,7 @@ function initGameEngine() {
         z.g.position.addScaledVector(z.throwVel,dt);
         z.throwVel.y-=12*dt;
         z.g.rotation.z+=dt*6;
-        const camPos2=camera.getWorldPosition(new THREE.Vector3());
+        camera.getWorldPosition(_vCam);const camPos2=_vCam;
         if(z.g.position.distanceTo(camPos2)<1.1 && playerState==='alive'){
           damagePlayer(z.thrownDmg||30);
           burst(z.g.position,'ichor',16,4.0);
@@ -1128,9 +1172,8 @@ function initGameEngine() {
           } else {
             z.chargeT-=dt;
             if(z.chargeRockMesh){
-              const hp2=new THREE.Vector3();
-              z.aR.p.getWorldPosition(hp2);hp2.y+=0.7+Math.sin(Date.now()*.008)*.08;
-              z.chargeRockMesh.position.copy(hp2);
+              z.aR.p.getWorldPosition(_vHand);_vHand.y+=0.7+Math.sin(Date.now()*.008)*.08;
+              z.chargeRockMesh.position.copy(_vHand);
               z.chargeRockMesh.rotation.y+=dt*3;
             }
             z.aR.p.rotation.x=-2.6;
@@ -1157,71 +1200,80 @@ function initGameEngine() {
 
   /* ===== ROCK HURLER — PROYECTILES Y GRAB ===== */
   const rocks=[];
-  const rockGeo=new THREE.DodecahedronGeometry(.28,0);
+  const rockGeo=new THREE.OctahedronGeometry(.3,0);
   const rockMat=new THREE.MeshStandardMaterial({color:0x8b5c2a,roughness:.95,metalness:.05});
+
+  // Pool de 3 luces de roca (reutilizadas, sin crear/destruir cada lanzamiento)
+  const rockLightPool=[];
+  for(let _i=0;_i<3;_i++){
+    const _rl=new THREE.PointLight(0xff7020,0,4.5,2);
+    _rl.visible=false;_rl.layers.set(2);scene.add(_rl);
+    rockLightPool.push({light:_rl,inUse:false});
+  }
+  function acquireRockLight(){
+    for(const e of rockLightPool){if(!e.inUse){e.inUse=true;e.light.intensity=1.8;e.light.visible=true;return e;}}
+    return null; // fallback: sin luz si las 3 están ocupadas
+  }
+  function releaseRockLight(e){if(!e)return;e.inUse=false;e.light.intensity=0;e.light.visible=false;}
 
   function spawnRock(fromPos, toPos, dmg){
     const m=new THREE.Mesh(rockGeo,rockMat);
     m.castShadow=true;
     m.position.copy(fromPos);
-    const dir=new THREE.Vector3().subVectors(toPos,fromPos).normalize();
-    const spd=14;
-    const light=new THREE.PointLight(0xff7020,1.8,3.5,2);
-    light.position.copy(fromPos);
-    light.layers.set(2);
-    scene.add(light);
+    _vDir.subVectors(toPos,fromPos).normalize();
+    const le=acquireRockLight();
+    if(le) le.light.position.copy(fromPos);
     scene.add(m);
-    rocks.push({m,light,v:dir.multiplyScalar(spd),life:2.2,dmg,hit:false});
+    rocks.push({m,le,v:_vDir.clone().multiplyScalar(14),life:2.2,dmg,hit:false});
   }
 
   function updateRocks(dt){
+    camera.getWorldPosition(_vCam);
     for(let i=rocks.length-1;i>=0;i--){
       const r=rocks[i];
       r.life-=dt;
       r.v.y-=8*dt;
       r.m.position.addScaledVector(r.v,dt);
       r.m.rotation.x+=dt*4;r.m.rotation.z+=dt*2.5;
-      r.light.position.copy(r.m.position);
-      if(!r.hit){
-        const camPos=camera.getWorldPosition(new THREE.Vector3());
-        if(r.m.position.distanceTo(camPos)<0.9 && playerState==='alive'){
-          r.hit=true;damagePlayer(r.dmg);
-          burst(r.m.position,'stone',14,3.5);
-          sfx.moan(3);
-          feed('GOLPEADO POR ROCA — -'+r.dmg+' HP','k');
-        }
+      if(r.le) r.le.light.position.copy(r.m.position);
+      if(!r.hit && r.m.position.distanceTo(_vCam)<0.9 && playerState==='alive'){
+        r.hit=true;damagePlayer(r.dmg);
+        burst(r.m.position,'stone',10,3.5);
+        sfx.moan(3);
+        feed('GOLPEADO POR ROCA — -'+r.dmg+' HP','k');
       }
       if(r.life<=0||r.hit){
-        if(!r.hit) burst(r.m.position,'stone',8,2.5);
-        scene.remove(r.m);scene.remove(r.light);rocks.splice(i,1);
+        if(!r.hit) burst(r.m.position,'stone',6,2.5);
+        scene.remove(r.m);
+        releaseRockLight(r.le);
+        rocks.splice(i,1);
       }
     }
   }
 
   function getPlayerWorldPos(){
-    return camera.getWorldPosition(new THREE.Vector3());
+    return camera.getWorldPosition(_vCam);
   }
 
   function doRockThrow(z, nearest){
-    const handPos=new THREE.Vector3();
-    z.aR.p.getWorldPosition(handPos);
-    handPos.y+=0.55;
-    let targetPos;
+    z.aR.p.getWorldPosition(_vHand);
+    _vHand.y+=0.55;
     if(nearest.isLocal){
-      targetPos=getPlayerWorldPos();
+      getPlayerWorldPos(); // fills _vCam
+      _vRock.copy(_vCam);
     } else {
       const rp=remotePlayers[nearest.id];
       if(rp){const tp=trackPos(rp.trackT),tn=outN(rp.trackT);
-        targetPos=new THREE.Vector3(tp.x+tn.x*(rp.trackLat||3),1.2,tp.z+tn.z*(rp.trackLat||3));}
-      else targetPos=getPlayerWorldPos();
+        _vRock.set(tp.x+tn.x*(rp.trackLat||3),1.2,tp.z+tn.z*(rp.trackLat||3));}
+      else{getPlayerWorldPos();_vRock.copy(_vCam);}
     }
-    spawnRock(handPos, targetPos, 30);
-    burst(handPos,'stone',10,3.0);
+    spawnRock(_vHand, _vRock, 30);
+    burst(_vHand,'stone',8,3.0);
     z.throwAnim=0.35;
     z.rockT=R(4.5,7.0);
     z.charging=false;z.chargeT=0;
-    netSend({type:'hurler_rock',pos:{x:handPos.x,y:handPos.y,z:handPos.z},
-      dst:{x:targetPos.x,y:targetPos.y,z:targetPos.z},dmg:30});
+    netSend({type:'hurler_rock',pos:{x:_vHand.x,y:_vHand.y,z:_vHand.z},
+      dst:{x:_vRock.x,y:_vRock.y,z:_vRock.z},dmg:30});
   }
 
   function doGrabAndThrow(z, nearest){
