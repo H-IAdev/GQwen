@@ -100,7 +100,7 @@ opacity:0;transition:all .4s;pointer-events:none;width:90vw}
 #banner h2{font-family:var(--disp);font-size:clamp(32px,5.5vw,64px);text-shadow:0 5px 24px rgba(0,0,0,.8)}
 #banner .rl{width:90px;height:6px;background:var(--amber);margin:10px auto 8px}
 #banner p{font-size:10px;letter-spacing:.28em;color:var(--amber2)}
-#banner.alert h2{color:var(--red)}
+#banner.alert h2{color:#00ffaa;text-shadow:0 0 20px #00ffaa, 0 0 40px #ff0055;font-size:clamp(28px,5vw,56px)}
 #paused{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:12;padding:8px 16px;
 font-size:10px;letter-spacing:.18em;color:var(--amber2);opacity:0;transition:opacity .3s;pointer-events:auto;cursor:pointer;
 border-left:3px solid var(--amber)}
@@ -732,27 +732,38 @@ function initGameEngine() {
   const zombies=[];let zId=0;
 
   // REBALANCEO COMPLETO: HP 15, Velocidad 1.2 m/s, Daño 5 HP
+  const EYE_BOSS_GREEN=std({color:0x00ffaa,emissive:0x00ffaa,emissiveIntensity:6.0,roughness:.1},.1);
+  const EYE_BOSS_PURPLE=std({color:0xff00cc,emissive:0xff00cc,emissiveIntensity:6.0,roughness:.1},.1);
+  const CORE_NEON=std({color:0x00ffaa,emissive:0x00ff88,emissiveIntensity:4.5,roughness:.2},.2);
+  addE(EYE_BOSS_GREEN,6.0,true);addE(EYE_BOSS_PURPLE,6.0,true);addE(CORE_NEON,4.5,true);
+
   const ZDEF={
-    walker:{hp:20,spd:[3.2,4.0],dmg:12,score:10,sc:1},
-    runner:{hp:15,spd:[5.5,6.8],dmg:10,score:15,sc:.88},
-    brute:{hp:50,spd:[2.5,3.2],dmg:20,score:30,sc:1.35},
-    boss_juggernaut:{hp:180,spd:[2.2,2.8],dmg:35,score:100,sc:2.1},
-    boss_stalker:{hp:110,spd:[6.0,7.5],dmg:22,score:75,sc:1.35}
+    walker:{hp:25,spd:[3.2,4.0],dmg:12,score:10,sc:1},
+    runner:{hp:18,spd:[5.5,6.8],dmg:10,score:15,sc:.88},
+    brute:{hp:60,spd:[2.5,3.2],dmg:20,score:30,sc:1.35},
+    boss_juggernaut:{hp:450,spd:[2.6,3.2],dmg:45,score:250,sc:2.4},
+    boss_stalker:{hp:280,spd:[6.5,8.0],dmg:30,score:180,sc:1.6}
   };
 
   function buildZombieMesh(type){
     const g=new THREE.Group();
-    const isBoss = type.startsWith('boss');
-    const skinColor = type==='boss_juggernaut'? 0x3d4538 : type==='boss_stalker'? 0x4a2a2a : pick(SKINS);
-    const clothColor = type==='boss_juggernaut'? 0x14171a : type==='boss_stalker'? 0x241818 : pick(CLOTH);
-    const skin=std({color:skinColor,roughness:.9},.1);
+    const isJuggernaut = type === 'boss_juggernaut';
+    const isStalker = type === 'boss_stalker';
+    const skinColor = isJuggernaut ? 0x0c120e : isStalker ? 0x2e0828 : pick(SKINS);
+    const clothColor = isJuggernaut ? 0x05070a : isStalker ? 0x180516 : pick(CLOTH);
+    const skin=std({color:skinColor,roughness:.8},.1);
     const clothM=std({color:clothColor,roughness:.95},.08).clone();
-    const dark=std({color:0x22252a,roughness:.9},.08);
+    const dark=std({color:0x111317,roughness:.9},.08);
     const mkB=(w,h,d,m)=>{const b=box(w,h,d,m);b.castShadow=true;return b;};
-    const torso=mkB(.44,.6,.25,clothM);torso.position.y=1.02;g.add(torso);
+    const torso=mkB(isJuggernaut?.6:.44,.6,.25,clothM);torso.position.y=1.02;g.add(torso);
+    if(isJuggernaut){
+      const core=mkB(.25,.3,.15,CORE_NEON);core.position.set(0,1.02,.08);core.layers.set(2);g.add(core);
+    }
     const head=mkB(.24,.26,.24,skin);head.position.y=1.5;g.add(head);
     const jaw=mkB(.16,.08,.11,skin);jaw.position.set(0,1.35,.09);g.add(jaw);
-    [-1,1].forEach(s=>{const e=new THREE.Mesh(new THREE.SphereGeometry(.024,6,6),EYE_M);
+    const eyeMat = isJuggernaut ? EYE_BOSS_GREEN : isStalker ? EYE_BOSS_PURPLE : EYE_M;
+    const eyeSize = (isJuggernaut || isStalker) ? .045 : .024;
+    [-1,1].forEach(s=>{const e=new THREE.Mesh(new THREE.SphereGeometry(eyeSize,6,6),eyeMat);
       e.position.set(s*.06,1.53,.12);e.layers.set(2);g.add(e);});
     function arm(s){const p=new THREE.Group();p.position.set(s*.3,1.28,0);g.add(p);
       p.add(setTF(mkB(.1,.34,.1,skin),[0,-.17,0]));
