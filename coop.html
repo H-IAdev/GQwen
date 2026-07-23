@@ -691,17 +691,17 @@ function initGameEngine() {
     const mBox=box(.9,.55,.55,masterLockerMat);mBox.position.set(4.2, 3.88, -31);intGroup.add(mBox);
     scene.add(intGroup);
 
-    // Cajas de Munición 3D Recogibles en la Plataforma de la Estación
-    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.4,roughness:.5},.4);
+    // Cajas de Munición 3D Recogibles en la Plataforma de la Estación (lat = 1.8m)
+    const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.5,roughness:.4},.5);
     const ammoSectors=[0.05, 0.15, 0.45, 0.55, 0.85, 0.95];
     window.ammoCrates=[];
     ammoSectors.forEach((tVal)=>{
       const p=trackPos(tVal), n=outN(tVal);
       const crGroup=new THREE.Group();
-      const bMesh=box(.5,.32,.32,ammoCrateMat);bMesh.position.y=.16;bMesh.castShadow=true;crGroup.add(bMesh);
-      const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:.8}));
-      glowSpr.position.set(0,.35,0);glowSpr.scale.set(1.0,1.0,1.0);crGroup.add(glowSpr);
-      crGroup.position.set(p.x + n.x * 2.1, 0.16, p.z + n.z * 2.1);scene.add(crGroup);
+      const bMesh=box(.6,.38,.38,ammoCrateMat);bMesh.position.y=.19;bMesh.castShadow=true;crGroup.add(bMesh);
+      const glowSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffb400,transparent:true,blending:THREE.AdditiveBlending,opacity:1.0}));
+      glowSpr.position.set(0,.45,0);glowSpr.scale.set(1.2,1.2,1.2);crGroup.add(glowSpr);
+      crGroup.position.set(p.x + n.x * 1.8, 0.19, p.z + n.z * 1.8);scene.add(crGroup);
       window.ammoCrates.push({g:crGroup,cooldown:0,active:true});
     });
 
@@ -961,6 +961,15 @@ function initGameEngine() {
     burst(pt,'ichor',hs?12:7,2.8);
     if(z.hp<=0)killZombie(z,hs);else{hitmark(hs);sfx.flesh();}
     netSend({type:'zhit',id:z.id,dmg});
+  }
+  function getFloorY(x,z){
+    if(z<=-18 && z>=-24.5 && x>=0.8 && x<=4.2){
+      return Math.min(3.5, Math.max(0, (-18 - z) * 0.58));
+    }
+    if(z<-24.5 && z>=-36 && x>=0.2 && x<=4.8){
+      return 3.5;
+    }
+    return 0;
   }
   function getAlivePlayers(){
     const list=[];
@@ -1662,8 +1671,9 @@ function initGameEngine() {
         
         const sp=vel.length();bobT+=dt*sp*4.5;
         const bob=Math.sin(bobT)*.03*Math.min(1,sp/3)*(jumpY>0?0:1)*(REDUCED?0:1)*(playerState==='alive'?1:0);
+        const floorY=getFloorY(p.x,p.z);
         const eyeH=playerState==='downed'?.5:playerState==='dead'?.3:1.7;
-        p.y=eyeH+jumpY+bob;
+        p.y=floorY+eyeH+jumpY+bob;
         
         stepAcc+=dt*sp;if(stepAcc>2&&jumpY<=0&&sp>1&&playerState==='alive'){stepAcc=0;sfx.step();}
         fireCd-=dt;dryCd-=dt;punchCd-=dt;punchT*=Math.exp(-12*dt);
