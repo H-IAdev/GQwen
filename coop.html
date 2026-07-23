@@ -732,14 +732,21 @@ function initGameEngine() {
   const zombies=[];let zId=0;
 
   // REBALANCEO COMPLETO: HP 15, Velocidad 1.2 m/s, Daño 5 HP
-  const ZDEF={walker:{hp:15,spd:[3.2,4.2],dmg:12,score:10,sc:1},
-    runner:{hp:12,spd:[5.5,7.0],dmg:10,score:15,sc:.88},
-    brute:{hp:45,spd:[2.5,3.2],dmg:25,score:30,sc:1.35}};
+  const ZDEF={
+    walker:{hp:20,spd:[3.2,4.0],dmg:12,score:10,sc:1},
+    runner:{hp:15,spd:[5.5,6.8],dmg:10,score:15,sc:.88},
+    brute:{hp:50,spd:[2.5,3.2],dmg:20,score:30,sc:1.35},
+    boss_juggernaut:{hp:180,spd:[2.2,2.8],dmg:35,score:100,sc:2.1},
+    boss_stalker:{hp:110,spd:[6.0,7.5],dmg:22,score:75,sc:1.35}
+  };
 
   function buildZombieMesh(type){
     const g=new THREE.Group();
-    const skin=std({color:pick(SKINS),roughness:.9},.1);
-    const clothM=std({color:pick(CLOTH),roughness:.95},.08).clone();
+    const isBoss = type.startsWith('boss');
+    const skinColor = type==='boss_juggernaut'? 0x3d4538 : type==='boss_stalker'? 0x4a2a2a : pick(SKINS);
+    const clothColor = type==='boss_juggernaut'? 0x14171a : type==='boss_stalker'? 0x241818 : pick(CLOTH);
+    const skin=std({color:skinColor,roughness:.9},.1);
+    const clothM=std({color:clothColor,roughness:.95},.08).clone();
     const dark=std({color:0x22252a,roughness:.9},.08);
     const mkB=(w,h,d,m)=>{const b=box(w,h,d,m);b.castShadow=true;return b;};
     const torso=mkB(.44,.6,.25,clothM);torso.position.y=1.02;g.add(torso);
@@ -1431,7 +1438,7 @@ function initGameEngine() {
         // Oleadas (Host)
         if(isHost){
           if(queue.length){spawnT-=dt;
-            const maxActive=Math.min(3+wave,8+numPlayers()*2);
+            const maxActive=Math.min(4, 2 + Math.floor(wave/2));
             if(spawnT<=0&&zombies.filter(z=>!z.dead).length<maxActive){
               spawnT=spawnInt;spawnZombie(queue.pop(),hpMul,spMul);}}
           else if(!clearing&&!zombies.some(z=>!z.dead)){
