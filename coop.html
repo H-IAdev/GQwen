@@ -610,7 +610,7 @@ function initGameEngine() {
       const wg=new THREE.BufferGeometry();
       wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
-      // PASO 1: PARED INTERIOR 100% SÓLIDA E IMPENETRABLE EN SECTORES 1..7 (CERO TRANSPARENCIA)
+      // Pared interior 100% sólida (Sectores 1..7) + Marco Portal (Sector 0)
       if(s !== 0){
         const iw=[],ii=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
@@ -622,7 +622,6 @@ function initGameEngine() {
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
       } else {
-        // SECTOR 0: ÚNICO PORTAL DE ACCESO / MARCO DE OBSERVACIÓN AL MAPA SECRETO CENTRAL
         const p10=trackPos(t0), n0=outN(t0);
         const pFrameL=box(.45, 4.3, 1.2, M.concrete);
         pFrameL.position.set(p10.x + n0.x*-3, 2.15, p10.z - 4.5);g.add(pFrameL);
@@ -690,29 +689,30 @@ function initGameEngine() {
     // ILUMINACIÓN AMBIENTAL DE SODIO CÁLIDA INTERIOR (0xffaa22)
     const sodLight2=new THREE.PointLight(0xffaa22, 3.5, 20);
     sodLight2.position.set(2.4, 3.2, -16.0);intGroup.add(sodLight2);
+    const sodLight=new THREE.PointLight(0xffaa22, 2.8, 14);sodLight.position.set(2.4, 2.8, 0);intGroup.add(sodLight);
 
-    // PASO 3 Y PASO 4: BALCÓN DE MEZZANINE, ESCALERAS 3D, CABINA DE CONTROL Y CASILLERO MAESTRO DE MUNICIÓN
+    // PASO 3: BALCÓN DE MEZZANINE, ESCALERAS 3D Y CABINA DE CONTROL
     const mFloor=box(6.0, .25, 10.0, concMat);mFloor.position.set(2.4, 3.48, -28);mFloor.receiveShadow=true;intGroup.add(mFloor);
 
     // Escalera Sur (z = -12 a -4)
-    for(let step=0; step<14; step++){
-      const stMesh=box(2.2, .26, .55, concMat);
-      stMesh.position.set(2.4, step * .25 + .13, -4 - step * .55);
-      stMesh.receiveShadow=true;intGroup.add(stMesh);
+    for(let stepIdx=0; stepIdx<14; stepIdx++){
+      const stStep=box(2.2, .26, .55, concMat);
+      stStep.position.set(2.4, stepIdx * .25 + .13, -4 - stepIdx * .55);
+      stStep.receiveShadow=true;intGroup.add(stStep);
     }
 
     // Escalera Norte (z = 4 a 12)
-    for(let step=0; step<14; step++){
-      const stMesh=box(2.2, .26, .55, concMat);
-      stMesh.position.set(2.4, step * .25 + .13, 4 + step * .55);
-      stMesh.receiveShadow=true;intGroup.add(stMesh);
+    for(let stepIdx=0; stepIdx<14; stepIdx++){
+      const stStep=box(2.2, .26, .55, concMat);
+      stStep.position.set(2.4, stepIdx * .25 + .13, 4 + stepIdx * .55);
+      stStep.receiveShadow=true;intGroup.add(stStep);
     }
 
     // Cabina de Control de Seguridad con Monitores Iluminados Neón (0x3f8cff)
-    const term=box(1.8, .9, .5, termMat);term.position.set(2.4, 4.4, 0);term.layers.set(2);intGroup.add(term);
-    const termLight=new THREE.PointLight(0x3f8cff, 4.0, 12);termLight.position.set(2.4, 4.6, 0.5);intGroup.add(termLight);
+    const secBooth=box(1.8, .9, .5, termMat);secBooth.position.set(2.4, 4.4, 0);secBooth.layers.set(2);intGroup.add(secBooth);
+    const secBoothLight=new THREE.PointLight(0x3f8cff, 4.0, 12);secBoothLight.position.set(2.4, 4.6, 0.5);intGroup.add(secBoothLight);
 
-    // CASILLERO MAESTRO DE MUNICIÓN EN MEZZANINE (mBox)
+    // PASO 4: CASILLERO MAESTRO DE MUNICIÓN EN MEZZANINE Y MOLINETES DE SEGURIDAD
     const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.8,roughness:.3},.5);
     const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
 
@@ -723,30 +723,6 @@ function initGameEngine() {
       const tsBar=box(1.2, .08, .08, metalGateMat);tsBar.position.set(2.4, .85, offZ);intGroup.add(tsBar);
     });
 
-    // Escalera Sur (z = -12 a -4)
-    for(let step=0; step<14; step++){
-      const stMesh=box(2.2, .26, .55, concMat);
-      stMesh.position.set(2.4, step * .25 + .13, -4 - step * .55);
-      stMesh.receiveShadow=true;intGroup.add(stMesh);
-    }
-
-    // Escalera Norte (z = 4 a 12)
-    for(let step=0; step<14; step++){
-      const stMesh=box(2.2, .26, .55, concMat);
-      stMesh.position.set(2.4, step * .25 + .13, 4 + step * .55);
-      stMesh.receiveShadow=true;intGroup.add(stMesh);
-    }
-    
-    // Cabina de Control de Seguridad con Monitores Iluminados
-    const term=box(1.8, .9, .5, termMat);term.position.set(2.4, 4.4, 0);term.layers.set(2);intGroup.add(term);
-    const termLight=new THREE.PointLight(0x3f8cff, 4.0, 12);termLight.position.set(2.4, 4.6, 0.5);intGroup.add(termLight);
-
-    // Lámpara de Sodio Tenue Flotante (0xffaa22)
-    const sodLight=new THREE.PointLight(0xffaa22, 2.8, 14);sodLight.position.set(2.4, 2.8, 0);intGroup.add(sodLight);
-
-    // Casillero Maestro de Munición 3D en Mezzanine
-    const masterLockerMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.8,roughness:.3},.5);
-    const mBox=box(1.0,.6,.6,masterLockerMat);mBox.position.set(4.2, 3.88, 0);intGroup.add(mBox);
     if(sectorGroups[0]) sectorGroups[0].add(intGroup); else scene.add(intGroup);
 
     // SISTEMA DINÁMICO DE GENERACIÓN DE MUNICIÓN DINÁMICA DELANTE DEL JUGADOR
