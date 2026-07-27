@@ -531,6 +531,13 @@ function initGameEngine() {
   camera.rotation.order='YXZ';camera.layers.enable(2);
   camera.position.set(0,1.7,-30);scene.add(camera);
   buildEnv();
+  /* DEBUG: Esfera cromada para verificación de reflejos en vivo */
+  const esferaDebug = new THREE.Mesh(
+    new THREE.SphereGeometry(0.4, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0 })
+  );
+  esferaDebug.position.set(0, 1.5, -28);
+  scene.add(esferaDebug);
 
   // Iluminación
   /* GQW-VIS-5.0: Rebalanced Lighting — darker ambient + dynamic player SpotLight */
@@ -567,6 +574,8 @@ function initGameEngine() {
       const pmrem=new THREE.PMREMGenerator(renderer);
       pmrem.compileEquirectangularShader();
       scene.environment=pmrem.fromEquirectangular(procEnvTex()).texture;
+      console.assert(scene.environment, "FALTA ENVIRONMENT — scene.environment está nulo");
+      logDiag('PBR Environment IBL asignado correctamente (PMREM ok).', 'ok');
     } catch(e) {
       console.warn('Notice buildEnv PMREM:', e.message);
     }
