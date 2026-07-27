@@ -886,10 +886,10 @@ function initGameEngine() {
   const M={};
   M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35}); M.tile.side = THREE.DoubleSide;
   M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2}); M.tileDk.side = THREE.DoubleSide;
-  M.concrete = pbrMat(paintConcrete,{ns:1,rough:[.9,.15],env:.12});
+  M.concrete = pbrMat(paintConcrete,{ns:1,rough:[.9,.15],env:.12}); M.concrete.side = THREE.DoubleSide;
   M.floor    = floorPhysicalMat();
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
-  M.ceil     = std({color:0x181b1f,roughness:.95},.08);
+  M.ceil     = std({color:0x181b1f,roughness:.95},.08); M.ceil.side = THREE.DoubleSide;
   M.dark     = std({color:0x131518,roughness:.8,metalness:.4},.15);
   M.green    = std({color:0x1c4534,roughness:.55,metalness:.3},.25);
   M.rail     = std({color:0x9aa0a7,roughness:.25,metalness:1},.9);
