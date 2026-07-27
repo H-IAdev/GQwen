@@ -530,6 +530,7 @@ function initGameEngine() {
   camera=new THREE.PerspectiveCamera(74,innerWidth/innerHeight,0.05,120);
   camera.rotation.order='YXZ';camera.layers.enable(2);
   camera.position.set(0,1.7,-30);scene.add(camera);
+  buildEnv();
 
   // Iluminación
   /* GQW-VIS-5.0: Rebalanced Lighting — darker ambient + dynamic player SpotLight */
@@ -542,6 +543,34 @@ function initGameEngine() {
   scene.add(keyLight);scene.add(keyLight.target);
 
   const ANISO=renderer&&renderer.capabilities&&renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1;
+
+  /* ═══════════════════════════════════════════════════════════════════
+     IBL ENVIRONMENT REFLECTION MAP (PMREM)
+     Source: Mejora visual mapa suelo ceramica paredes techo.html
+     ═══════════════════════════════════════════════════════════════════ */
+  function procEnvTex(){
+    const[c,x]=cnv(512,256);
+    const g=x.createLinearGradient(0,0,0,256);
+    g.addColorStop(0,'#1a2028');g.addColorStop(.45,'#0a0d12');g.addColorStop(1,'#050607');
+    x.fillStyle=g;x.fillRect(0,0,512,256);
+    x.fillStyle='rgba(255,170,60,.55)';x.fillRect(0,58,512,10);
+    x.fillStyle='rgba(160,190,230,.40)';x.fillRect(0,112,512,6);
+    const t=new THREE.CanvasTexture(c);
+    if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace;
+    else if(THREE.sRGBEncoding) t.encoding=THREE.sRGBEncoding;
+    t.mapping=THREE.EquirectangularReflectionMapping;
+    return t;
+  }
+  function buildEnv(){
+    if(!renderer) return;
+    try {
+      const pmrem=new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      scene.environment=pmrem.fromEquirectangular(procEnvTex()).texture;
+    } catch(e) {
+      console.warn('Notice buildEnv PMREM:', e.message);
+    }
+  }
 
   /* ===== ESTRUCTURA DE PISTA ===== */
   const TA=55,TB=30;
@@ -628,18 +657,77 @@ function initGameEngine() {
     for(let k=0;k<6;k++){x.beginPath();let cx=Math.random()*S,cy=Math.random()*S;x.moveTo(cx,cy);
       for(let s=0;s<5;s++){cx+=(Math.random()-.5)*80;cy+=(Math.random()-.5)*80;x.lineTo(cx,cy);}x.stroke();}
   }
-  function paintFloor(x,S){
-    x.fillStyle='#1e2126';x.fillRect(0,0,S,S);
-    const n=2,ts=S/n;
-    for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=(Math.random()-.5)*10;
-      x.fillStyle=`rgb(${30+v|0},${33+v|0},${38+v|0})`;x.fillRect(i*ts+4,j*ts+4,ts-8,ts-8);}
-    x.fillStyle='#0c0d10';for(let i=0;i<=n;i++){x.fillRect(i*ts-3,0,6,S);x.fillRect(0,i*ts-3,S,6);}
-    for(let k=0;k<2500;k++){x.fillStyle=`rgba(${Math.random()>.5?'200,210,225':'0,0,0'},${Math.random()*.06})`;
-      x.fillRect(Math.random()*S,Math.random()*S,1.5,1.5);}
-    for(let k=0;k<9;k++){const cx=Math.random()*S,cy=Math.random()*S,r=40+Math.random()*100;
-      const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
-      g.addColorStop(0,'rgba(190,205,225,.10)');g.addColorStop(1,'rgba(190,205,225,0)');
-      x.fillStyle=g;x.fillRect(cx-r,cy-r,r*2,r*2);}
+  /* Suelo cerámico con charcos INTEGRADOS (MeshPhysicalMaterial + Clearcoat + IBL) */
+  function floorPhysicalMat(){
+    const S = 1024, tiles = 8, puddles = 6;
+    const [albCnv] = cnv(S,S), [rghCnv] = cnv(S,S);
+    const a = albCnv.getContext('2d',{willReadFrequently:true});
+    const r = rghCnv.getContext('2d',{willReadFrequently:true});
+
+    // 1. Cerámica base albedo & roughness
+    a.fillStyle = '#1e2126'; a.fillRect(0,0,S,S);
+    r.fillStyle = '#5a5a5a'; r.fillRect(0,0,S,S); // ~0.35 roughness
+
+    // Mosaico cerámico con tono baldosas
+    const n = tiles, ts = S / n;
+    for(let i=0; i<n; i++) for(let j=0; j<n; j++){
+      const v = (Math.random()-.5)*10;
+      a.fillStyle = `rgb(${30+v|0},${33+v|0},${38+v|0})`;
+      a.fillRect(i*ts+4, j*ts+4, ts-8, ts-8);
+    }
+
+    // 2. Juntas de baldosas
+    a.fillStyle = '#0c0d10';
+    r.fillStyle = '#b4b4b4'; // junta rugosa (~0.7)
+    for(let i=0; i<=n; i++){
+      a.fillRect(i*ts-3, 0, 6, S); a.fillRect(0, i*ts-3, S, 6);
+      r.fillRect(i*ts-3, 0, 6, S); r.fillRect(0, i*ts-3, S, 6);
+    }
+
+    // Moteado cerámico y destellos
+    for(let k=0; k<2500; k++){
+      a.fillStyle = `rgba(${Math.random()>.5?'200,210,225':'0,0,0'},${Math.random()*.06})`;
+      a.fillRect(Math.random()*S, Math.random()*S, 1.5, 1.5);
+    }
+
+    // 3. Charcos de agua integrados en albedo y roughness (NEGRO = Espejo nítido)
+    for(let p=0; p<puddles; p++){
+      const px = Math.random()*S, py = Math.random()*S, rad = 40 + Math.random()*90;
+      let g = a.createRadialGradient(px, py, 0, px, py, rad);
+      g.addColorStop(0, 'rgba(15,18,22,0.85)'); g.addColorStop(1, 'rgba(15,18,22,0)');
+      a.fillStyle = g; a.beginPath(); a.arc(px, py, rad, 0, 7); a.fill();
+
+      g = r.createRadialGradient(px, py, 0, px, py, rad);
+      g.addColorStop(0, '#050505'); g.addColorStop(1, '#5a5a5a'); // #050505 espejo nítido
+      r.fillStyle = g; r.beginPath(); r.arc(px, py, rad, 0, 7); r.fill();
+    }
+
+    const wrap = texture => {
+      const tx = new THREE.CanvasTexture(texture);
+      tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+      tx.repeat.set(4, 4);
+      tx.anisotropy = ANISO;
+      return tx;
+    };
+
+    const map = wrap(albCnv);
+    if (THREE.SRGBColorSpace) map.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding) map.encoding = THREE.sRGBEncoding;
+
+    const roughnessMap = wrap(rghCnv);
+    const normalMap = wrap(normalFrom(albCnv, 0.8));
+
+    return new THREE.MeshPhysicalMaterial({
+      map,
+      roughnessMap,
+      normalMap,
+      normalScale: new THREE.Vector2(0.8, 0.8),
+      metalness: 0.05,
+      roughness: 1, // roughness dictado por roughnessMap
+      clearcoat: 0.65,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.6
+    });
   }
   function paintSteel(x,S){
     x.fillStyle='#a7adb4';x.fillRect(0,0,S,S);
@@ -748,7 +836,7 @@ function initGameEngine() {
   M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35});
   M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2});
   M.concrete = pbrMat(paintConcrete,{ns:1,rough:[.9,.15],env:.12});
-  M.floor    = pbrMat(paintFloor,{ns:.8,rough:[.38,.45],env:.5});
+  M.floor    = floorPhysicalMat();
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
   M.ceil     = std({color:0x181b1f,roughness:.95},.08);
   M.dark     = std({color:0x131518,roughness:.8,metalness:.4},.15);
