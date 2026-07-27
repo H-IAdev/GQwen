@@ -407,6 +407,8 @@ if (typeof Peer === 'undefined') {
 
 <script>
 (function(){
+const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+var isTouchDevice = IS_TOUCH;
 const $=s=>document.querySelector(s);
 const diagLog=$('#diagLog');
 
@@ -573,7 +575,7 @@ function initGameEngine() {
      ATMOSPHERIC DUST MOTES PARTICLE SYSTEM (POLVO EN SUSPENSIÓN)
      Source: Mapa corredor tren 4.html
      ═══════════════════════════════════════════════════════════════════ */
-  const DUST_N = (typeof isTouchDevice !== 'undefined' && isTouchDevice) ? 160 : 420;
+  const DUST_N = IS_TOUCH ? 160 : 420;
   const dustGeo = new THREE.BufferGeometry();
   const dustPos = new Float32Array(DUST_N * 3), dustSpd = new Float32Array(DUST_N);
   for(let i = 0; i < DUST_N; i++){
@@ -1289,8 +1291,8 @@ function initGameEngine() {
   const pMats={ichor:new THREE.MeshBasicMaterial({color:0x7aa03c}),spark:new THREE.MeshBasicMaterial({color:0xffc870}),stone:new THREE.MeshBasicMaterial({color:0xd4763a})};
   const parts=[];let pIdx=0;
   function burst(pos,key,n,spd){
-    const effectiveN = (typeof isTouchDevice !== 'undefined' && isTouchDevice) ? Math.max(2, Math.floor(n * 0.45)) : n;
-    const maxPool = (typeof isTouchDevice !== 'undefined' && isTouchDevice) ? 35 : 120;
+    const effectiveN = IS_TOUCH ? Math.max(2, Math.floor(n * 0.45)) : n;
+    const maxPool = IS_TOUCH ? 35 : 120;
     for(let i=0;i<effectiveN;i++){
       let p=parts[pIdx++ % maxPool];
       if(!p){p={m:new THREE.Mesh(pGeo,pMats.spark),v:new THREE.Vector3(),life:0};p.m.layers.set(2);scene.add(p.m);parts.push(p);pIdx=parts.length;}
@@ -3544,8 +3546,8 @@ function initGameEngine() {
   animate();
 
   /* ===== GESTOR DE CONTROLES TÁCTILES MÓVILES ===== */
-  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  if(isTouchDevice) document.body.classList.add('is-touch');
+  
+  if(IS_TOUCH) document.body.classList.add('is-touch');
 
   const joyContainer = $('#joyContainer');
   const joyKnob = $('#joyKnob');
