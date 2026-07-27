@@ -587,6 +587,70 @@ function initGameEngine() {
     }
     x.putImageData(out,0,0); return c;
   }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     REFLECTIVE CERAMIC FLOOR & WALL PBR GENERATORS
+     Source: Mejora visual mapa suelo ceramica paredes techo.html
+     ═══════════════════════════════════════════════════════════════════ */
+  function pbrMat(paint,opt={}){
+    const S=opt.size||512,[c]=cnv(S,S);paint(c.getContext('2d',{willReadFrequently:true}),S);
+    const wrap=t=>{const tx=new THREE.CanvasTexture(t);tx.wrapS=tx.wrapT=THREE.RepeatWrapping;tx.anisotropy=ANISO;return tx;};
+    const map=wrap(c);
+    if(THREE.SRGBColorSpace) map.colorSpace=THREE.SRGBColorSpace;
+    else if(THREE.sRGBEncoding) map.encoding=THREE.sRGBEncoding;
+    const cfg={map,roughness:1,metalness:opt.met||0,envMapIntensity:opt.env??.35};
+    if(opt.ns){cfg.normalMap=wrap(normalFrom(c,opt.ns));cfg.normalScale=new THREE.Vector2(.8,.8);}
+    if(opt.rough)cfg.roughnessMap=wrap(roughFrom(c,opt.rough[0],opt.rough[1]));
+    return new THREE.MeshStandardMaterial(cfg);
+  }
+  function paintTile(x,S,light){
+    x.fillStyle=light?'#e1ded4':'#b9b7b0';x.fillRect(0,0,S,S);
+    const n=4,ts=S/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const v=(Math.random()-.5)*16;
+      x.fillStyle=`rgb(${(light?225:185)+v|0},${(light?222:183)+v|0},${(light?212:176)+v|0})`;
+      x.fillRect(i*ts+3,j*ts+3,ts-6,ts-6);
+    }
+    x.fillStyle=light?'#8f8c82':'#6d6b63';
+    for(let i=0;i<=n;i++){x.fillRect(i*ts-2,0,4,S);x.fillRect(0,i*ts-2,S,4);}
+    for(let k=0;k<26;k++){x.fillStyle=`rgba(20,18,14,${Math.random()*.1})`;
+      x.beginPath();x.arc(Math.random()*S,Math.random()*S,20+Math.random()*70,0,7);x.fill();}
+    x.fillStyle='rgba(30,26,20,.12)';
+    for(let k=0;k<14;k++)x.fillRect(Math.random()*S,Math.random()*S*.5,2+Math.random()*3,40+Math.random()*120);
+  }
+  function paintConcrete(x,S){
+    x.fillStyle='#282b30';x.fillRect(0,0,S,S);
+    for(let k=0;k<4200;k++){x.fillStyle=Math.random()>.5?`rgba(255,255,255,${Math.random()*.05})`:`rgba(0,0,0,${Math.random()*.12})`;
+      x.fillRect(Math.random()*S,Math.random()*S,1+Math.random()*2,1+Math.random()*2);}
+    for(let k=0;k<10;k++){x.fillStyle=`rgba(10,10,12,${.05+Math.random()*.1})`;
+      x.beginPath();x.arc(Math.random()*S,Math.random()*S,30+Math.random()*90,0,7);x.fill();}
+    x.strokeStyle='rgba(0,0,0,.35)';x.lineWidth=1;
+    for(let k=0;k<6;k++){x.beginPath();let cx=Math.random()*S,cy=Math.random()*S;x.moveTo(cx,cy);
+      for(let s=0;s<5;s++){cx+=(Math.random()-.5)*80;cy+=(Math.random()-.5)*80;x.lineTo(cx,cy);}x.stroke();}
+  }
+  function paintFloor(x,S){
+    x.fillStyle='#1e2126';x.fillRect(0,0,S,S);
+    const n=2,ts=S/n;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=(Math.random()-.5)*10;
+      x.fillStyle=`rgb(${30+v|0},${33+v|0},${38+v|0})`;x.fillRect(i*ts+4,j*ts+4,ts-8,ts-8);}
+    x.fillStyle='#0c0d10';for(let i=0;i<=n;i++){x.fillRect(i*ts-3,0,6,S);x.fillRect(0,i*ts-3,S,6);}
+    for(let k=0;k<2500;k++){x.fillStyle=`rgba(${Math.random()>.5?'200,210,225':'0,0,0'},${Math.random()*.06})`;
+      x.fillRect(Math.random()*S,Math.random()*S,1.5,1.5);}
+    for(let k=0;k<9;k++){const cx=Math.random()*S,cy=Math.random()*S,r=40+Math.random()*100;
+      const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+      g.addColorStop(0,'rgba(190,205,225,.10)');g.addColorStop(1,'rgba(190,205,225,0)');
+      x.fillStyle=g;x.fillRect(cx-r,cy-r,r*2,r*2);}
+  }
+  function paintSteel(x,S){
+    x.fillStyle='#a7adb4';x.fillRect(0,0,S,S);
+    for(let k=0;k<900;k++){const y=Math.random()*S;
+      x.fillStyle=`rgba(${Math.random()>.5?235:40},${Math.random()>.5?240:44},${Math.random()>.5?248:52},${.03+Math.random()*.05})`;
+      x.fillRect(0,y,S,1);}
+    for(let k=0;k<40;k++){x.fillStyle=`rgba(60,64,70,${Math.random()*.08})`;
+      x.fillRect(Math.random()*S,Math.random()*S,2+Math.random()*4,20+Math.random()*80);}
+    x.fillStyle='rgba(70,74,80,.85)';
+    for(let i=0;i<4;i++)for(let j=0;j<4;j++){x.beginPath();x.arc(64+i*128,64+j*128,7,0,7);x.fill();}
+  }
   function tileCnv(base=[225,222,212],grime=.4){const[c,x]=cnv(512,512);
     x.fillStyle='#a8a294';x.fillRect(0,0,512,512);
     for(let r=0;r<16;r++)for(let q=0;q<16;q++){const v=R(-8,8);
@@ -679,21 +743,17 @@ function initGameEngine() {
   const addL=(l,b,e=false)=>{l.userData={base:b,emergency:e};lightsReg.push(l);scene.add(l);return l;};
   const addE=(m,b,e=false)=>{m.userData={base:b,emergency:e};emisReg.push(m);return m;};
   const addG=(s,b)=>{s.material.userData={base:b};glowReg.push(s.material);return s;};
-  /* GQW-VIS-5.0: PBR Materials con Sobel Normal Maps procedurales */
-  const _tileNrm=normalFrom(T.tile,1.4), _tileDkNrm=normalFrom(T.tileDk,1.2);
-  const _floorNrm=normalFrom(T.floor,0.8), _floorRgh=roughFrom(T.floor,.55,.3);
-  const M={floor:std({map:mk(T.floor,4,4),normalMap:mk(_floorNrm,4,4),normalScale:new THREE.Vector2(.8,.8),
-      roughnessMap:mk(_floorRgh,4,4),roughness:1,metalness:.06},.5),
-    tile:std({map:mk(T.tile,6,1),normalMap:mk(_tileNrm,6,1),normalScale:new THREE.Vector2(.7,.7),
-      roughness:.35},.35),
-    tileDk:std({map:mk(T.tileDk,5,1),normalMap:mk(_tileDkNrm,5,1),normalScale:new THREE.Vector2(.6,.6),
-      roughness:.5},.2),
-    concrete:std({color:0x282b30,roughness:.92},.12),
-    ceil:std({color:0x181b1f,roughness:.95},.08),
-    dark:std({color:0x131518,roughness:.8,metalness:.4},.15),
-    green:std({color:0x1c4534,roughness:.55,metalness:.3},.25),
-    steel:std({color:0xaab0b7,roughness:.3,metalness:.85},.8),
-    rail:std({color:0x9aa0a7,roughness:.25,metalness:1},.9)};
+  /* REFLECTIVE CERAMIC FLOOR & WALL MATERIALS (From Mejora visual mapa suelo ceramica paredes techo.html) */
+  const M={};
+  M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35});
+  M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2});
+  M.concrete = pbrMat(paintConcrete,{ns:1,rough:[.9,.15],env:.12});
+  M.floor    = pbrMat(paintFloor,{ns:.8,rough:[.38,.45],env:.5});
+  M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
+  M.ceil     = std({color:0x181b1f,roughness:.95},.08);
+  M.dark     = std({color:0x131518,roughness:.8,metalness:.4},.15);
+  M.green    = std({color:0x1c4534,roughness:.55,metalness:.3},.25);
+  M.rail     = std({color:0x9aa0a7,roughness:.25,metalness:1},.9);
 
   /* ===== MAPA 3D ===== */
   const sectorGroups=[];
@@ -707,33 +767,45 @@ function initGameEngine() {
       const outerW=lerp(3.0,5.8,st);
       const wH=lerp(4.2,5.2,st);
 
-      // Suelo
-      const fp=[],fi=[];
+      // Suelo con mapeo UV para cerámicas reflejantes
+      const fp=[],fi=[],fuv=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        fp.push(p.x+n.x*-2.8,0,p.z+n.z*-2.8, p.x+n.x*outerW,0,p.z+n.z*outerW);}
+        fp.push(p.x+n.x*-2.8,0,p.z+n.z*-2.8, p.x+n.x*outerW,0,p.z+n.z*outerW);
+        const u=t*36, v1=(outerW+2.8)/2.2;
+        fuv.push(u,0, u,v1);}
       for(let i=0;i<SPS;i++){const a=i*2;fi.push(a,a+2,a+1,a+1,a+2,a+3);}
       const fg=new THREE.BufferGeometry();
-      fg.setAttribute('position',new THREE.Float32BufferAttribute(fp,3));fg.setIndex(fi);fg.computeVertexNormals();
+      fg.setAttribute('position',new THREE.Float32BufferAttribute(fp,3));
+      fg.setAttribute('uv',new THREE.Float32BufferAttribute(fuv,2));
+      fg.setIndex(fi);fg.computeVertexNormals();
       const fm=new THREE.Mesh(fg,st>.3?M.floor:M.concrete);fm.receiveShadow=true;g.add(fm);
 
-      // Pared exterior
-      const wp=[],wi=[];
+      // Pared exterior con mapeo UV para azulejos cerámicos
+      const wp=[],wi=[],wuv=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
         const x=p.x+n.x*(outerW+.4),z=p.z+n.z*(outerW+.4);
-        wp.push(x,0,z, x,wH,z);}
+        wp.push(x,0,z, x,wH,z);
+        const u=t*36, v1=wH/2.2;
+        wuv.push(u,0, u,v1);}
       for(let i=0;i<SPS;i++){const a=i*2;wi.push(a,a+1,a+2,a+1,a+3,a+2);}
       const wg=new THREE.BufferGeometry();
-      wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));wg.setIndex(wi);wg.computeVertexNormals();
+      wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));
+      wg.setAttribute('uv',new THREE.Float32BufferAttribute(wuv,2));
+      wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
 
-      // PARED INTERIOR 100% SÓLIDA — TODOS LOS SECTORES (curva completa, sin huecos)
+      // Pared interior con mapeo UV cerámico
       {
-        const iw=[],ii=[];
+        const iw=[],ii=[],iuv=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);}
+          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);
+          const u=t*36, v1=wH/2.2;
+          iuv.push(u,0, u,v1);}
         for(let i=0;i<SPS;i++){const a=i*2;ii.push(a,a+1,a+2,a+1,a+3,a+2);}
         const ig=new THREE.BufferGeometry();
-        ig.setAttribute('position',new THREE.Float32BufferAttribute(iw,3));ig.setIndex(ii);ig.computeVertexNormals();
+        ig.setAttribute('position',new THREE.Float32BufferAttribute(iw,3));
+        ig.setAttribute('uv',new THREE.Float32BufferAttribute(iuv,2));
+        ig.setIndex(ii);ig.computeVertexNormals();
         const innerSolidMesh=new THREE.Mesh(ig,M.tile);
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
