@@ -533,13 +533,7 @@ function initGameEngine() {
   camera.rotation.order='YXZ';camera.layers.enable(2);
   camera.position.set(0,1.7,-30);scene.add(camera);
   buildEnv();
-  /* DEBUG: Esfera cromada para verificación de reflejos en vivo */
-  const esferaDebug = new THREE.Mesh(
-    new THREE.SphereGeometry(0.4, 32, 32),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0 })
-  );
-  esferaDebug.position.set(0, 1.5, -28);
-  scene.add(esferaDebug);
+  /* Reflective Chrome Debug Sphere removed after successful IBL verification */
 
   // Iluminación
   /* GQW-VIS-5.0: Rebalanced Lighting — darker ambient + dynamic player SpotLight */
@@ -2606,9 +2600,19 @@ function initGameEngine() {
     for(let i = 0; i < SECTORS; i++){
       let d = Math.abs(i - pS);
       d = Math.min(d, SECTORS - d);
-      if(sectorGroups[i]) sectorGroups[i].visible = d <= 1;
+      if(sectorGroups[i]) sectorGroups[i].visible = d <= 2;
     }
     const sEl = $('#sectorId');
+        if(lightsReg && lightsReg.length && camera){
+      lightsReg.forEach(l => {
+        if(!l) return;
+        const distToCam = camera.position.distanceTo(l.position);
+        const fade = clamp(1.0 - (distToCam - 14.0) / 24.0, 0.08, 1.0);
+        const base = l.userData.base || 1.0;
+        const k = (l.userData.k !== undefined) ? l.userData.k : 1.0;
+        l.intensity = base * k * fade;
+      });
+    }
     if(sEl) sEl.textContent = 'S' + (pS + 1);
   }
 
