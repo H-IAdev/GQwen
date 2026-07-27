@@ -909,8 +909,8 @@ function initGameEngine() {
       // Suelo con mapeo UV para cerámicas reflejantes
       const fp=[],fi=[],fuv=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        fp.push(p.x+n.x*-2.8,0,p.z+n.z*-2.8, p.x+n.x*outerW,0,p.z+n.z*outerW);
-        const u=t*36, v1=(outerW+2.8)/2.2;
+        fp.push(p.x+n.x*-5.2,0,p.z+n.z*-5.2, p.x+n.x*outerW,0,p.z+n.z*outerW);
+        const u=t*36, v1=(outerW+5.2)/2.2;
         fuv.push(u,0, u,v1);}
       for(let i=0;i<SPS;i++){const a=i*2;fi.push(a,a+2,a+1,a+1,a+2,a+3);}
       const fg=new THREE.BufferGeometry();
@@ -1035,7 +1035,7 @@ function initGameEngine() {
         const gMat2=new THREE.MeshBasicMaterial({map:mk(grafCnv(gMsg,gColor)),transparent:true,opacity:.82,depthWrite:false});
         const gMesh2=box(3.0,.7,.015,gMat2);
         // Colocar en pared interior (lado -3 del track)
-        gMesh2.position.set(glp.x+gln.x*-2.95,R(1.2,2.5),glp.z+gln.z*-2.95);
+        gMesh2.position.set(glp.x+gln.x*-5.15,R(1.2,2.5),glp.z+gln.z*-5.15);
         gMesh2.rotation.y=Math.atan2(gtn.x,gtn.z)+Math.PI;g.add(gMesh2);
         // Grafiti en TECHO (horizontal, mirando hacia abajo)
         if(Math.random()<0.6){
@@ -1072,7 +1072,7 @@ function initGameEngine() {
     secretMapBase.position.set(2.4, -.12, -16.0);secretMapBase.receiveShadow=true;intGroup.add(secretMapBase);
 
     const secretMapCeil=box(12.0, .3, 24.0, M.ceil);
-    secretMapCeil.position.set(2.4, 5.15, -16.0);intGroup.add(secretMapCeil);
+    secretMapCeil.position.set(2.4, 6.6, -16.0);intGroup.add(secretMapCeil);
 
     // ILUMINACIÓN AMBIENTAL DE SODIO CÁLIDA INTERIOR (0xffaa22)
     const sodLight2=new THREE.PointLight(0xffaa22, 3.5, 20);
