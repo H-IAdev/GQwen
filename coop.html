@@ -884,8 +884,8 @@ function initGameEngine() {
   const addG=(s,b)=>{s.material.userData={base:b};glowReg.push(s.material);return s;};
   /* REFLECTIVE CERAMIC FLOOR & WALL MATERIALS (From Mejora visual mapa suelo ceramica paredes techo.html) */
   const M={};
-  M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35});
-  M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2});
+  M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35}); M.tile.side = THREE.DoubleSide;
+  M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2}); M.tileDk.side = THREE.DoubleSide;
   M.concrete = pbrMat(paintConcrete,{ns:1,rough:[.9,.15],env:.12});
   M.floor    = floorPhysicalMat();
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
@@ -904,7 +904,7 @@ function initGameEngine() {
       const t0=s/SECTORS,t1=(s+1)/SECTORS;
       const st=stationness((t0+t1)/2);
       const outerW=lerp(5.2,8.6,st);
-      const wH=lerp(4.2,5.2,st);
+      const wH=lerp(5.8,6.6,st);
 
       // Suelo con mapeo UV para cerámicas reflejantes
       const fp=[],fi=[],fuv=[];
@@ -955,22 +955,22 @@ function initGameEngine() {
         const doorAngle=Math.atan2(pTan.x,pTan.z);
         // Marco de hormigón (jambas + dintel)
         const frameL=box(.42, wH, 1.1, M.concrete);
-        frameL.position.set(pMid.x+pN.x*-3.1, wH/2, pMid.z-3.8);
+        frameL.position.set(pMid.x+pN.x*-5.2, wH/2, pMid.z-3.8);
         frameL.rotation.y=doorAngle;g.add(frameL);
         const frameR=box(.42, wH, 1.1, M.concrete);
-        frameR.position.set(pMid.x+pN.x*-3.1, wH/2, pMid.z+3.8);
+        frameR.position.set(pMid.x+pN.x*-5.2, wH/2, pMid.z+3.8);
         frameR.rotation.y=doorAngle;g.add(frameR);
         const frameTop=box(.42, 1.0, 8.8, M.concrete);
-        frameTop.position.set(pMid.x+pN.x*-3.1, wH-.5, pMid.z);
+        frameTop.position.set(pMid.x+pN.x*-5.2, wH-.5, pMid.z);
         frameTop.rotation.y=doorAngle;g.add(frameTop);
         // Panel de puerta metálica (montado sobre la pared, ligeramente por delante)
         const doorPanel=box(.18, 3.6, 7.6, M.steel);
-        doorPanel.position.set(pMid.x+pN.x*-2.92, 1.8, pMid.z);
+        doorPanel.position.set(pMid.x+pN.x*-5.0, 1.8, pMid.z);
         doorPanel.rotation.y=doorAngle;g.add(doorPanel);
         // LED de estado
         const dLedMat=std({color:0xff0000,emissive:0xff0044,emissiveIntensity:5.0,roughness:.2},.2);
         const dLed=box(.18, .16, .55, dLedMat);
-        dLed.position.set(pMid.x+pN.x*-2.74, 3.4, pMid.z+3.2);
+        dLed.position.set(pMid.x+pN.x*-4.85, 3.4, pMid.z+3.2);
         dLed.rotation.y=doorAngle;g.add(dLed);
       }
 
