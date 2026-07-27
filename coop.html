@@ -342,12 +342,14 @@ backdrop-filter:blur(3px);transition:transform 0.08s, background 0.1s}
     <p class="ovC">The loop is sealed. Two stations, two tunnels, <em>no way out</em>. The breakers are failing and they're coming from both directions. <b>Cooperate or die alone in the dark.</b> Conexión P2P con Metered TURN integrada — BUILD 2026.07.25 - VER 4.6 RESILIENT.</p>
     
     <div class="lobbyP">
-      <div class="lp"><h3>PLAY SOLO</h3><p>Start a single-player survival session right away. No network required.</p>
-        <button class="go sm" id="soloBtn">PLAY SOLO</button></div>
-      <div class="lp"><h3>CREATE ROOM</h3><p>Host a co-op session. Share the code — works across any network.</p>
+      <div class="lp"><h3>PLAY SOLO</h3><p>Modo supervivencia individual sin bots. Demuestra tu destreza a solas.</p>
+        <button class="go sm" id="soloBtn">SOLO SURVIVAL</button></div>
+      <div class="lp"><h3>CO-OP BOTS</h3><p>Sala especial con escuadrón IA (NOAH, ELENA, MARCUS) que te apoya y reanima.</p>
+        <button class="go sm" id="botsBtn" style="background:#1a4d2e;border-color:#00ffaa">PLAY WITH BOTS</button></div>
+      <div class="lp"><h3>CREATE ROOM</h3><p>Crea una sala cooperativa en línea P2P para jugar con amigos de todo el mundo.</p>
         <button class="go sm" id="createBtn">CREATE ROOM</button>
         <div class="roomCode" id="roomCodeBox" style="display:none"><span>CODE:</span><b id="codeText">-----</b></div></div>
-      <div class="lp"><h3>JOIN ROOM</h3><p>Enter a room code to connect peer-to-peer (TURN relay if needed).</p>
+      <div class="lp"><h3>JOIN ROOM</h3><p>Únete a una sala cooperativa en línea ingresando el código P2P.</p>
         <div class="joinRow"><input id="joinInput" maxlength="5" placeholder="CODE" spellcheck="false">
         <button class="go sm" id="joinBtn">JOIN</button></div></div>
     </div>
@@ -556,7 +558,7 @@ function initGameEngine() {
 
   /* ===== TEXTURAS Y MATERIALES ===== */
   function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return[c,c.getContext('2d')];}
-  function mk(c,rx=1,ry=1){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  function mk(c,rx=1,ry=1){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=ANISO;return t;}
 
   /* ===== PBR GENERATOR: SOBEL NORMAL MAPS & ROUGHNESS FROM CANVAS (GQW-VIS-5.0) ===== */
   function normalFrom(srcCanvas, strength){
@@ -585,7 +587,6 @@ function initGameEngine() {
     }
     x.putImageData(out,0,0); return c;
   }
-    t.repeat.set(rx,ry);t.anisotropy=ANISO;return t;}
   function tileCnv(base=[225,222,212],grime=.4){const[c,x]=cnv(512,512);
     x.fillStyle='#a8a294';x.fillRect(0,0,512,512);
     for(let r=0;r<16;r++)for(let q=0;q<16;q++){const v=R(-8,8);
@@ -2589,16 +2590,29 @@ function initGameEngine() {
     updatePlayerList();
   }
 
+  let gameMode = 'solo'; // 'solo' | 'bots' | 'online'
+
   function initSolo(){
     resetPeer();
+    gameMode = 'solo';
     isHost=true;myColor=PCOLORS[0];
-    setNetStatus('SOLO MODE','ok');
-    logDiag('Modo Solitario iniciado correctamente.', 'ok');
+    setNetStatus('SOLO SURVIVAL MODE','ok');
+    logDiag('Modo Supervivencia Solitario iniciado (sin bots).', 'ok');
+    startGame();
+  }
+
+  function initBotsMode(){
+    resetPeer();
+    gameMode = 'bots';
+    isHost=true;myColor=PCOLORS[0];
+    setNetStatus('CO-OP BOTS SQUAD ACTIVE','ok');
+    logDiag('Modo Cooperativo con Bots iniciado (NOAH, ELENA, MARCUS).', 'ok');
     startGame();
   }
 
   function initHost(){
     resetPeer();
+    gameMode = 'online';
     if(typeof Peer==='undefined'){
       $('#lobbyStatus').textContent='PEERJS UNAVAILABLE — LOCAL HOST ACTIVE';
       $('#lobbyStatus').className='lobbyStatus err';
@@ -2701,6 +2715,7 @@ function initGameEngine() {
 
   function initClient(code){
     resetPeer();
+    gameMode = 'online';
     if(typeof Peer==='undefined'){
       $('#lobbyStatus').textContent='PeerJS CDN UNAVAILABLE';
       $('#lobbyStatus').className='lobbyStatus err';
@@ -2963,8 +2978,16 @@ function initGameEngine() {
     $('#over').classList.add('gone');$('#lobby').classList.add('gone');
     document.body.classList.add('playing');
     hudAmmo();hudHP();hudScore();playing=true;startTime=elapsed;requestLock();
-    /* GQW-VIS-5.0: Spawn AI squad in solo/bot mode */
-    if(Object.keys(remotePlayers).length===0&&typeof spawnBots==='function'){spawnBots();}
+    /* GQW-VIS-5.0: Spawn AI squad ONLY in dedicated 'bots' mode */
+    if(gameMode === 'bots' && typeof spawnBots === 'function'){
+      spawnBots();
+    } else {
+      if(typeof bots !== 'undefined' && Array.isArray(bots)){
+        bots.forEach(b => { if(b.mesh) scene.remove(b.mesh); });
+        bots.length = 0;
+      }
+      botsEnabled = false;
+    }
     if(isHost&&sendNet)netSend({type:'start'});}
 
   function gameOver(){playing=false;firing=false;
@@ -2979,6 +3002,7 @@ function initGameEngine() {
 
   /* ===== EVENTOS BOTONES LOBBY ===== */
   $('#soloBtn').addEventListener('click',e=>{e.currentTarget.blur();initSolo();});
+  $('#botsBtn').addEventListener('click',e=>{e.currentTarget.blur();initBotsMode();});
   $('#createBtn').addEventListener('click',e=>{e.currentTarget.blur();
     $('#createBtn').disabled=true;$('#joinBtn').disabled=true;initHost();});
   $('#joinBtn').addEventListener('click',e=>{e.currentTarget.blur();
