@@ -568,6 +568,46 @@ function initGameEngine() {
     t.mapping=THREE.EquirectangularReflectionMapping;
     return t;
   }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     ATMOSPHERIC DUST MOTES PARTICLE SYSTEM (POLVO EN SUSPENSIÓN)
+     Source: Mapa corredor tren 4.html
+     ═══════════════════════════════════════════════════════════════════ */
+  const DUST_N = (typeof isTouchDevice !== 'undefined' && isTouchDevice) ? 160 : 420;
+  const dustGeo = new THREE.BufferGeometry();
+  const dustPos = new Float32Array(DUST_N * 3), dustSpd = new Float32Array(DUST_N);
+  for(let i = 0; i < DUST_N; i++){
+    dustPos[i*3] = R(-10, 10);
+    dustPos[i*3+1] = R(0.2, 5.5);
+    dustPos[i*3+2] = R(-60, 60);
+    dustSpd[i] = R(0.02, 0.09);
+  }
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+  const dustMat = new THREE.PointsMaterial({
+    color: 0xffd9a0,
+    size: 0.038,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const dustMotes = new THREE.Points(dustGeo, dustMat);
+  dustMotes.layers.set(0);
+  scene.add(dustMotes);
+
+  function updateDustMotes(dt, t){
+    if(!dustMotes || !dustPos) return;
+    for(let i = 0; i < DUST_N; i++){
+      dustPos[i*3+1] += dustSpd[i] * dt * 3;
+      dustPos[i*3] += Math.sin(t * 0.5 + i) * dt * 0.05;
+      if(dustPos[i*3+1] > 5.6) dustPos[i*3+1] = 0.2;
+    }
+    dustGeo.attributes.position.needsUpdate = true;
+    if(dustMat && typeof B !== 'undefined') {
+      dustMat.opacity = 0.20 + Math.max(0, (1 - (B / 100))) * 0.28;
+    }
+  }
+
   function buildEnv(){
     if(!renderer) return;
     try {
@@ -3399,6 +3439,8 @@ function initGameEngine() {
           updateZombies(dt);
           updateBots(dt);
           updateBotChat(dt);
+          /* GQW-VIS-5.0: Ambient Dust Motes Drift Animation */
+          updateDustMotes(dt, elapsed);
           /* GQW-VIS-5.0 ETAPA 4: Breaker degradation — lights dim over time */
           if(isHost&&B>5){
             const brkDecay=(0.5+wave*0.06)*dt;
