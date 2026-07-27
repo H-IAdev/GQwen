@@ -903,7 +903,7 @@ function initGameEngine() {
       const g=new THREE.Group();scene.add(g);sectorGroups.push(g);
       const t0=s/SECTORS,t1=(s+1)/SECTORS;
       const st=stationness((t0+t1)/2);
-      const outerW=lerp(3.0,5.8,st);
+      const outerW=lerp(5.2,8.6,st);
       const wH=lerp(4.2,5.2,st);
 
       // Suelo con mapeo UV para cerámicas reflejantes
@@ -937,7 +937,7 @@ function initGameEngine() {
       {
         const iw=[],ii=[],iuv=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-          const x=p.x+n.x*-3,z=p.z+n.z*-3;iw.push(x,0,z, x,wH,z);
+          const x=p.x+n.x*-5.2,z=p.z+n.z*-5.2;iw.push(x,0,z, x,wH,z);
           const u=t*36, v1=wH/2.2;
           iuv.push(u,0, u,v1);}
         for(let i=0;i<SPS;i++){const a=i*2;ii.push(a,a+1,a+2,a+1,a+3,a+2);}
@@ -977,7 +977,7 @@ function initGameEngine() {
       // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
       const cp=[],ci=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        cp.push(p.x+n.x*-3.2,wH,p.z+n.z*-3.2, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
+        cp.push(p.x+n.x*-5.4,wH,p.z+n.z*-5.4, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
       for(let i=0;i<SPS;i++){const a=i*2;ci.push(a,a+1,a+2,a+1,a+3,a+2);}
       const cg=new THREE.BufferGeometry();
       cg.setAttribute('position',new THREE.Float32BufferAttribute(cp,3));cg.setIndex(ci);cg.computeVertexNormals();
@@ -996,7 +996,7 @@ function initGameEngine() {
       if(st>.5){
         for(let ci2=0;ci2<2;ci2++){const ct=t0+(t1-t0)*(.3+ci2*.4);
           const cp2=trackPos(ct),cn=outN(ct);
-          const col=box(.4,wH,.4,M.green);col.position.set(cp2.x+cn.x*3.5,wH/2,cp2.z+cn.z*3.5);
+          const col=box(.4,wH,.4,M.green);col.position.set(cp2.x+cn.x*5.2,wH/2,cp2.z+cn.z*5.2);
           col.castShadow=true;g.add(col);}
         const lt=(t0+t1)/2;const lp=trackPos(lt),ln=outN(lt);
         const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:3.8,roughness:.2},.3);addE(lm,3.8);
@@ -1004,13 +1004,13 @@ function initGameEngine() {
           const lt=t0+(t1-t0)*q; const lp=trackPos(lt),ln=outN(lt),tn=trackTan(lt);
           const barAngle=Math.atan2(tn.x,tn.z);
           const lf1=box(.5,.08,3.2,lm);
-          lf1.position.set(lp.x+ln.x*1.8, wH-.12, lp.z+ln.z*1.8);
+          lf1.position.set(lp.x+ln.x*2.2, wH-.12, lp.z+ln.z*2.2);
           lf1.rotation.y=barAngle; g.add(lf1);
           const lf2=box(.5,.08,3.2,lm);
-          lf2.position.set(lp.x+ln.x*3.8, wH-.12, lp.z+ln.z*3.8);
+          lf2.position.set(lp.x+ln.x*6.5, wH-.12, lp.z+ln.z*6.5);
           lf2.rotation.y=barAngle; g.add(lf2);
-          const pL=new THREE.PointLight(0xcfe0ff, 3.2, 16);
-          pL.position.set(lp.x+ln.x*2.8, wH-.5, lp.z+ln.z*2.8); g.add(pL);
+          const pL=new THREE.PointLight(0xcfe0ff, 3.6, 20);
+          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL);
         }
         
         const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xdcecff,
@@ -1435,7 +1435,7 @@ function initGameEngine() {
     const nx=dx/dist,nz=dz/dist;
     b.trackT=closestT(b.mesh.position.x+nx*speed*dt,b.mesh.position.z+nz*speed*dt);
     b.trackLat+=(3-b.trackLat)*dt*1.5;
-    b.trackLat=clamp(b.trackLat,-2.4,5.2);
+    b.trackLat=clamp(b.trackLat,-4.8,8.4);
   }
 
   function updateBotPosition(b){
@@ -1660,7 +1660,7 @@ function initGameEngine() {
       else{z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.t*8)*.05;}
       z.t=((z.t%1)+1)%1;
       const targetLat=nearest.trackLat||3;
-      z.lat+=(targetLat-z.lat)*dt*1.5;z.lat=clamp(z.lat,-2.4,5.2);
+      z.lat+=(targetLat-z.lat)*dt*1.5;z.lat=clamp(z.lat,-4.8,8.4);
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
       const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : floorY;
@@ -3324,7 +3324,7 @@ function initGameEngine() {
         playerLat = (p.x - tp.x) * tn.x + (p.z - tp.z) * tn.z;
         const st = stationness(playerT);
         
-        const minLat = lerp(-2.6, -3.5, st), maxLat = lerp(2.6, 5.5, st);
+        const minLat = lerp(-4.8, -5.0, st), maxLat = lerp(5.2, 8.4, st);
         if(playerLat < minLat){ const push = minLat - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = minLat; }
         else if(playerLat > maxLat){ const push = maxLat - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = maxLat; }
         
