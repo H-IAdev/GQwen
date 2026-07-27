@@ -957,8 +957,20 @@ function initGameEngine() {
           const col=box(.4,wH,.4,M.green);col.position.set(cp2.x+cn.x*3.5,wH/2,cp2.z+cn.z*3.5);
           col.castShadow=true;g.add(col);}
         const lt=(t0+t1)/2;const lp=trackPos(lt),ln=outN(lt);
-        const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:2,roughness:.4},.2);addE(lm,2);
-        const lf=box(.5,.08,3.5,lm);lf.position.set(lp.x+ln.x*3,wH-.15,lp.z+ln.z*3);g.add(lf);
+        const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:3.8,roughness:.2},.3);addE(lm,3.8);
+        for(let q of [.2,.5,.8]){
+          const lt=t0+(t1-t0)*q; const lp=trackPos(lt),ln=outN(lt),tn=trackTan(lt);
+          const barAngle=Math.atan2(tn.x,tn.z);
+          const lf1=box(.5,.08,3.2,lm);
+          lf1.position.set(lp.x+ln.x*1.8, wH-.12, lp.z+ln.z*1.8);
+          lf1.rotation.y=barAngle; g.add(lf1);
+          const lf2=box(.5,.08,3.2,lm);
+          lf2.position.set(lp.x+ln.x*3.8, wH-.12, lp.z+ln.z*3.8);
+          lf2.rotation.y=barAngle; g.add(lf2);
+          const pL=new THREE.PointLight(0xcfe0ff, 3.2, 16);
+          pL.position.set(lp.x+ln.x*2.8, wH-.5, lp.z+ln.z*2.8); g.add(pL);
+        }
+        
         const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xdcecff,
           transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.35}));
         gl.scale.setScalar(2.5);gl.position.set(lp.x+ln.x*3,wH-.3,lp.z+ln.z*3);gl.layers.set(2);g.add(gl);addG(gl,.35);
