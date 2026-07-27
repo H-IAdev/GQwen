@@ -517,7 +517,7 @@ function initGameEngine() {
     renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     /* GQW-VIS-5.0: ACES Filmic Tone Mapping para look cinematográfico */
     if(THREE.ACESFilmicToneMapping) renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure=1.12;
+    renderer.toneMappingExposure=0.98;
     $('#app').appendChild(renderer.domElement);
     logDiag('WebGL Canvas adjuntado al DOM.', 'ok');
   } catch(e) {
@@ -543,8 +543,8 @@ function initGameEngine() {
 
   // Iluminación
   /* GQW-VIS-5.0: Rebalanced Lighting — darker ambient + dynamic player SpotLight */
-  const ambientLight=new THREE.AmbientLight(0x3a4552,0.28);scene.add(ambientLight);
-  const hemiLight=new THREE.HemisphereLight(0x5a6a7a,0x141210,0.32);scene.add(hemiLight);
+  const ambientLight=new THREE.AmbientLight(0x3a4552,0.20);scene.add(ambientLight);
+  const hemiLight=new THREE.HemisphereLight(0x5a6a7a,0x141210,0.24);scene.add(hemiLight);
   /* SpotLight dinámica del jugador — sombras suaves en el túnel */
   const keyLight=new THREE.SpotLight(0xc8d4e8,1.6,28,Math.PI*0.42,0.65,1.5);
   keyLight.castShadow=true;keyLight.shadow.mapSize.set(1024,1024);
@@ -999,7 +999,7 @@ function initGameEngine() {
           const col=box(.4,wH,.4,M.green);col.position.set(cp2.x+cn.x*5.2,wH/2,cp2.z+cn.z*5.2);
           col.castShadow=true;g.add(col);}
         const lt=(t0+t1)/2;const lp=trackPos(lt),ln=outN(lt);
-        const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:3.8,roughness:.2},.3);addE(lm,3.8);
+        const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:2.8,roughness:.2},.3);addE(lm,2.8);
         for(let q of [.2,.5,.8]){
           const lt=t0+(t1-t0)*q; const lp=trackPos(lt),ln=outN(lt),tn=trackTan(lt);
           const barAngle=Math.atan2(tn.x,tn.z);
@@ -1009,7 +1009,7 @@ function initGameEngine() {
           const lf2=box(.5,.08,3.2,lm);
           lf2.position.set(lp.x+ln.x*6.5, wH-.06, lp.z+ln.z*6.5);
           lf2.rotation.y=barAngle; g.add(lf2);
-          const pL=new THREE.PointLight(0xcfe0ff, 3.6, 20);
+          const pL=new THREE.PointLight(0xcfe0ff, 2.6, 18);
           pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL);
         }
         
@@ -1036,7 +1036,7 @@ function initGameEngine() {
         const gMesh2=box(3.0,.7,.015,gMat2);
         // Colocar en pared interior (lado -3 del track)
         gMesh2.position.set(glp.x+gln.x*-5.15,R(1.2,2.5),glp.z+gln.z*-5.15);
-        gMesh2.rotation.y=Math.atan2(gtn.x,gtn.z)+Math.PI;g.add(gMesh2);
+        gMesh2.rotation.y=Math.atan2(gtn.x,gtn.z)+Math.PI;if(s!==5) g.add(gMesh2);
         // Grafiti en TECHO (horizontal, mirando hacia abajo)
         if(Math.random()<0.6){
           const cMsg=CEIL_MSGS[s%CEIL_MSGS.length];
