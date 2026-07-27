@@ -947,7 +947,7 @@ function initGameEngine() {
         ig.setIndex(ii);ig.computeVertexNormals();
         const innerSolidMesh=new THREE.Mesh(ig,M.tile);
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
-        g.add(innerSolidMesh);
+        if(s!==5) g.add(innerSolidMesh);
       }
       // PUERTA BLINDADA EN SECTOR 4 — montada encima de la pared curva sólida
       if(s===4){
@@ -1004,10 +1004,10 @@ function initGameEngine() {
           const lt=t0+(t1-t0)*q; const lp=trackPos(lt),ln=outN(lt),tn=trackTan(lt);
           const barAngle=Math.atan2(tn.x,tn.z);
           const lf1=box(.5,.08,3.2,lm);
-          lf1.position.set(lp.x+ln.x*2.2, wH-.12, lp.z+ln.z*2.2);
+          lf1.position.set(lp.x+ln.x*2.2, wH-.06, lp.z+ln.z*2.2);
           lf1.rotation.y=barAngle; g.add(lf1);
           const lf2=box(.5,.08,3.2,lm);
-          lf2.position.set(lp.x+ln.x*6.5, wH-.12, lp.z+ln.z*6.5);
+          lf2.position.set(lp.x+ln.x*6.5, wH-.06, lp.z+ln.z*6.5);
           lf2.rotation.y=barAngle; g.add(lf2);
           const pL=new THREE.PointLight(0xcfe0ff, 3.6, 20);
           pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL);
@@ -1015,7 +1015,7 @@ function initGameEngine() {
         
         const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xdcecff,
           transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.35}));
-        gl.scale.setScalar(2.5);gl.position.set(lp.x+ln.x*3,wH-.3,lp.z+ln.z*3);gl.layers.set(2);g.add(gl);addG(gl,.35);
+        gl.scale.setScalar(2.5);gl.position.set(lp.x+ln.x*4.4,wH-.25,lp.z+ln.z*4.4);gl.layers.set(2);g.add(gl);addG(gl,.35);
         const isA=Math.abs(lt)<.15||Math.abs(lt-1)<.15;
         const sm=std({map:mk(isA?T.signA:T.signB),roughness:.4},.3);
         const sp2=box(1.4,.4,.05,sm);sp2.position.set(lp.x+ln.x*(outerW+.1),2.8,lp.z+ln.z*(outerW+.1));
@@ -1043,7 +1043,7 @@ function initGameEngine() {
           const cColor=pick(['#ff4b3e','#ffb400','#80cfff','#00ffaa']);
           const cMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(cMsg,cColor)),transparent:true,opacity:.7,depthWrite:false});
           const cMesh=box(4.2,.9,.015,cMat);
-          cMesh.position.set(glp.x+gln.x*(outerW*.5),wH-.02,glp.z+gln.z*(outerW*.5));
+          cMesh.position.set(glp.x+gln.x*(outerW*.5),wH-.05,glp.z+gln.z*(outerW*.5));
           cMesh.rotation.x=-Math.PI/2;
           cMesh.rotation.z=Math.atan2(gtn.x,gtn.z)+R(-.3,.3);g.add(cMesh);
         }
