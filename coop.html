@@ -903,8 +903,8 @@ function initGameEngine() {
       const g=new THREE.Group();scene.add(g);sectorGroups.push(g);
       const t0=s/SECTORS,t1=(s+1)/SECTORS;
       const st=stationness((t0+t1)/2);
-      const outerW=lerp(5.2,8.6,st);
-      const wH=lerp(5.8,6.6,st);
+      const outerW=8.5;
+      const wH=6.4;
 
       // Suelo con mapeo UV para cerámicas reflejantes
       const fp=[],fi=[],fuv=[];
@@ -937,7 +937,7 @@ function initGameEngine() {
       {
         const iw=[],ii=[],iuv=[];
         for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-          const x=p.x+n.x*-5.2,z=p.z+n.z*-5.2;iw.push(x,0,z, x,wH,z);
+          const x=p.x+n.x*-5.5,z=p.z+n.z*-5.5;iw.push(x,0,z, x,wH,z);
           const u=t*36, v1=wH/2.2;
           iuv.push(u,0, u,v1);}
         for(let i=0;i<SPS;i++){const a=i*2;ii.push(a,a+1,a+2,a+1,a+3,a+2);}
@@ -947,7 +947,7 @@ function initGameEngine() {
         ig.setIndex(ii);ig.computeVertexNormals();
         const innerSolidMesh=new THREE.Mesh(ig,M.tile);
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
-        if(s!==5) g.add(innerSolidMesh);
+        g.add(innerSolidMesh);
       }
       // PUERTA BLINDADA EN SECTOR 4 — montada encima de la pared curva sólida
       if(s===4){
@@ -977,7 +977,7 @@ function initGameEngine() {
       // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
       const cp=[],ci=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        cp.push(p.x+n.x*-5.4,wH,p.z+n.z*-5.4, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
+        cp.push(p.x+n.x*-5.7,wH,p.z+n.z*-5.7, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
       for(let i=0;i<SPS;i++){const a=i*2;ci.push(a,a+1,a+2,a+1,a+3,a+2);}
       const cg=new THREE.BufferGeometry();
       cg.setAttribute('position',new THREE.Float32BufferAttribute(cp,3));cg.setIndex(ci);cg.computeVertexNormals();
@@ -1435,7 +1435,7 @@ function initGameEngine() {
     const nx=dx/dist,nz=dz/dist;
     b.trackT=closestT(b.mesh.position.x+nx*speed*dt,b.mesh.position.z+nz*speed*dt);
     b.trackLat+=(3-b.trackLat)*dt*1.5;
-    b.trackLat=clamp(b.trackLat,-4.8,8.4);
+    b.trackLat=clamp(b.trackLat,-5.1,8.3);
   }
 
   function updateBotPosition(b){
@@ -1660,7 +1660,7 @@ function initGameEngine() {
       else{z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.t*8)*.05;}
       z.t=((z.t%1)+1)%1;
       const targetLat=nearest.trackLat||3;
-      z.lat+=(targetLat-z.lat)*dt*1.5;z.lat=clamp(z.lat,-4.8,8.4);
+      z.lat+=(targetLat-z.lat)*dt*1.5;z.lat=clamp(z.lat,-5.1,8.3);
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
       const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : floorY;
@@ -3324,7 +3324,7 @@ function initGameEngine() {
         playerLat = (p.x - tp.x) * tn.x + (p.z - tp.z) * tn.z;
         const st = stationness(playerT);
         
-        const minLat = lerp(-4.8, -5.0, st), maxLat = lerp(5.2, 8.4, st);
+        const minLat = -5.1, maxLat = 8.3;
         if(playerLat < minLat){ const push = minLat - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = minLat; }
         else if(playerLat > maxLat){ const push = maxLat - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = maxLat; }
         
