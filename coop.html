@@ -557,7 +557,7 @@ function initGameEngine() {
     return clamp(1-(d-0.055)/0.045,0,1);}
 
   /* ===== TEXTURAS Y MATERIALES ===== */
-  function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return[c,c.getContext('2d')];}
+  function cnv(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return[c,c.getContext('2d',{willReadFrequently:true})];}
   function mk(c,rx=1,ry=1){const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);t.anisotropy=ANISO;return t;}
 
   /* ===== PBR GENERATOR: SOBEL NORMAL MAPS & ROUGHNESS FROM CANVAS (GQW-VIS-5.0) ===== */
@@ -1034,6 +1034,13 @@ function initGameEngine() {
    fistsGroup.traverse(o=>{if(o.isMesh)o.layers.set(2);});
    fistsGroup.visible=false;}
 
+  /* GQW-VIS-5.0 ETAPA 4: Fire Mode Toggle (AUTO/SEMI) */
+  let fireMode='auto'; // 'auto' | 'semi'
+  function toggleFireMode(){
+    fireMode=fireMode==='auto'?'semi':'auto';
+    feed('FIRE MODE: '+(fireMode==='auto'?'AUTOMATIC':'SEMI-AUTO'),'h');
+  }
+
   function switchWeapon(type){
     if(type) activeWeapon=type;
     else activeWeapon=activeWeapon==='gun'?'fists':'gun';
@@ -1041,13 +1048,6 @@ function initGameEngine() {
     fistsGroup.visible=(activeWeapon==='fists');
     feed(activeWeapon==='gun'?'EQUIPPED: M-42 RIFLE':'EQUIPPED: BARE FISTS','h');
     hudAmmo();
-
-  /* GQW-VIS-5.0 ETAPA 4: Fire Mode Toggle (AUTO/SEMI) */
-  let fireMode='auto'; // 'auto' | 'semi'
-  function toggleFireMode(){
-    fireMode=fireMode==='auto'?'semi':'auto';
-    feed('FIRE MODE: '+(fireMode==='auto'?'AUTOMATIC':'SEMI-AUTO'),'h');
-  }
   }
   const tip=new THREE.Object3D();tip.position.set(0,.05,-.3);weapon.add(tip);
   const flashSpr=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xffc26a,
@@ -1833,7 +1833,15 @@ function initGameEngine() {
   function damagePlayer(d){if(playerState!=='alive'||reviveInvuln>0)return;
     hp-=d;lastHit=elapsed;dmgFlash=Math.min(1,dmgFlash+.7);
     shake=Math.max(shake,REDUCED?.01:.05);sfx.hurt();hudHP();
-    if(hp<=0){hp=0;enterDowned();}}
+    if(hp<=0){
+      hp=0;
+      if(gameMode === 'solo'){
+        playerDie();
+      } else {
+        enterDowned();
+      }
+    }
+  }
   function enterDowned(){playerState='downed';downTimer=25;reviveProgress=0;firing=false;
     $('#downedHud').classList.add('show');netSend({type:'pstate',state:'downed'});}
   function revivePlayer(){playerState='alive';hp=50;reviveInvuln=2.5;reviveProgress=0;
@@ -1842,8 +1850,20 @@ function initGameEngine() {
     banner('¡REANIMADO!','HAS VUELTO A LA LÍNEA DE FUEGO',false,2000);
     netSend({type:'pstate',state:'alive'});}
   function playerDie(){playerState='dead';$('#downedHud').classList.remove('show');
-    feed('YOU DIED — WAITING FOR NEXT WAVE','k');netSend({type:'pstate',state:'dead'});checkGameOver();}
+    feed(gameMode==='solo'?'GAME OVER — NO SURVIVORS':'YOU DIED — WAITING FOR NEXT WAVE','k');
+    netSend({type:'pstate',state:'dead'});checkGameOver();}
   function checkGameOver(){
+    if(gameMode === 'solo'){
+      if(playerState === 'dead'||hp<=0) gameOver();
+      return;
+    }
+    if(gameMode === 'bots'){
+      const activeBots = bots.filter(b => !b.dead && !b.downed);
+      if((playerState === 'dead' || playerState === 'downed') && activeBots.length === 0){
+        gameOver();
+      }
+      return;
+    }
     const alive=getAlivePlayers();
     const downed=[...Object.values(remotePlayers)].filter(p=>p.state==='downed');
     if(alive.length===0&&downed.length===0&&playerState==='dead')gameOver();}
@@ -2598,7 +2618,7 @@ function initGameEngine() {
     isHost=true;myColor=PCOLORS[0];
     setNetStatus('SOLO SURVIVAL MODE','ok');
     logDiag('Modo Supervivencia Solitario iniciado (sin bots).', 'ok');
-    startGame();
+    resetGame(false);
   }
 
   function initBotsMode(){
@@ -2607,7 +2627,7 @@ function initGameEngine() {
     isHost=true;myColor=PCOLORS[0];
     setNetStatus('CO-OP BOTS SQUAD ACTIVE','ok');
     logDiag('Modo Cooperativo con Bots iniciado (NOAH, ELENA, MARCUS).', 'ok');
-    startGame();
+    resetGame(false);
   }
 
   function initHost(){
