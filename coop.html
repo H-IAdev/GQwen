@@ -2847,7 +2847,7 @@ function initGameEngine() {
   }
   const FLASH_TEX = getFlashTex();
 
-  function buildPlayerMesh(id){
+  function buildPlayerMesh(id, isRemote = false){
     try {
       const g=new THREE.Group();
       const col=std({color:PCOLORS[id],roughness:0.6,metalness:0.2},.35);
@@ -2866,7 +2866,7 @@ function initGameEngine() {
         blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
       flash.scale.setScalar(0.22);flash.position.set(0,0.04,-0.42);flash.visible=false;gun.add(flash);
       const fLight=new THREE.PointLight(0xffb060,0,5,2);fLight.position.set(0,0.04,-0.42);gun.add(fLight);
-      g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+      g.traverse(o=>{if(o.isMesh)o.castShadow=!isRemote;});
       scene.add(g);
       return {group:g,gun,flash,fLight,refs:{armL,armR,legL,legR},walk:R(0,6)};
     } catch(err) {
