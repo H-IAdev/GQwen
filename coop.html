@@ -569,19 +569,19 @@ function initGameEngine() {
      ATMOSPHERIC DUST MOTES PARTICLE SYSTEM (POLVO EN SUSPENSIÓN)
      Source: Mapa corredor tren 4.html
      ═══════════════════════════════════════════════════════════════════ */
-  const DUST_N = IS_TOUCH ? 160 : 420;
+  const DUST_N = IS_TOUCH ? 300 : 800;
   const dustGeo = new THREE.BufferGeometry();
-  const dustPos = new Float32Array(DUST_N * 3), dustSpd = new Float32Array(DUST_N);
+  const dustPos = new Float32Array(DUST_N * 3), dustSpd = new Float32Array(DUST_N), dustOff = new Float32Array(DUST_N * 3);
   for(let i = 0; i < DUST_N; i++){
-    dustPos[i*3] = R(-10, 10);
-    dustPos[i*3+1] = R(0.2, 5.5);
-    dustPos[i*3+2] = R(-60, 60);
-    dustSpd[i] = R(0.02, 0.09);
+    dustOff[i*3] = R(-12, 12);
+    dustOff[i*3+1] = R(0.2, 5.8);
+    dustOff[i*3+2] = R(-22, 22);
+    dustSpd[i] = R(0.02, 0.08);
   }
   dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
   const dustMat = new THREE.PointsMaterial({
     color: 0xffd9a0,
-    size: 0.038,
+    size: 0.04,
     transparent: true,
     opacity: 0.38,
     depthWrite: false,
@@ -592,15 +592,24 @@ function initGameEngine() {
   scene.add(dustMotes);
 
   function updateDustMotes(dt, t){
-    if(!dustMotes || !dustPos) return;
+    if(!dustMotes || !dustPos || !camera) return;
+    const cPos = camera.position;
     for(let i = 0; i < DUST_N; i++){
-      dustPos[i*3+1] += dustSpd[i] * dt * 3;
-      dustPos[i*3] += Math.sin(t * 0.5 + i) * dt * 0.05;
-      if(dustPos[i*3+1] > 5.6) dustPos[i*3+1] = 0.2;
+      const idx = i * 3;
+      dustOff[idx+1] += dustSpd[i] * dt * 2.5;
+      dustOff[idx] += Math.sin(t * 0.4 + i) * dt * 0.04;
+      if(dustOff[idx+1] > 6.2) dustOff[idx+1] = 0.2;
+      if(Math.abs(dustOff[idx]) > 18) dustOff[idx] = R(-18, 18);
+      if(Math.abs(dustOff[idx+2]) > 20) dustOff[idx+2] = R(-18, 18);
+
+      // Partículas recicladas dinámicamente en radio visible de 20m alrededor de la cámara
+      dustPos[idx] = cPos.x + dustOff[idx];
+      dustPos[idx+1] = dustOff[idx+1];
+      dustPos[idx+2] = cPos.z + dustOff[idx+2];
     }
     dustGeo.attributes.position.needsUpdate = true;
     if(dustMat && typeof B !== 'undefined') {
-      dustMat.opacity = 0.20 + Math.max(0, (1 - (B / 100))) * 0.28;
+      dustMat.opacity = 0.22 + Math.max(0, (1 - (B / 100))) * 0.28;
     }
   }
 
@@ -943,30 +952,7 @@ function initGameEngine() {
         innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
         g.add(innerSolidMesh);
       }
-      // PUERTA BLINDADA EN SECTOR 4 — montada encima de la pared curva sólida
-      if(s===4){
-        const pMid=trackPos((t0+t1)/2), pN=outN((t0+t1)/2), pTan=trackTan((t0+t1)/2);
-        const doorAngle=Math.atan2(pTan.x,pTan.z);
-        // Marco de hormigón (jambas + dintel)
-        const frameL=box(.42, wH, 1.1, M.concrete);
-        frameL.position.set(pMid.x+pN.x*-5.2, wH/2, pMid.z-3.8);
-        frameL.rotation.y=doorAngle;g.add(frameL);
-        const frameR=box(.42, wH, 1.1, M.concrete);
-        frameR.position.set(pMid.x+pN.x*-5.2, wH/2, pMid.z+3.8);
-        frameR.rotation.y=doorAngle;g.add(frameR);
-        const frameTop=box(.42, 1.0, 8.8, M.concrete);
-        frameTop.position.set(pMid.x+pN.x*-5.2, wH-.5, pMid.z);
-        frameTop.rotation.y=doorAngle;g.add(frameTop);
-        // Panel de puerta metálica (montado sobre la pared, ligeramente por delante)
-        const doorPanel=box(.18, 3.6, 7.6, M.steel);
-        doorPanel.position.set(pMid.x+pN.x*-5.0, 1.8, pMid.z);
-        doorPanel.rotation.y=doorAngle;g.add(doorPanel);
-        // LED de estado
-        const dLedMat=std({color:0xff0000,emissive:0xff0044,emissiveIntensity:5.0,roughness:.2},.2);
-        const dLed=box(.18, .16, .55, dLedMat);
-        dLed.position.set(pMid.x+pN.x*-4.85, 3.4, pMid.z+3.2);
-        dLed.rotation.y=doorAngle;g.add(dLed);
-      }
+      // SECTOR 4 / 5 CONCOURSE PASSAGE — 100% UNOBSTRUCTED AND CLEAR
 
       // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
       const cp=[],ci=[];
