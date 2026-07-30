@@ -484,6 +484,7 @@ function initGameEngine() {
   const lerp=(a,b,t)=>a+(b-a)*t;
   // CACHÉ PERSISTENTE DOM (0 LAYOUT THRASHING - INC-42C)
   const _domCache = new Map();
+  const _nc = new THREE.Color();
   function setTxt(el, val) {
     if (!el) return;
     if (_domCache.get(el) !== val) {
@@ -1246,10 +1247,10 @@ function initGameEngine() {
       const r=0.5+0.5*Math.sin(time*0.6+n.phase);
       const g=0.5+0.5*Math.sin(time*0.6+n.phase+2.094);
       const b=0.5+0.5*Math.sin(time*0.6+n.phase+4.189);
-      const col=new THREE.Color(r,g,b);
-      if(n.tube.material.emissive)n.tube.material.emissive.copy(col);
-      if(n.tube2.material.emissive)n.tube2.material.emissive.copy(col);
-      n.light.color.copy(col);
+      _nc.setRGB(r,g,b);
+      if(n.tube.material.emissive)n.tube.material.emissive.copy(_nc);
+      if(n.tube2.material.emissive)n.tube2.material.emissive.copy(_nc);
+      n.light.color.copy(_nc);
       n.light.intensity=0.8+0.8*Math.sin(time*0.7+n.phase)*0.5+0.5;
     }
     // Vapor ascendente
@@ -1280,8 +1281,10 @@ function initGameEngine() {
     lightsReg.forEach(l=>{l.userData.k=l.userData.emergency?kE:kM;l.intensity=l.userData.base*l.userData.k;});
     emisReg.forEach(m=>m.emissiveIntensity=m.userData.base*(m.userData.emergency?kE:kM));
     glowReg.forEach(g=>g.opacity=g.userData.base*(.08+.92*B));
-    $('#pct').textContent=v+'%';$('#bright').style.setProperty('--p',v+'%');
-    $('#breakerWarn').classList.toggle('show',B<.4&&playing);}
+    setTxt($('#pct'), Math.round(v)+'%');
+    const brEl = $('#bright'); if(brEl) brEl.style.setProperty('--p',v+'%');
+    $('#breakerWarn').classList.toggle('show',B<.4&&playing);
+    updateBreakerHysteresis(v);}
   $('#bright').addEventListener('input',e=>{applyBrightness(+e.target.value);netSend({type:'breakers',v:+e.target.value});});
   $('#bright').addEventListener('change',e=>e.target.blur());
 
@@ -3145,23 +3148,23 @@ function initGameEngine() {
     while (el.children.length > 6) el.removeChild(el.lastChild);
   }
 
+  let _cachedWName = null;
   function hudAmmo() {
     const an = $('#ammoNum'), ar = $('#ammoRes');
-    if (an) an.textContent = ammo;
-    if (ar) ar.textContent = reserve;
+    setTxt(an, ammo);
+    setTxt(ar, reserve);
     const panel = $('#ammoPanel');
     if (panel) panel.classList.toggle('low', ammo <= 5);
-    // Actualizar indicador de modo de fuego
-    const wName = document.querySelector('#ammoPanel .wn');
-    if(wName){
+    if(!_cachedWName) _cachedWName = $('#ammoPanel .wn');
+    if(_cachedWName){
       const modeLabels={'auto':'AUTO ●','semi':'SEMI ●','burst':'BURST-3 ●'};
-      wName.textContent = 'M-42 "TOKEN" · '+modeLabels[fireMode||'auto'];
+      setTxt(_cachedWName, 'M-42 "TOKEN" · '+modeLabels[fireMode||'auto']);
     }
   }
 
   function hudHP() {
     const hn = $('#hpNum'), hf = $('#hpFill');
-    if (hn) hn.textContent = Math.ceil(hp);
+    setTxt(hn, Math.ceil(hp));
     if (hf) hf.style.width = Math.max(0, Math.min(100, hp)) + '%';
     const healthEl = $('#health');
     if (healthEl) healthEl.classList.toggle('low', hp < 30);
