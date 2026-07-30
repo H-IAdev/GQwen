@@ -656,16 +656,22 @@ function initGameEngine() {
     'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/equirectangular/pedestrian_overpass_1k.hdr',
     'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/equirectangular/venice_sunset_1k.hdr'
   ];
-  function loadImg(url){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin='anonymous';const to=setTimeout(()=>{i.src='';rej(new Error('Timeout'));},5000);i.onload=()=>{clearTimeout(to);res(i);};i.onerror=()=>{clearTimeout(to);rej(new Error('Image load error'));};i.src=url;});}
+  function loadImg(url){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin='anonymous';const to=setTimeout(()=>{i.src='';rej(new Error('Timeout'));},1800);i.onload=()=>{clearTimeout(to);res(i);};i.onerror=()=>{clearTimeout(to);rej(new Error('Image load error'));};i.src=url;});}
   function imgToCanvas(img,size){const c=document.createElement('canvas');c.width=c.height=size;const x=c.getContext('2d');x.drawImage(img,0,0,size,size);return c;}
   function normalFromCanvas(src,strength){
     const w=src.width,h=src.height,c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');
     let d; try{d=src.getContext('2d').getImageData(0,0,w,h).data;}catch(e){return null;}
-    const H=(px,py)=>{px=(px+w)%w;py=(py+h)%h;const i=(py*w+px)*4;return(d[i]+d[i+1]+d[i+2])/(3*255);};
-    const out=x.createImageData(w,h),o=out.data;
-    for(let y=0;y<h;y++)for(let px=0;px<w;px++){
-      const dx=(H(px-1,y)-H(px+1,y))*strength,dy=(H(px,y-1)-H(px,y+1))*strength,dz=1,l=Math.hypot(dx,dy,dz);
-      const i=(y*w+px)*4;o[i]=(dx/l*.5+.5)*255;o[i+1]=(dy/l*.5+.5)*255;o[i+2]=(dz/l*.5+.5)*255;o[i+3]=255;
+    const out=x.createImageData(w,h),o=out.data,str=(strength||1.4)*2.0;
+    for(let y=0;y<h;y++){
+      const yAbove=((y-1+h)%h)*w,yBelow=((y+1)%h)*w,yCurr=y*w;
+      for(let px=0;px<w;px++){
+        const xLeft=(px-1+w)%w,xRight=(px+1)%w;
+        const valL=d[(yCurr+xLeft)*4],valR=d[(yCurr+xRight)*4];
+        const valU=d[(yAbove+px)*4],valD=d[(yBelow+px)*4];
+        const dx=(valL-valR)/255.0*str,dy=(valU-valD)/255.0*str,dz=1.0,invLen=1.0/Math.hypot(dx,dy,dz);
+        const idx=(yCurr+px)*4;
+        o[idx]=(dx*invLen*.5+.5)*255;o[idx+1]=(dy*invLen*.5+.5)*255;o[idx+2]=(dz*invLen*.5+.5)*255;o[idx+3]=255;
+      }
     }
     x.putImageData(out,0,0);return c;
   }
