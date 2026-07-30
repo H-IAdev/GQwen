@@ -1895,7 +1895,7 @@ function initGameEngine() {
     camera.getWorldPosition(_vCam);
     const boost=B<.4?1.2:1;
     const targets=getAlivePlayers();
-    for(let i=zombies.length-1;i>=0;i--){const z=zombies[i];
+    for(let i=zombies.length-1;i>=0;i--){const z=zombies[i];if(z.anim&&z.anim.mixer){z.anim.mixer.timeScale=z.g.position.distanceTo(_vCam)>28.0?0.0:1.0;}
       if(z.dead){z.deathT+=dt;const p=Math.min(1,z.deathT/.5),e=p*p*(3-2*p);
         z.g.rotation.x=z.fallDir*-1.4*e;
         if(!z.loosened&&z.deathT>.1){z.loosened=true;
