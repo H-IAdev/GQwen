@@ -2745,12 +2745,13 @@ function initGameEngine() {
     const div = document.createElement('div');
     div.className = 'cMsg';
     if(color) div.style.borderLeftColor = typeof color === 'number' ? '#' + color.toString(16).padStart(6, '0') : color;
-    div.innerHTML = '<b>' + sender + ':</b> ' + msg.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const b = document.createElement('b');
+    b.textContent = (sender || 'ANÓNIMO') + ': ';
+    div.appendChild(b);
+    div.appendChild(document.createTextNode(msg || ''));
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
-    // Autoremoción limpia de mensajes antiguos (> 15 items)
     while(box.children.length > 15) box.removeChild(box.firstChild);
-    // Auto-fade y remoción del DOM tras 5.8s
     setTimeout(() => { if(div.parentNode) div.parentNode.removeChild(div); }, 5800);
   }
 
@@ -2914,7 +2915,7 @@ function initGameEngine() {
       rp.mesh.position.x = lerp(rp.mesh.position.x, rp.x, lerpSpeed);
       rp.mesh.position.y = lerp(rp.mesh.position.y, feetY, lerpSpeed);
       rp.mesh.position.z = lerp(rp.mesh.position.z, rp.z, lerpSpeed);
-      rp.mesh.rotation.y = lerp(rp.mesh.rotation.y, rp.yaw || 0, lerpSpeed);
+      rp.mesh.rotation.y = lerpAngle(rp.mesh.rotation.y, rp.yaw || 0, lerpSpeed);
 
       const children = rp.mesh.children;
       // Inclinación vertical (pitch) de cabeza y torso
