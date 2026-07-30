@@ -482,6 +482,32 @@ function initGameEngine() {
   const pick=a=>a[Math.random()*a.length|0];
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const lerp=(a,b,t)=>a+(b-a)*t;
+  // CACHÉ PERSISTENTE DOM (0 LAYOUT THRASHING - INC-42C)
+  const _domCache = new Map();
+  function setTxt(el, val) {
+    if (!el) return;
+    if (_domCache.get(el) !== val) {
+      _domCache.set(el, val);
+      el.textContent = val;
+    }
+  }
+  // BUS DE EVENTOS DESACOPLADO DE 12 LÍNEAS (INC-42C)
+  const bus = {
+    m: new Map(),
+    on(e, fn) { (this.m.get(e) || this.m.set(e, []).get(e)).push(fn); },
+    emit(e, d) { (this.m.get(e) || []).forEach(fn => fn(d)); }
+  };
+  // HISTÉRESIS DE ENRAGE DE BREAKERS (30% - 38% INC-42C)
+  let hostilesEnraged = false;
+  function updateBreakerHysteresis(dimmerVal) {
+    if (!hostilesEnraged && dimmerVal < 30) {
+      hostilesEnraged = true;
+      bus.emit('breakers:enrage', { enraged: true });
+    } else if (hostilesEnraged && dimmerVal > 38) {
+      hostilesEnraged = false;
+      bus.emit('breakers:enrage', { enraged: false });
+    }
+  }
   const lerpAngle=(a,b,t)=>{const diff=((b-a+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;return a+diff*Math.max(0,Math.min(1,t));};
   const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
 
