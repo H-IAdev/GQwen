@@ -482,6 +482,7 @@ function initGameEngine() {
   const pick=a=>a[Math.random()*a.length|0];
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
   const lerp=(a,b,t)=>a+(b-a)*t;
+  const lerpAngle=(a,b,t)=>{const diff=((b-a+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;return a+diff*Math.max(0,Math.min(1,t));};
   const REDUCED=matchMedia('(prefers-reduced-motion:reduce)').matches;
 
   // HELPER SEGURO PARA TRANSFORMAR MESHS SIN PROPIEDADES READONLY
