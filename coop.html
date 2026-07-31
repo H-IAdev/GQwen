@@ -101,13 +101,35 @@ body.playing #ch{opacity:1}
 #ch i.l{width:8px;height:2px;transform:translate(calc(-100% - var(--gap)),-50%)}
 #ch i.r{width:8px;height:2px;transform:translate(var(--gap),-50%)}
 #ch b{position:absolute;width:3px;height:3px;border-radius:50%;background:#fff;transform:translate(-50%,-50%)}
-#hm{position:fixed;left:50%;top:50%;z-index:11;pointer-events:none;opacity:0}
-#hm i{position:absolute;width:2px;height:7px;background:#fff}
-#hm i:nth-child(1){transform:translate(-8px,-12px) rotate(45deg)}
-#hm i:nth-child(2){transform:translate(6px,-12px) rotate(-45deg)}
-#hm i:nth-child(3){transform:translate(-8px,5px) rotate(-45deg)}
-#hm i:nth-child(4){transform:translate(6px,5px) rotate(45deg)}
-#hm.kill i{background:var(--red)}
+/* ===== HITMARKER: animación expand + fade, crítico vs normal ===== */
+#hm{position:fixed;left:50%;top:50%;z-index:11;pointer-events:none;opacity:0;transition:opacity .08s}
+#hm i{position:absolute;width:3px;height:11px;background:#fff;border-radius:1.5px;
+  box-shadow:0 0 4px rgba(255,255,255,.5);transition:background .1s}
+#hm i:nth-child(1){transform:translate(-10px,-10px) rotate(45deg)}
+#hm i:nth-child(2){transform:translate(8px,-10px) rotate(-45deg)}
+#hm i:nth-child(3){transform:translate(-10px,8px) rotate(-45deg)}
+#hm i:nth-child(4){transform:translate(8px,8px) rotate(45deg)}
+/* Ring expansivo */
+#hm r{position:absolute;width:6px;height:6px;border:2px solid #fff;border-radius:50%;opacity:0;
+  transform:translate(-50%,-50%);transition:opacity .08s}
+#hm.show{opacity:1;animation:hmPop .16s cubic-bezier(.2,.8,.2,1) forwards}
+#hm.show i{animation:hmLines .16s cubic-bezier(.2,.8,.2,1) forwards}
+#hm.show r{animation:hmRing .16s cubic-bezier(.2,.8,.2,1) forwards}
+#hm.kill i{background:var(--red);box-shadow:0 0 8px rgba(255,77,61,.7)}
+#hm.kill r{border-color:var(--red)}
+@keyframes hmPop{
+  0%{transform:translate(-50%,-50%) scale(.6);opacity:1}
+  60%{transform:translate(-50%,-50%) scale(1.15);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:0}
+}
+@keyframes hmLines{
+  0%{opacity:1}
+  100%{opacity:0}
+}
+@keyframes hmRing{
+  0%{width:6px;height:6px;opacity:.8}
+  100%{width:26px;height:26px;opacity:0}
+}
 #banner{position:fixed;left:50%;top:16%;transform:translate(-50%,-12px);z-index:12;text-align:center;
 opacity:0;transition:all .4s;pointer-events:none;width:90vw}
 #banner.show{opacity:1;transform:translate(-50%,0)}
@@ -145,6 +167,11 @@ letter-spacing:.3em;color:var(--red);opacity:0;transition:opacity .5s;pointer-ev
 color:var(--dim);padding:3px 8px;background:#0d1116cc;border-radius:3px}
 #netStatus.ok{color:var(--green)}
 #netStatus.err{color:var(--red)}
+#netGraph{position:absolute;top:22px;right:78px;font-size:8px;letter-spacing:.12em;
+color:var(--dim);padding:2px 8px;background:#0d111688;border-radius:3px;z-index:20;
+pointer-events:none;font-family:var(--mono);white-space:nowrap}
+#netGraph .g{color:var(--green)}#netGraph .a{color:var(--amber2)}
+#netGraph .r{color:var(--red)}
 #fpsCounter{position:absolute;top:6px;right:78px;font-size:9px;letter-spacing:.08em;
 color:var(--dim);padding:3px 8px;background:#0d1116cc;border-radius:3px;z-index:20;
 pointer-events:none;font-family:var(--mono)}#fpsCounter.good{color:#5ccc6e}
@@ -302,6 +329,7 @@ backdrop-filter:blur(3px);transition:transform 0.08s, background 0.1s}
   <div id="teamPanel"></div>
   <div id="netStatus">OFFLINE</div>
   <div id="fpsCounter">-- FPS</div>
+  <div id="netGraph">--</div>
   <div id="health" class="pnl"><label>VITALS</label>
     <div class="hpR"><span id="hpNum">100</span><small>/100</small><span id="hpRegen">● REGEN</span></div>
     <div class="hpBar"><div id="hpFill"></div></div></div>
@@ -330,7 +358,7 @@ backdrop-filter:blur(3px);transition:transform 0.08s, background 0.1s}
 
   <canvas id="minimap" width="140" height="90"></canvas>
   <div id="ch"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><b></b></div>
-  <div id="hm"><i></i><i></i><i></i><i></i></div>
+  <div id="hm"><i></i><i></i><i></i><i></i><r></r></div>
   <div id="banner"><h2 id="bnT"></h2><div class="rl"></div><p id="bnS"></p></div>
   <div id="paused" class="pnl">PAUSED — CLICK TO RE-ENGAGE</div>
   <div id="revivePrompt">MANTÉN [E] / [REVIVE] PARA REANIMAR<div id="reviveBar"><div id="reviveFill"></div></div></div>
@@ -501,10 +529,11 @@ function initGameEngine() {
   // HISTÉRESIS DE ENRAGE DE BREAKERS (30% - 38% INC-42C)
   let hostilesEnraged = false;
   function updateBreakerHysteresis(dimmerVal) {
-    if (!hostilesEnraged && dimmerVal < 30) {
+    const _enrage=_cfg.enrage||{thresholdEnter:30,thresholdExit:38};
+    if (!hostilesEnraged && dimmerVal < _enrage.thresholdEnter) {
       hostilesEnraged = true;
       bus.emit('breakers:enrage', { enraged: true });
-    } else if (hostilesEnraged && dimmerVal > 38) {
+    } else if (hostilesEnraged && dimmerVal > _enrage.thresholdExit) {
       hostilesEnraged = false;
       bus.emit('breakers:enrage', { enraged: false });
     }
@@ -554,6 +583,11 @@ function initGameEngine() {
     }
   }
   fetchIceServers();
+  /* GAME_CONFIG integrado sincrónicamente (Cero latencia de red) */
+  function loadConfig(){
+    logDiag('GAME_CONFIG integrado v' + GAME_CONFIG.version + ' listo.', 'ok');
+  }
+  loadConfig();
 
   /* ===== WEBGL RENDERER ===== */
   let renderer, scene, camera;
@@ -650,10 +684,9 @@ function initGameEngine() {
       dustOff[idx+1] += dustSpd[i] * dt * 2.5;
       dustOff[idx] += Math.sin(t * 0.4 + i) * dt * 0.04;
       if(dustOff[idx+1] > 5.8) dustOff[idx+1] = 0.3;
-      if(Math.abs(dustOff[idx]) > 18) dustOff[idx] = R(-18, 18);
-      if(Math.abs(dustOff[idx+2]) > 20) dustOff[idx+2] = R(-18, 18);
+      if(Math.abs(dustOff[idx]) > 12) dustOff[idx] = R(-10, 10);
+      if(Math.abs(dustOff[idx+2]) > 14) dustOff[idx+2] = R(-12, 12);
 
-      // Partículas constreñidas a la geometría del túnel siguiendo la curva de la pista
       const tOff = (dustOff[idx+2] * 0.003);
       const particleT = (ct + tOff + 1) % 1;
       const tp = trackPos(particleT);
@@ -962,7 +995,7 @@ function initGameEngine() {
   const addE=(m,b,e=false)=>{m.userData={base:b,emergency:e};emisReg.push(m);return m;};
   const addG=(s,b)=>{s.material.userData={base:b};glowReg.push(s.material);return s;};
   /* Neón RGB + Vapor (declarados ANTES de buildLoop para evitar TDZ) */
-  let neonTubes=[]; // {tube,tube2,light,phase}
+  
   let steamSystems=[]; // {points,phases,basePos,speed}
   /* REFLECTIVE CERAMIC FLOOR & WALL MATERIALS (From Mejora visual mapa suelo ceramica paredes techo.html) */
   const M={};
@@ -1074,27 +1107,28 @@ function initGameEngine() {
       tg.setAttribute('position',new THREE.Float32BufferAttribute(tp,3));tg.setIndex(ti);tg.computeVertexNormals();
       g.add(new THREE.Mesh(tg,M.dark));
 
-      // Props
-      if(st>.5){
-        // Columnas verdes eliminadas (comentadas)
-        // for(let ci2=0;ci2<2;ci2++){const ct=t0+(t1-t0)*(.3+ci2*.4);
-        //   const cp2=trackPos(ct),cn=outN(ct);
-        // Columnas eliminadas
-        //   col.castShadow=true;g.add(col);}
-        const lt=(t0+t1)/2;const lp=trackPos(lt),ln=outN(lt);
+      // BARRAS DE LUZ DE TECHO ESTRUCTURALES DISTRIBUIDAS EN TODOS LOS SECTORES
+      {
         const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:2.8,roughness:.2},.3);addE(lm,2.8);
-        for(let q of [.2,.5,.8]){
+        for(let q of [.25, .75]){
           const lt=t0+(t1-t0)*q; const lp=trackPos(lt),ln=outN(lt),tn=trackTan(lt);
           const barAngle=Math.atan2(tn.x,tn.z);
+          // Barra de techo izquierda
           const lf1=box(.5,.08,3.2,lm);
           lf1.position.set(lp.x+ln.x*2.2, wH-.06, lp.z+ln.z*2.2);
           lf1.rotation.y=barAngle; g.add(lf1);
+          // Barra de techo derecha
           const lf2=box(.5,.08,3.2,lm);
           lf2.position.set(lp.x+ln.x*6.5, wH-.06, lp.z+ln.z*6.5);
           lf2.rotation.y=barAngle; g.add(lf2);
+          // Punto de luz difusa de techo
           const pL=new THREE.PointLight(0xaabbdd, 1.4, 14);
-          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL);
+          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL); addL(pL, 1.4);
         }
+      }
+      // Props de Estación
+      if(st>.5){
+        const lt=(t0+t1)/2;const lp=trackPos(lt),ln=outN(lt);
         
         const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),color:0xdcecff,
           transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.35}));
@@ -1109,30 +1143,6 @@ function initGameEngine() {
         const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6']))),transparent:true,opacity:.88,depthWrite:false});
         const gMesh=box(3.2,.8,.02,gMat);gMesh.position.set(lp.x+ln.x*(outerW+.38),2.1,lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
-
-        /* ── TUBOS DE NEÓN RGB PULSANTE EN ESTACIONES ── */
-        const neonPhase=s*2.094; // 120° entre estaciones
-        for(let nq of [.25,.5,.75]){
-          const nt=t0+(t1-t0)*nq; const np=trackPos(nt),nn=outN(nt),ntn=trackTan(nt);
-          const nAngle=Math.atan2(ntn.x,ntn.z);
-          // Tubo exterior (material propio para animación RGB individual)
-          const nMatExt=new THREE.MeshStandardMaterial({color:0xffffff,emissive:new THREE.Color(1,0,0),emissiveIntensity:2.0,roughness:.3,metalness:.1});
-          addE(nMatExt,2.0,true);
-          const nTubeExt=box(2.6,.08,.06,nMatExt);
-          nTubeExt.position.set(np.x+nn.x*(outerW-.2),3.2+Math.sin(nq*6)*.3,np.z+nn.z*(outerW-.2));
-          nTubeExt.rotation.y=nAngle;g.add(nTubeExt);
-          // Tubo interior (material propio)
-          const nMatInt=new THREE.MeshStandardMaterial({color:0xffffff,emissive:new THREE.Color(1,0,0),emissiveIntensity:2.0,roughness:.3,metalness:.1});
-          addE(nMatInt,2.0,true);
-          const nTubeInt=box(2.6,.08,.06,nMatInt);
-          nTubeInt.position.set(np.x+nn.x*(-4.0),3.2+Math.cos(nq*6)*.3,np.z+nn.z*(-4.0));
-          nTubeInt.rotation.y=nAngle;g.add(nTubeInt);
-          // Luz puntual neón
-          const nLight=new THREE.PointLight(0xff0000,1.6,8,1.5);
-          nLight.position.set(np.x+nn.x*2.5,2.0,np.z+nn.z*2.5);
-          g.add(nLight);addL(nLight,1.6,true);
-          neonTubes.push({tube:nTubeExt,tube2:nTubeInt,light:nLight,phase:neonPhase+nq*2.0});
-        }
 
         /* ── REFLEJOS HÚMEDOS EN EL SUELO (GLOW REFLECTIVO) ── */
         for(let rq of [.15,.4,.65,.9]){
@@ -1242,19 +1252,11 @@ function initGameEngine() {
   buildSteamSystems();
   
   function updateStationFX(dt,time){
-    // Neón RGB pulsante
-    for(const n of neonTubes){
-      const r=0.5+0.5*Math.sin(time*0.6+n.phase);
-      const g=0.5+0.5*Math.sin(time*0.6+n.phase+2.094);
-      const b=0.5+0.5*Math.sin(time*0.6+n.phase+4.189);
-      _nc.setRGB(r,g,b);
-      if(n.tube.material.emissive)n.tube.material.emissive.copy(_nc);
-      if(n.tube2.material.emissive)n.tube2.material.emissive.copy(_nc);
-      n.light.color.copy(_nc);
-      n.light.intensity=0.8+0.8*Math.sin(time*0.7+n.phase)*0.5+0.5;
-    }
-    // Vapor ascendente
+    // Vapor ascendente con Culling por Proximidad (<25m de cámara)
+    if(!camera) return;
+    const cPos = camera.position;
     for(const ss of steamSystems){
+      if(ss.basePos && Math.hypot(ss.basePos[0] - cPos.x, ss.basePos[2] - cPos.z) > 25.0) continue;
       const pos=ss.points.geometry.attributes.position.array;
       for(let i=0;i<pos.length/3;i++){
         pos[i*3]+=Math.sin(time*ss.speed+ss.phases[i])*dt*0.08;
@@ -1416,7 +1418,7 @@ function initGameEngine() {
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
-  const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3();
+  const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_vBurst=new THREE.Vector3(),_vFwd=new THREE.Vector3();
   const _vRock=new THREE.Vector3(), _vCam=new THREE.Vector3(), _vHand=new THREE.Vector3(), _vDir=new THREE.Vector3();
   /* Fase 6D — Reusables para frustum culling */
   const _frustum=new THREE.Frustum();
@@ -1655,15 +1657,25 @@ function initGameEngine() {
     }
   }
 
-  const ZDEF={
-
-    walker:{hp:25,spd:[3.2,4.0],dmg:12,score:10,sc:1},
-    runner:{hp:18,spd:[5.5,6.8],dmg:10,score:15,sc:.88},
-    brute:{hp:60,spd:[2.5,3.2],dmg:20,score:30,sc:1.35},
-    boss_juggernaut:{hp:550,spd:[2.6,3.2],dmg:45,score:350,sc:2.4,armor:.45},
-    boss_stalker:{hp:280,spd:[6.5,8.0],dmg:30,score:180,sc:1.6,armor:.30},
-    boss_rockhurler:{hp:380,spd:[2.2,2.8],dmg:35,score:220,sc:2.1,armor:.35}
+  // GAME_CONFIG data-driven unificado (Residuo eliminado, 100% sincrónico)
+  const GAME_CONFIG = {
+    version: "4.6.1-INTEGRATED",
+    zombies: {
+      walker: { hp: 25, spd: [3.2, 4.0], dmg: 12, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 18, spd: [5.5, 6.8], dmg: 10, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 60, spd: [2.5, 3.2], dmg: 20, score: 30, sc: 1.35, armor: 0 },
+      boss_juggernaut: { hp: 550, spd: [2.6, 3.2], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 280, spd: [6.5, 8.0], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 380, spd: [2.2, 2.8], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
+    },
+    weapons: {
+      m42: { mag: 30, reserve: 120, reserveMax: 240, damage: 25, reloadTime: 1.0 }
+    },
+    player: { maxHp: 100, speed: 4.8, sprintMul: 1.45 },
+    enrage: { thresholdEnter: 30, thresholdExit: 38 }
   };
+  const ZDEF = GAME_CONFIG.zombies;
+  const _cfg = GAME_CONFIG;
 
   /* Fase 6A — Pool de geometrías reutilizables para zombies (evita allocaciones por spawn) */
   const GEO_POOL={
@@ -1777,6 +1789,7 @@ function initGameEngine() {
   const _instMtx=new THREE.Matrix4();
   const _instPos=new THREE.Vector3();
   const _instScl=new THREE.Vector3();
+  const _instZero=new THREE.Vector3(0,0,0);
   function acquireZombieSlot(){
     for(const s of ZOMBIE_POOL){if(!s.active){s.active=true;return s;}}
     return null;
@@ -2044,8 +2057,8 @@ function initGameEngine() {
         instHead.setMatrixAt(z.instIdx,_instMtx);
       }else if(z.instIdx>=0){
         if(!z.g.visible){z.g.visible=true;}
-        instBody.setMatrixAt(z.instIdx,_instMtx.identity().scale(new THREE.Vector3(0,0,0)));
-        instHead.setMatrixAt(z.instIdx,_instMtx.identity().scale(new THREE.Vector3(0,0,0)));
+        instBody.setMatrixAt(z.instIdx,_instMtx.identity().scale(_instZero));
+        instHead.setMatrixAt(z.instIdx,_instMtx.identity().scale(_instZero));
       }
       // ===== ROCK HURLER AI =====
       if(z.isHurler && !z.dead){
@@ -2145,7 +2158,7 @@ function initGameEngine() {
   instRocks.frustumCulled=false;instRocks.count=0;
   scene.add(instRocks);
   const rockSlots=Array.from({length:ROCK_SLOTS},()=>({inUse:false,le:null,v:null,pos:new THREE.Vector3(),life:0,dmg:0,hit:false,rot:0}));
-  const _rkMtx=new THREE.Matrix4(),_rkQ=new THREE.Quaternion();
+  const _rkMtx=new THREE.Matrix4(),_rkQ=new THREE.Quaternion(),_rkOne=new THREE.Vector3(1,1,1),_rkZero=new THREE.Vector3(0,0,0);
 
   // Pool de 3 luces de roca (reutilizadas, sin crear/destruir cada lanzamiento)
   const rockLightPool=[];
@@ -2218,7 +2231,7 @@ function initGameEngine() {
     sl.le=acquireRockLight();
     sl.pos.copy(fromPos);
     if(sl.le) sl.le.light.position.copy(fromPos);
-    _rkMtx.identity().compose(sl.pos,_rkQ.identity(),new THREE.Vector3(1,1,1));
+    _rkMtx.identity().compose(sl.pos,_rkQ.identity(),_rkOne);
     instRocks.setMatrixAt(si,_rkMtx);
     instRocks.count=rockSlots.filter(s=>s.inUse).length;
   }
@@ -2235,7 +2248,7 @@ function initGameEngine() {
       sl.rot+=dt*5;
       if(sl.le) sl.le.light.position.copy(sl.pos);
       _rkQ.setFromEuler(new THREE.Euler(sl.rot,0,sl.rot*0.6));
-      _rkMtx.identity().compose(sl.pos,_rkQ,new THREE.Vector3(1,1,1));
+      _rkMtx.identity().compose(sl.pos,_rkQ,_rkOne);
       instRocks.setMatrixAt(i,_rkMtx);
       const distToCam=sl.pos.distanceTo(_vCam);
       const directHit=distToCam<0.7 && playerState==='alive';
@@ -2251,7 +2264,7 @@ function initGameEngine() {
       if(sl.hit){
         releaseRockLight(sl.le);
         sl.inUse=false;
-        _rkMtx.identity().scale(new THREE.Vector3(0,0,0));
+        _rkMtx.identity().scale(_rkZero);
         instRocks.setMatrixAt(i,_rkMtx);
       }else{activeCount++;}
     }
@@ -2439,7 +2452,9 @@ function initGameEngine() {
 
   /* ===== JUGADOR Y ESTADO ===== */
   let playing=false,locked=false;
-  let hp=100,ammo=30,reserve=120,MAG=30;
+  const _wp=_cfg.weapons?.m42||{mag:30,reserve:120,reserveMax:240};
+  const _pl=_cfg.player||{maxHp:100};
+  let hp=_pl.maxHp,ammo=_wp.mag,reserve=_wp.reserve,MAG=_wp.mag;
   let wave=0,score=0,kills=0,headshots=0,startTime=0;
   let reloading=false,relT=0,fireCd=0,dryCd=0,firing=false;
   let wKick=0,flashT=0,dmgFlash=0,lastHit=-99;
@@ -2848,8 +2863,28 @@ function initGameEngine() {
       const st = pc.iceConnectionState;
       logDiag('WebRTC ICE ('+peerName+'): ' + st, st === 'connected' || st === 'completed' ? 'ok' : 'info');
       if(st === 'checking') setNetStatus('CROSS-CITY CONNECTING...', 'info');
-      else if(st === 'connected' || st === 'completed') setNetStatus('WAN ONLINE (P2P OK)', 'ok');
-      else if(st === 'disconnected') {
+      else if(st === 'connected' || st === 'completed') {
+        setNetStatus('WAN ONLINE (P2P OK)', 'ok');
+        // Detectar ruta: si hay relay TURN o es P2P directo
+        try{
+          const s=pc.connectionState||'';
+          pc.getStats(null).then(stats=>{
+            stats.forEach(r=>{
+              if(r.type==='candidate-pair'&&(r.state==='succeeded'||r.state==='completed')){
+                if(r.nominated||r.selected){
+                  const localId=r.localCandidateId,remoteId=r.remoteCandidateId;
+                  for(const[s2,r2] of stats){
+                    if(r2.type!=='local-candidate'&&r2.type!=='remote-candidate')continue;
+                    if(s2===localId&&r2.candidateType==='relay')_iceRoute='TURN';
+                    else if(s2===localId&&r2.candidateType==='srflx')_iceRoute='P2P';
+                    else if(s2===localId&&r2.candidateType==='host'&&stats.get(remoteId)?.candidateType==='host')_iceRoute='LAN';
+                  }
+                }
+              }
+            });
+          }).catch(()=>{});
+        }catch(e){}
+      } else if(st === 'disconnected') {
         setNetStatus('RECONNECTING WAN...', 'err');
         try{ if(pc.restartIce) pc.restartIce(); }catch(e){}
       } else if(st === 'failed') {
@@ -3191,19 +3226,31 @@ function initGameEngine() {
   function hitmark(isKill) {
     const hm = $('#hm');
     if (!hm) return;
-    hm.className = isKill ? 'kill' : '';
-    hm.style.opacity = 1;
+    hm.className = isKill ? 'kill show' : 'show';
     clearTimeout(_hmTimer);
-    _hmTimer = setTimeout(() => { hm.style.opacity = 0; }, isKill ? 280 : 150);
+    // Force reflow to restart animation
+    void hm.offsetWidth;
+    hm.style.animation = 'none';
+    void hm.offsetWidth;
+    _hmTimer = setTimeout(() => { hm.className = ''; hm.style.animation = ''; }, isKill ? 280 : 150);
   }
 
   let _netSyncAcc = 0, _zStateTimer = 0;
   const NET_SYNC_INTERVAL = 0.05; // 20hz
+  let _rtt=0,_rttSendTs=0,_rttPingInt=0; // netgraph RTT
+  let _iceRoute='—';
+  function sampleRTT(){
+    _rttSendTs=performance.now();
+    netSend({type:'ping',ts:_rttSendTs});
+  }
   function netSync(dt) {
     _netSyncAcc += dt;
     if(_netSyncAcc < NET_SYNC_INTERVAL) return;
     _netSyncAcc = 0;
     if(!peer) return;
+    // Ping/pong RTT cada ~2s
+    _rttPingInt+=dt;
+    if(_rttPingInt>=2.0){_rttPingInt=0;sampleRTT();}
     // FIX-2: Incluir 'from' para que el receptor identifique al emisor correctamente
     const packet = {
       type: 'pos',
@@ -3242,7 +3289,7 @@ function initGameEngine() {
 
   function resetPeer(){
     if(peer){try{peer.destroy();}catch(e){}}
-    peer=null;hostConn=null;
+    peer=null;hostConn=null;_iceRoute='—';
     for(const k in remotePlayers)delete remotePlayers[k];
     updatePlayerList();
   }
@@ -3500,6 +3547,18 @@ function initGameEngine() {
           logDiag('Avatar 3D ubicado en pantalla: ' + posId, 'ok');
         }
         break;}
+      case'ping':{
+        // Echo pong with same timestamp
+        netSend({type:'pong',ts:d.ts});
+        break;}
+      case'pong':{
+        if(d.ts&&_rttSendTs>0){
+          const now=performance.now();
+          const sample=now-d.ts;
+          // Exponential moving average (smooth)
+          _rtt=_rtt>0?Math.round(_rtt*0.85+sample*0.15):sample;
+        }
+        break;}
       case'player_left':{
         if(d.id && remotePlayers[d.id]){
           scene.remove(remotePlayers[d.id].mesh);
@@ -3549,7 +3608,7 @@ function initGameEngine() {
       }
       case'zhit_fx':{
         // Visual LOD Tier: Disparos remotos generan 4 partículas ligeras (70% menor carga de GPU)
-        if(d.pos) burst(new THREE.Vector3(d.pos.x, d.pos.y, d.pos.z), 'ichor', d.hs ? 6 : 3, 2.2);
+        if(d.pos){_vBurst.set(d.pos.x,d.pos.y,d.pos.z);burst(_vBurst,'ichor',d.hs?6:3,2.2);}
         if(d.hs) sfx.down(); else sfx.flesh();
         break;
       }
@@ -3559,7 +3618,7 @@ function initGameEngine() {
         break;
       }
       case'rock_fx':{
-        if(d.pos) burst(new THREE.Vector3(d.pos.x, d.pos.y, d.pos.z), 'stone', 16, 4.0);
+        if(d.pos){_vBurst.set(d.pos.x,d.pos.y,d.pos.z);burst(_vBurst,'stone',16,4.0);}
         sfx.moan(3);
         break;
       }
@@ -3691,11 +3750,14 @@ function initGameEngine() {
   const fwdV=new THREE.Vector3(),rgtV=new THREE.Vector3(),wish=new THREE.Vector3();
   applyBrightness(66);
 
-    function animate(){
-    requestAnimationFrame(animate);
-    const dt = Math.min(clock.getDelta(), .05);
-    elapsed = clock.elapsedTime;
-    const t = elapsed;
+    /* fixed-timestep: 60Hz sim + rAF render (Fix Your Timestep) */
+    const STEP_S=1/60,STEP_MS=1000/60;
+    let _acc=0,_lastTimeGT=performance.now(),_fixedElapsed=0;
+    let _fpsBuffer=[],_fpsSkip=0;
+
+    function fixedUpdate(dt){
+    const t=_fixedElapsed;
+    elapsed=t;
 
     // 1. MÓDULO: MÓVIL Y FÍSICAS DE CÁMARA
     safeExec('CameraPhysics', () => {
@@ -3963,21 +4025,40 @@ function initGameEngine() {
       if($('#ch')) $('#ch').style.setProperty('--gap', gap.toFixed(1) + 'px');
     });
 
-    let _fpsBuffer=[],_fpsSkip=0;
-    // 5. MÓDULO: RENDERIZADO WEBGL Y DIBUJO DE INTERFAZ
-    safeExec('RenderWebGLUI', () => {
-      /* FPS counter — rolling average de 4 frames, actualiza cada 5 frames */
+
+  }
+
+    /* === FIX YOUR TIMESTEP: acumulador 60Hz + render a rAF rate === */
+    function animate(){
+      requestAnimationFrame(animate);
+      const now=performance.now();
+      const frameDt=Math.min(now-_lastTimeGT,250);
+      _lastTimeGT=now;
+      _acc+=frameDt;
+      while(_acc>=STEP_MS){
+        _fixedElapsed+=STEP_S;
+        fixedUpdate(STEP_S);
+        _acc-=STEP_MS;
+      }
+      // Render a rAF rate — FPS, netGraph, minimap, teamHUD, WebGL
+      const _ngEl=$('#netGraph');
+      if(_ngEl&&peer){
+        const rttTxt=_rtt>0?_rtt+'ms':'—';
+        const routeTxt=_iceRoute||(gameMode==='solo'||gameMode==='bots'?'LOCAL':'—');
+        _ngEl.textContent=rttTxt+' · '+routeTxt;
+        _ngEl.className=_rtt>0&&_rtt<80?'g':_rtt>0&&_rtt<180?'a':'r';
+      }else if(_ngEl)_ngEl.textContent='— · —';
       const _fpsEl=$('#fpsCounter');
-      if(_fpsEl&&dt>0){
-        _fpsBuffer.push(1/dt);
+      if(_fpsEl&&frameDt>0){
+        _fpsBuffer.push(1000/frameDt);
         if(_fpsBuffer.length>4)_fpsBuffer.shift();
         if(_fpsSkip<=0){_fpsSkip=5;const avg=_fpsBuffer.reduce((a,b)=>a+b,0)/_fpsBuffer.length;
           _fpsEl.textContent=Math.round(avg)+' FPS';
-          _fpsEl.className=avg>=58?'good':avg>=45?'ok':'bad';}else _fpsSkip--;
+          _fpsEl.className=avg>=58?'good':avg>=45?'ok':'bad';
+        }else _fpsSkip--;
       }
       drawMinimap();
       updateTeamHUD();
-      /* GQW-VIS-5.0: Draw bot dots on minimap */
       if(botsEnabled&&typeof mmCtx!=='undefined'&&mmCtx){
         for(const b of bots){if(b.dead)continue;
           const bx=(b.group.position.x-camera.position.x)*1.2+75;
@@ -3985,19 +4066,17 @@ function initGameEngine() {
           mmCtx.fillStyle=b.downed?'#ff4b3e':'#3f8cff';
           mmCtx.beginPath();mmCtx.arc(bx,bz,b.downed?2:3,0,6.28);mmCtx.fill();}
       }
-      if(renderer && scene && camera){
-        /* GQW-VIS-5.0: Actualizar SpotLight del jugador para seguir la cámara */
+      if(renderer&&scene&&camera){
         if(typeof keyLight!=='undefined'&&keyLight){
           keyLight.position.copy(camera.position);keyLight.position.y+=0.5;
-          const _kd=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+          const _kd=_vFwd.set(0,0,-1).applyQuaternion(camera.quaternion);
           keyLight.target.position.copy(camera.position).addScaledVector(_kd,8);
           keyLight.target.updateMatrixWorld();
         }
-        renderer.render(scene, camera);
+        renderer.render(scene,camera);
       }
-    });
-  }
-  animate();
+    }
+    animate();
 
   /* ===== GESTOR DE CONTROLES TÁCTILES MÓVILES ===== */
   
