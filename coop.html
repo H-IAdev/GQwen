@@ -980,13 +980,16 @@ function initGameEngine() {
 
   function grafCnv(txt,color='#ffb400'){
     const[c,x]=cnv(256,256);x.clearRect(0,0,256,256);
-    const sg=x.createRadialGradient(128,128,10,128,128,115);
-    sg.addColorStop(0,color);sg.addColorStop(0.65,color);sg.addColorStop(1,'rgba(0,0,0,0)');
-    x.fillStyle=sg;x.beginPath();x.arc(128,128,110,0,Math.PI*2);x.fill();
-    x.font='900 28px "Barlow Condensed","Chakra Petch",sans-serif';
-    x.textAlign='center';x.textBaseline='middle';
-    x.fillStyle='#0a0d10';x.shadowColor='rgba(255,255,255,0.4)';x.shadowBlur=4;
-    x.fillText(txt,128,128);
+    const sg=x.createRadialGradient(128,128,15,128,128,112);
+    sg.addColorStop(0,'rgba(18,24,32,0.85)');
+    sg.addColorStop(0.5,'rgba(28,38,50,0.60)');
+    sg.addColorStop(0.85,'rgba(10,14,20,0.25)');
+    sg.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=sg;x.beginPath();x.arc(128,128,108,0,Math.PI*2);x.fill();
+    for(let i=0;i<8;i++){
+      x.fillStyle='rgba(8,12,16,0.35)';
+      x.fillRect(R(40,210),R(50,200),R(2,5),R(8,24));
+    }
     return c;
   }
   function puddleCnv(){
@@ -1188,10 +1191,9 @@ function initGameEngine() {
         const sp2=box(1.4,.4,.05,sm);sp2.position.set(lp.x+ln.x*(outerW+.1),2.8,lp.z+ln.z*(outerW+.1));
         const tn=trackTan(lt);sp2.rotation.y=Math.atan2(tn.x,tn.z);g.add(sp2);
 
-        // Grafiti Urbano Proporcional Variado en Paredes (0 deformación estirada)
-        const msg=pick(WALL_MSGS);
+        // Texturas Circulares de Pátina y Humedad en Muros (0 deformación estirada)
         const gColor=pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6','#ff7020']);
-        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,gColor)),transparent:true,opacity:.88,depthWrite:false});
+        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv('',gColor)),transparent:true,opacity:.82,depthWrite:false});
         const gMesh=box(0.55,.55,.01,gMat);
         gMesh.position.set(lp.x+ln.x*(outerW+.38),R(1.80,2.10),lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
@@ -3248,6 +3250,21 @@ function initGameEngine() {
       c.shadowBlur = 0;
     }
 
+    // Bots Sintéticos — puntos cian/esmeralda con alerta de caída
+    for(const b of bots){
+      if(b.dead) continue;
+      const ba = 2 * Math.PI * (b.t || 0);
+      const bx = w/2 + Math.sin(ba)*w*0.40;
+      const by = h/2 - Math.cos(ba)*h*0.36;
+      c.shadowColor = b.downed ? '#ff4b3e' : '#00ffaa';
+      c.shadowBlur = b.downed ? 8 : 4;
+      c.fillStyle = b.downed ? '#ff4b3e' : '#00ffaa';
+      c.beginPath();
+      c.arc(bx, by, b.downed ? 4.5 : 3.5, 0, Math.PI*2);
+      c.fill();
+      c.shadowBlur = 0;
+    }
+
     // Zombies — puntos rojos pequeños
     c.fillStyle = 'rgba(255,75,62,0.9)';
     const allZ = isHost ? zombies : [...remoteZombies.values()];
@@ -4039,6 +4056,32 @@ function initGameEngine() {
                   if(fill) fill.style.width = Math.max(0, Math.round((reviveProgress / 2.2) * 100)) + '%';
                 }
                 // Resaltar botón REVIVE táctil mientras se puede usar
+                const revBtn = $('#tBtnRevive');
+                if(revBtn) revBtn.classList.add('active');
+                break;
+              }
+            }
+          }
+        }
+        if(playerState === 'alive'){
+          for(const b of bots){
+            if(b.downed){
+              const distToBot = camera.position.distanceTo(b.group.position);
+              if(distToBot < 3.2){
+                foundDowned = true;
+                const prompt = $('#revivePrompt');
+                const fill = $('#reviveFill');
+                const pct = Math.min(100, Math.round(((20 - b.downT) / 20) * 100));
+                if(fill) fill.style.width = pct + '%';
+                if(prompt) prompt.classList.add('show');
+                if(keys['KeyE'] || keys['KeyE_touch']){
+                  b.downT -= dt * 4;
+                  if(b.downT <= 0){
+                    b.downed = false; b.hp = 70; b.group.rotation.x = 0;
+                    feed(b.name + ' REANIMADO POR TI!', 'g'); sfx.revive();
+                    if(prompt) prompt.classList.remove('show');
+                  }
+                }
                 const revBtn = $('#tBtnRevive');
                 if(revBtn) revBtn.classList.add('active');
                 break;
