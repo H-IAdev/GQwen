@@ -322,8 +322,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
 <div id="hud">
   <div id="stationSign" class="pnl"><div class="bullet">L</div>
     <div><h1>LUMEN ST</h1><p>LOOP LINE · SECTOR <span id="sectorId">S1</span></p></div></div>
-  <div id="breakers" class="pnl"><label>BREAKERS — <b>DIMMER</b></label>
-    <div style="display:flex;align-items:center"><input type="range" id="bright" min="0" max="100" value="66"><span id="pct">66%</span></div></div>
+
   <div id="scorePanel" class="pnl">
     <div class="r"><span>WAVE</span><b class="am" id="waveNum">00</b></div>
     <div class="r"><span>SCORE</span><b id="scoreNum">0</b></div>
@@ -1186,22 +1185,29 @@ function initGameEngine() {
         const sp2=box(1.4,.4,.05,sm);sp2.position.set(lp.x+ln.x*(outerW+.1),2.8,lp.z+ln.z*(outerW+.1));
         const tn=trackTan(lt);sp2.rotation.y=Math.atan2(tn.x,tn.z);g.add(sp2);
 
-        // Graffiti Pintado Proporcional en Paredes
-        const msg=WALL_MSGS[s%WALL_MSGS.length];
-        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6']))),transparent:true,opacity:.85,depthWrite:false});
-        const gMesh=box(1.5,.45,.01,gMat);gMesh.position.set(lp.x+ln.x*(outerW+.38),1.95,lp.z+ln.z*(outerW+.38));
+        // Grafiti Urbano Proporcional Variado en Paredes (0 deformación estirada)
+        const msg=pick(WALL_MSGS);
+        const gColor=pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6','#ff7020']);
+        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,gColor)),transparent:true,opacity:.88,depthWrite:false});
+        const gMesh=box(1.1,.36,.01,gMat);
+        gMesh.position.set(lp.x+ln.x*(outerW+.38),R(1.75,2.15),lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
 
-        /* ── CHARCOS DE AGUA Y HUMEDAD EN EL SUELO CON GOTAS Y ONDULACIÓN ── */
+        /* ── CHARCOS DE AGUA EMPAPADA REALISTAS (Z-BUFFER POLYGONOFFSET FIX) ── */
         const puddleTex=mk(puddleCnv());
-        const puddleGeo=new THREE.PlaneGeometry(2.2,2.2);
-        const puddleMat=std({map:puddleTex,transparent:true,opacity:.60,roughness:.04,metalness:.05,depthWrite:false},.85);
+        const puddleGeo=new THREE.PlaneGeometry(2.4,2.4);
+        const puddleMat=new THREE.MeshStandardMaterial({
+          map:puddleTex,transparent:true,opacity:.82,
+          roughness:.02,metalness:.15,envMapIntensity:1.5,
+          depthWrite:false,depthTest:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2
+        });
         for(let rq of [.15,.4,.65,.9]){
           const rt=t0+(t1-t0)*rq; const rp=trackPos(rt),rn=outN(rt);
-          const rx=rp.x+rn.x*R(1.5,5.0),rz=rp.z+rn.z*R(1.5,5.0);
+          const rx=rp.x+rn.x*R(1.2,4.8),rz=rp.z+rn.z*R(1.2,4.8);
           const pMesh=new THREE.Mesh(puddleGeo,puddleMat);
           pMesh.rotation.x=-Math.PI/2;
-          pMesh.position.set(rx,getFloorY(rx,rz)+0.015,rz);
+          pMesh.rotation.z=R(0,6.28);
+          pMesh.position.set(rx,0.035,rz);
           g.add(pMesh);
         }
       }
@@ -1551,7 +1557,7 @@ function initGameEngine() {
      3 compañeros IA: NOAH, ELENA, MARCUS — disparan, reaniman, cubren flancos
      ═══════════════════════════════════════════════════════════════════ */
   const BOT_NAMES=['VEGA','RUIZ','KIDO'];
-  const BOT_OFFSETS=[new THREE.Vector3(-1.8,0,1.2),new THREE.Vector3(1.8,0,1.2),new THREE.Vector3(0,0,2.4)];
+  const BOT_OFFSETS=[new THREE.Vector3(-4.5,0,3.2),new THREE.Vector3(4.5,0,3.2),new THREE.Vector3(0,0,5.8)];
   let bots=[],botReviveT=0,botsEnabled=false;
 
   function spawnBots(){
@@ -3305,6 +3311,11 @@ function initGameEngine() {
   function hudWave() {
     const wn = $('#waveNum');
     if (wn) wn.textContent = String(wave || 0).padStart(2,'0');
+    // Atenuación automática pasiva del Breakers Dimmer por ola (dificultad progresiva automatizada)
+    if(wave > 0){
+      const autoDim = Math.max(15, 100 - (wave - 1) * 8);
+      applyBrightness(autoDim);
+    }
   }
 
 
@@ -3928,9 +3939,16 @@ function initGameEngine() {
         }
         if(reloading){
           relT += dt;
-          if($('#relFill')) $('#relFill').style.width = Math.min(100, relT / 1.0 * 100) + '%';
-          if(relT >= 1.0){
-            const take = Math.min(MAG - ammo, reserve); ammo += take; reserve -= take;
+          const reloadDuration = activeWeapon === 'shotgun' ? 1.8 : 1.0;
+          if($('#relFill')) $('#relFill').style.width = Math.min(100, (relT / reloadDuration) * 100) + '%';
+          if(relT >= reloadDuration){
+            const take = Math.min(MAG - ammo, reserve);
+            ammo += take; reserve -= take;
+            if(activeWeapon === 'gun'){
+              ammoGun = ammo; reserveGun = reserve;
+            } else if(activeWeapon === 'shotgun'){
+              ammoShotgun = ammo; reserveShotgun = reserve;
+            }
             reloading = false;
             if($('#relBar')) $('#relBar').classList.remove('on');
             if($('#relTxt')) $('#relTxt').textContent = '';
