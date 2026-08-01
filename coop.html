@@ -979,11 +979,14 @@ function initGameEngine() {
     x.fillStyle='#ffb400';x.shadowColor='#ffb400';x.fillText('LOOP SEALED — SHELTER IN PLACE',520,50);return c;}
 
   function grafCnv(txt,color='#ffb400'){
-    const[c,x]=cnv(512,160);x.clearRect(0,0,512,160);
-    x.font='900 36px "Barlow Condensed","Chakra Petch",sans-serif';
+    const[c,x]=cnv(256,256);x.clearRect(0,0,256,256);
+    const sg=x.createRadialGradient(128,128,10,128,128,115);
+    sg.addColorStop(0,color);sg.addColorStop(0.65,color);sg.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=sg;x.beginPath();x.arc(128,128,110,0,Math.PI*2);x.fill();
+    x.font='900 28px "Barlow Condensed","Chakra Petch",sans-serif';
     x.textAlign='center';x.textBaseline='middle';
-    x.shadowColor=color;x.shadowBlur=8;x.fillStyle=color;
-    x.fillText(txt,256,80);
+    x.fillStyle='#0a0d10';x.shadowColor='rgba(255,255,255,0.4)';x.shadowBlur=4;
+    x.fillText(txt,128,128);
     return c;
   }
   function puddleCnv(){
@@ -1189,27 +1192,11 @@ function initGameEngine() {
         const msg=pick(WALL_MSGS);
         const gColor=pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6','#ff7020']);
         const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,gColor)),transparent:true,opacity:.88,depthWrite:false});
-        const gMesh=box(1.1,.36,.01,gMat);
-        gMesh.position.set(lp.x+ln.x*(outerW+.38),R(1.75,2.15),lp.z+ln.z*(outerW+.38));
+        const gMesh=box(0.55,.55,.01,gMat);
+        gMesh.position.set(lp.x+ln.x*(outerW+.38),R(1.80,2.10),lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
 
-        /* ── CHARCOS DE AGUA EMPAPADA REALISTAS (Z-BUFFER POLYGONOFFSET FIX) ── */
-        const puddleTex=mk(puddleCnv());
-        const puddleGeo=new THREE.PlaneGeometry(2.4,2.4);
-        const puddleMat=new THREE.MeshStandardMaterial({
-          map:puddleTex,transparent:true,opacity:.82,
-          roughness:.02,metalness:.15,envMapIntensity:1.5,
-          depthWrite:false,depthTest:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2
-        });
-        for(let rq of [.15,.4,.65,.9]){
-          const rt=t0+(t1-t0)*rq; const rp=trackPos(rt),rn=outN(rt);
-          const rx=rp.x+rn.x*R(1.2,4.8),rz=rp.z+rn.z*R(1.2,4.8);
-          const pMesh=new THREE.Mesh(puddleGeo,puddleMat);
-          pMesh.rotation.x=-Math.PI/2;
-          pMesh.rotation.z=R(0,6.28);
-          pMesh.position.set(rx,0.035,rz);
-          g.add(pMesh);
-        }
+        /* ── ACABADO DE SUELO EMPAPADO CON ALTO BRILLO ESPECULAR Y GOTAS ── */
       }
       // GRAFITI PROPORCIONAL EN PAREDES INTERIORES
       {
@@ -1490,6 +1477,9 @@ function initGameEngine() {
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
+  /* Linterna Táctica Frontal montada sobre la cámara */
+  const flashlight=new THREE.SpotLight(0xfff5e0,0,45,Math.PI/7,0.35,1.8);
+  flashlight.position.set(0.2,-0.15,-0.2);flashlight.visible=false;flashlight.layers.set(2);camera.add(flashlight);
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
   const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_vBurst=new THREE.Vector3(),_vFwd=new THREE.Vector3();
   const _vRock=new THREE.Vector3(), _vCam=new THREE.Vector3(), _vHand=new THREE.Vector3(), _vDir=new THREE.Vector3();
@@ -2068,7 +2058,7 @@ function initGameEngine() {
         z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.75?(w-.75)*4*1.6:0);
         z.t+=Math.sign(dir)*dt*.006; // windup: still approaching
         if(z.windup<=0){z.cool=1.2;
-          if(dist3D<3.0){ // attack radius 3.0m para mejor alcance
+          if(dist3D<1.35){ // attack radius ajustado a 1.35m para cercanía exacta
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
                 nearest.bot.hp-=z.dmg;burst(z.g.position,'ichor',5,2);
@@ -2179,15 +2169,58 @@ function initGameEngine() {
         if(z.grabVictim && !z.grabbed && !z.charging && !z.grabVictim.dead){
           const vdd=Math.abs(z.grabVictim.t-z.t); const vd2=Math.min(vdd,1-vdd)*TRACK_LEN;
           if(vd2<2.0){
-            // ¡Al alcance! — agarrar ahora
             doGrabAndThrow(z,nearest,z.grabVictim);
           } else if(vd2<10.0){
-            // Acercarse al zombie objetivo a paso rápido
             const vDir2=z.grabVictim.t-z.t; const vSign=vDir2>0.5?-1:vDir2<-0.5?1:Math.sign(vDir2);
             z.t+=vSign*z.speed*1.4*dt/TRACK_LEN;
           } else {
-            z.grabVictim=null; // perdió al objetivo
+            z.grabVictim=null;
           }
+        }
+      }
+
+      // ===== JUGGERNAUT BOSS AI — EMBESTIDA Y BARRIDO EN LÍNEA RECTA DE ALTO DAÑO =====
+      if (z.type === 'boss_juggernaut' && !z.dead) {
+        if (typeof z.chargeCd === 'undefined') z.chargeCd = R(4, 8);
+        z.chargeCd -= dt;
+        if (z.isCharging) {
+          z.chargeT -= dt;
+          z.t += z.chargeSign * 14.0 * dt / TRACK_LEN;
+          z.g.rotation.x = -0.4;
+          for (const cz of zombies) {
+            if (cz !== z && !cz.dead && cz.type !== 'boss_juggernaut' && cz.type !== 'boss_stalker') {
+              if (z.g.position.distanceTo(cz.g.position) < 2.2) {
+                killZombie(cz, false);
+                burst(cz.g.position, 'ichor', 12, 3.5);
+              }
+            }
+          }
+          if (nearest && nearest.isLocal && dist3D < 1.9 && playerState === 'alive') {
+            z.draggingPlayer = true;
+            camera.position.x = z.g.position.x;
+            camera.position.z = z.g.position.z + 1.2;
+          }
+          const hitWall = z.lat <= -4.8 || z.lat >= 7.8;
+          if (z.chargeT <= 0 || hitWall) {
+            z.isCharging = false;
+            z.g.rotation.x = 0;
+            z.chargeCd = R(10, 16);
+            shake = Math.max(shake, 0.04);
+            burst(z.g.position, 'stone', 20, 5.0);
+            if (z.draggingPlayer) {
+              z.draggingPlayer = false;
+              const maxHp = _cfg.player?.maxHp || 100;
+              const dmg = Math.round(maxHp * 0.5);
+              damagePlayer(dmg);
+              feed('¡JUGGERNAUT TE ESTRELLÓ CONTRA EL MURO! -' + dmg + ' HP', 'k');
+            }
+          }
+        } else if (z.chargeCd <= 0 && dist < 14.0) {
+          z.isCharging = true;
+          z.chargeT = 1.6;
+          z.chargeSign = Math.sign(dir) || 1;
+          sfx.down();
+          feed('⚠ JUGGERNAUT EMBISTIENDO EN LÍNEA RECTA! ¡APÁRTATE!', 'k');
         }
       }
 
@@ -2225,10 +2258,10 @@ function initGameEngine() {
   }
   function releaseRockLight(e){if(!e)return;e.inUse=false;e.light.intensity=0;e.light.visible=false;}
 
-  const AOE_R=3.5;       // radio de explosión en metros
+  const AOE_R=3.8;       // radio de explosión en metros
   const AOE_R2=AOE_R*AOE_R;
-  const ROCK_SPEED=19;   // velocidad de proyectil m/s
-  const ROCK_LIFE=3.2;   // segundos antes de expirar (≈60m de alcance máximo)
+  const ROCK_SPEED=25;   // velocidad de proyectil m/s (+30% alcance extendido)
+  const ROCK_LIFE=4.2;   // segundos antes de expirar (≈85m de alcance máximo)
 
   function rockExplode(pos, dmg, sourceIsRock){
     // Partículas + feedback visual
@@ -2382,12 +2415,12 @@ function initGameEngine() {
     getPlayerWorldPos(); // _vCam = player pos
     _vRock.copy(victim.g.position);_vRock.y=1.3;
     _vDir.subVectors(_vCam,_vRock).normalize();
-    victim.throwVel=_vDir.clone().multiplyScalar(27);
-    victim.throwVel.y = 5.2; // Impulso vertical para arco balístico
+    victim.throwVel=_vDir.clone().multiplyScalar(35); // +30% velocidad de lanzamiento
+    victim.throwVel.y = 6.5;
     victim.isThrown=true;victim.grabbed=false;
-    victim.thrownDmg=999; // FIX: Instakill al impactar
+    victim.thrownDmg=999;
     z.grabbed=null;
-    feed('ZOMBIE LANZADO! ESQUIVA!','k');
+    feed('⚠ ZOMBIE LANZADO POR ROCK HURLER! ESQUIVA!','k');
   }
 
   /* ===== ZOMBIS REMOTOS ===== */
@@ -2639,6 +2672,11 @@ function initGameEngine() {
       else { requestLock(); }
     }
     if((e.code==='KeyR'||e.key==='r'||e.key==='R')&&playing&&!reloading&&ammo<MAG&&reserve>0)startReload();
+    if((e.code==='KeyF'||e.key==='f'||e.key==='F')&&playing){
+      flashlight.visible=!flashlight.visible;
+      sfx.click();
+      feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
+    }
     if(e.code==='Enter'){if(!$('#over').classList.contains('gone'))resetGame();}
   });
   window.addEventListener('keyup',e=>{
