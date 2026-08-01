@@ -1341,8 +1341,11 @@ function initGameEngine() {
     const brEl = $('#bright'); if(brEl) brEl.style.setProperty('--p',v+'%');
     $('#breakerWarn').classList.toggle('show',B<.4&&playing);
     updateBreakerHysteresis(v);}
-  $('#bright').addEventListener('input',e=>{applyBrightness(+e.target.value);netSend({type:'breakers',v:+e.target.value});});
-  $('#bright').addEventListener('change',e=>e.target.blur());
+  const brightSlider = $('#bright');
+  if (brightSlider) {
+    brightSlider.addEventListener('input', e => { applyBrightness(+e.target.value); netSend({ type: 'breakers', v: +e.target.value }); });
+    brightSlider.addEventListener('change', e => e.target.blur());
+  }
 
   /* ===== AUDIO ===== */
   let AC=null,master=null,noiseBuf=null;
@@ -2679,7 +2682,7 @@ function initGameEngine() {
     else{firing=false;if(playing)$('#paused').classList.add('show');}});
   document.addEventListener('pointerlockerror',()=>{if(playing)$('#paused').classList.add('show');});
   if(renderer&&renderer.domElement) renderer.domElement.addEventListener('click',()=>{if(playing&&!locked)requestLock();});
-  $('#paused').addEventListener('click',()=>{if(playing)requestLock();});
+  const pausedEl = $('#paused'); if (pausedEl) pausedEl.addEventListener('click', ()=>{ if(playing) requestLock(); });
 
   /* ===== DISPAROS ===== */
   function startReload(){if(reloading||reserve<=0)return;reloading=true;relT=0;sfx.reload();netSend({type:'pfx',sound:'reload',pId:peer?.id});
