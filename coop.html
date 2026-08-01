@@ -65,7 +65,10 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;bac
 #scorePanel .r{display:flex;justify-content:space-between;gap:14px;font-size:9px;letter-spacing:.15em;color:var(--dim);padding:1px 0}
 #scorePanel .r b{font-size:14px;color:var(--paper)}
 #scorePanel .r b.am{color:var(--amber2)}
-#feed{position:absolute;top:90px;right:14px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+#feed{position:absolute;top:84px;right:14px;display:flex;flex-direction:column;gap:5px;align-items:flex-end;pointer-events:none}
+.fMsg{padding:5px 10px;background:rgba(8,12,16,0.82);backdrop-filter:blur(8px);border-left:3px solid var(--amber);color:var(--ink);font-family:var(--body);font-size:10px;font-weight:600;border-radius:2px;box-shadow:0 4px 12px rgba(0,0,0,0.4);animation:fIn 0.15s ease-out}
+.fMsg.k{border-left-color:var(--red);color:#ff9e96}
+.fMsg.h{border-left-color:var(--grn);color:#a3ffd6}
 .fi{font-size:9px;letter-spacing:.12em;padding:4px 8px;background:#0d1116dd;border-right:3px solid var(--amber);animation:fin .2s ease both}
 .fi.k{border-right-color:var(--red);color:#ffb1a8}.fi.h{border-right-color:var(--amber);color:var(--amber2)}
 @keyframes fin{from{transform:translateX(16px);opacity:0}to{transform:none;opacity:1}}
@@ -1194,7 +1197,7 @@ function initGameEngine() {
         // Texturas Circulares de Pátina y Humedad en Muros (0 deformación estirada)
         const gColor=pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6','#ff7020']);
         const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv('',gColor)),transparent:true,opacity:.82,depthWrite:false});
-        const gMesh=box(0.55,.55,.01,gMat);
+        const gMesh=box(0.50,.50,.01,gMat);
         gMesh.position.set(lp.x+ln.x*(outerW+.38),R(1.80,2.10),lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
 
@@ -2181,34 +2184,37 @@ function initGameEngine() {
         }
       }
 
-      // ===== JUGGERNAUT BOSS AI — EMBESTIDA Y BARRIDO EN LÍNEA RECTA DE ALTO DAÑO =====
+      // ===== JUGGERNAUT BOSS AI — EMBESTIDA EN LÍNEA RECTA SIGUIENDO CAMPO DE VISIÓN =====
       if (z.type === 'boss_juggernaut' && !z.dead) {
         if (typeof z.chargeCd === 'undefined') z.chargeCd = R(4, 8);
         z.chargeCd -= dt;
         if (z.isCharging) {
           z.chargeT -= dt;
-          z.t += z.chargeSign * 14.0 * dt / TRACK_LEN;
-          z.g.rotation.x = -0.4;
+          // Desplazamiento directo en línea recta en dirección de avance
+          z.t += z.chargeSign * 15.0 * dt / TRACK_LEN;
+          z.g.rotation.x = -0.45;
+          // Arrastrar y aplastar enemigos en el camino de embestida
           for (const cz of zombies) {
             if (cz !== z && !cz.dead && cz.type !== 'boss_juggernaut' && cz.type !== 'boss_stalker') {
-              if (z.g.position.distanceTo(cz.g.position) < 2.2) {
+              if (z.g.position.distanceTo(cz.g.position) < 2.3) {
                 killZombie(cz, false);
-                burst(cz.g.position, 'ichor', 12, 3.5);
+                burst(cz.g.position, 'ichor', 14, 3.8);
               }
             }
           }
-          if (nearest && nearest.isLocal && dist3D < 1.9 && playerState === 'alive') {
+          // Arrastrar al jugador si es capturado de frente durante la embestida
+          if (nearest && nearest.isLocal && dist3D < 2.0 && playerState === 'alive') {
             z.draggingPlayer = true;
             camera.position.x = z.g.position.x;
-            camera.position.z = z.g.position.z + 1.2;
+            camera.position.z = z.g.position.z + 1.1;
           }
           const hitWall = z.lat <= -4.8 || z.lat >= 7.8;
           if (z.chargeT <= 0 || hitWall) {
             z.isCharging = false;
             z.g.rotation.x = 0;
-            z.chargeCd = R(10, 16);
-            shake = Math.max(shake, 0.04);
-            burst(z.g.position, 'stone', 20, 5.0);
+            z.chargeCd = R(9, 15);
+            shake = Math.max(shake, 0.045);
+            burst(z.g.position, 'stone', 24, 5.5);
             if (z.draggingPlayer) {
               z.draggingPlayer = false;
               const maxHp = _cfg.player?.maxHp || 100;
@@ -2219,7 +2225,7 @@ function initGameEngine() {
           }
         } else if (z.chargeCd <= 0 && dist < 14.0) {
           z.isCharging = true;
-          z.chargeT = 1.6;
+          z.chargeT = 1.7;
           z.chargeSign = Math.sign(dir) || 1;
           sfx.down();
           feed('⚠ JUGGERNAUT EMBISTIENDO EN LÍNEA RECTA! ¡APÁRTATE!', 'k');
@@ -2260,10 +2266,10 @@ function initGameEngine() {
   }
   function releaseRockLight(e){if(!e)return;e.inUse=false;e.light.intensity=0;e.light.visible=false;}
 
-  const AOE_R=3.8;       // radio de explosión en metros
+  const AOE_R=4.0;       // radio de explosión en metros
   const AOE_R2=AOE_R*AOE_R;
-  const ROCK_SPEED=25;   // velocidad de proyectil m/s (+30% alcance extendido)
-  const ROCK_LIFE=4.2;   // segundos antes de expirar (≈85m de alcance máximo)
+  const ROCK_SPEED=27.5; // velocidad de proyectil m/s (+40% alcance total extendido)
+  const ROCK_LIFE=4.6;   // segundos antes de expirar (≈95m de alcance máximo)
 
   function rockExplode(pos, dmg, sourceIsRock){
     // Partículas + feedback visual
@@ -3250,19 +3256,27 @@ function initGameEngine() {
       c.shadowBlur = 0;
     }
 
-    // Bots Sintéticos — puntos cian/esmeralda con alerta de caída
+    // Bots Sintéticos — seguimiento en tiempo real con dirección
     for(const b of bots){
-      if(b.dead) continue;
-      const ba = 2 * Math.PI * (b.t || 0);
+      if(b.dead || !b.group) continue;
+      // Derivar posición angular exacta en tiempo real desde b.group.position
+      const botAng = Math.atan2(b.group.position.x, b.group.position.z);
+      const botT = ((botAng / (Math.PI * 2)) % 1 + 1) % 1;
+      const ba = 2 * Math.PI * botT;
       const bx = w/2 + Math.sin(ba)*w*0.40;
       const by = h/2 - Math.cos(ba)*h*0.36;
-      c.shadowColor = b.downed ? '#ff4b3e' : '#00ffaa';
+      const col = b.downed ? '#ff4b3e' : '#00ffaa';
+      c.shadowColor = col;
       c.shadowBlur = b.downed ? 8 : 4;
-      c.fillStyle = b.downed ? '#ff4b3e' : '#00ffaa';
+      c.fillStyle = col;
       c.beginPath();
       c.arc(bx, by, b.downed ? 4.5 : 3.5, 0, Math.PI*2);
       c.fill();
       c.shadowBlur = 0;
+      // Indicador de dirección del bot
+      c.strokeStyle = col; c.lineWidth = 1.2;
+      c.beginPath(); c.moveTo(bx, by);
+      c.lineTo(bx + Math.sin(ba)*5, by - Math.cos(ba)*5); c.stroke();
     }
 
     // Zombies — puntos rojos pequeños
