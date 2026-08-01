@@ -783,9 +783,18 @@ function initGameEngine() {
     return {alb,nrm,rgh};
   }
   /* Texturas fallback procedurales (copiadas de Enemigos HD) */
-  function paintTileHD(){const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');x.fillStyle='#e1ded4';x.fillRect(0,0,512,512);
-    for(let r=0;r<8;r++){const off=(r%2)*64;for(let col=-1;col<5;col++){x.fillStyle=`rgb(${220+(R(-8,8)|0)},${217+(R(-8,8)|0)},${206+(R(-8,8)|0)})`;x.fillRect(col*128+off+3,r*64+3,122,58);}}
-    return c;}
+  function paintTileHD(){
+    const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
+    x.fillStyle='#d8d4c8';x.fillRect(0,0,512,512);
+    // Cuadrícula perfecta 1:1 de baldosas cerámicas cuadradas (64px x 64px)
+    for(let r=0;r<8;r++){
+      for(let col=0;col<8;col++){
+        x.fillStyle=`rgb(${222+(R(-6,6)|0)},${219+(R(-6,6)|0)},${208+(R(-6,6)|0)})`;
+        x.fillRect(col*64+2,r*64+2,60,60);
+      }
+    }
+    return c;
+  }
   function paintConcHD(){const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');x.fillStyle='#2c2f34';x.fillRect(0,0,512,512);
     for(let i=0;i<2400;i++){x.fillStyle=`rgba(${R(20,70)|0},${R(22,72)|0},${R(26,76)|0},.5)`;x.fillRect(R(0,512)|0,R(0,512)|0,R(1,3)|0,R(1,3)|0);}return c;}
   function paintSteelHD(){const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');const g=x.createLinearGradient(0,0,512,0);g.addColorStop(0,'#9aa0a7');g.addColorStop(.5,'#c2c8ce');g.addColorStop(1,'#8a9097');x.fillStyle=g;x.fillRect(0,0,512,512);
@@ -799,7 +808,7 @@ function initGameEngine() {
   async function loadAllTextures(){
     logDiag('Cargando texturas HD...','info');
     const sets=await Promise.all([
-      buildTexSet(TEX_HD.tile,paintTileHD,[2,2],.6,.3,1,1.4),
+      buildTexSet(TEX_HD.tile,paintTileHD,[4,4],.6,.3,1,1.4),
       buildTexSet(TEX_HD.conc,paintConcHD,[1,1],.85,.15,2,1.8),
       buildTexSet(TEX_HD.steel,paintSteelHD,[1,1],.35,.15,3,.6),
       buildTexSet(TEX_HD.floor,paintFloorHD,[1,1],.4,.12,4,.8)
@@ -1045,7 +1054,10 @@ function initGameEngine() {
   const T={glow:glowCnv(),
     signA:signCnv('LUMEN ST'),signB:signCnv('MERIDIAN'),led:ledCnv()};
 
-  const std=(o,env=.3)=>{const m=new THREE.MeshStandardMaterial(o);m.envMapIntensity=env;return m;};
+  const std=(o,env=.3)=>{
+    const m=new THREE.MeshStandardMaterial(Object.assign({side:THREE.FrontSide},o));
+    m.envMapIntensity=env;return m;
+  };
   const lightsReg=[],emisReg=[],glowReg=[];
   const addL=(l,b,e=false)=>{l.userData={base:b,emergency:e};lightsReg.push(l);scene.add(l);return l;};
   const addE=(m,b,e=false)=>{m.userData={base:b,emergency:e};emisReg.push(m);return m;};
@@ -1057,7 +1069,16 @@ function initGameEngine() {
   const M={};
   M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35}); M.tile.side = THREE.DoubleSide;
   M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2}); M.tileDk.side = THREE.DoubleSide;
-  M.floor    = pbrMat(paintRefFloor,{ns:.8,rough:[.38,.45],env:.5});
+  /* Suelo Empapado Realista con Capa Especular Física WebGL (MeshPhysicalMaterial) */
+  M.floor = new THREE.MeshPhysicalMaterial({
+    color: 0x1e2126,
+    roughness: 0.06,
+    metalness: 0.12,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.03,
+    reflectivity: 0.95,
+    envMapIntensity: 1.8
+  });
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
   M.ceil     = std({color:0x181b1f,roughness:.95},.08); M.ceil.side = THREE.DoubleSide;
   M.dark     = std({color:0x131518,roughness:.8,metalness:.4},.15);
