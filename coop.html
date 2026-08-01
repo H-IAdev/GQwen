@@ -509,6 +509,26 @@ function initGameEngine() {
   const R=(a,b)=>a+Math.random()*(b-a);
   const pick=a=>a[Math.random()*a.length|0];
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  // GAME_CONFIG data-driven unificado (Inicialización prioritaria sincrónica)
+  const GAME_CONFIG = {
+    version: "4.6.1-INTEGRATED",
+    zombies: {
+      walker: { hp: 25, spd: [3.2, 4.0], dmg: 12, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 18, spd: [5.5, 6.8], dmg: 10, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 60, spd: [2.5, 3.2], dmg: 20, score: 30, sc: 1.35, armor: 0 },
+      boss_juggernaut: { hp: 550, spd: [2.6, 3.2], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 280, spd: [6.5, 8.0], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 380, spd: [2.2, 2.8], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
+    },
+    weapons: {
+      m42: { mag: 30, reserve: 120, reserveMax: 240, damage: 25, reloadTime: 1.0 }
+    },
+    player: { maxHp: 100, speed: 4.8, sprintMul: 1.45 },
+    enrage: { thresholdEnter: 30, thresholdExit: 38 }
+  };
+  const ZDEF = GAME_CONFIG.zombies;
+  const _cfg = GAME_CONFIG;
+
   const lerp=(a,b,t)=>a+(b-a)*t;
   // CACHÉ PERSISTENTE DOM (0 LAYOUT THRASHING - INC-42C)
   const _domCache = new Map();
@@ -1657,25 +1677,7 @@ function initGameEngine() {
     }
   }
 
-  // GAME_CONFIG data-driven unificado (Residuo eliminado, 100% sincrónico)
-  const GAME_CONFIG = {
-    version: "4.6.1-INTEGRATED",
-    zombies: {
-      walker: { hp: 25, spd: [3.2, 4.0], dmg: 12, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 18, spd: [5.5, 6.8], dmg: 10, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 60, spd: [2.5, 3.2], dmg: 20, score: 30, sc: 1.35, armor: 0 },
-      boss_juggernaut: { hp: 550, spd: [2.6, 3.2], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 280, spd: [6.5, 8.0], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 380, spd: [2.2, 2.8], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
-    },
-    weapons: {
-      m42: { mag: 30, reserve: 120, reserveMax: 240, damage: 25, reloadTime: 1.0 }
-    },
-    player: { maxHp: 100, speed: 4.8, sprintMul: 1.45 },
-    enrage: { thresholdEnter: 30, thresholdExit: 38 }
-  };
-  const ZDEF = GAME_CONFIG.zombies;
-  const _cfg = GAME_CONFIG;
+  // ZDEF y _cfg inicializados en la cabecera del script.
 
   /* Fase 6A — Pool de geometrías reutilizables para zombies (evita allocaciones por spawn) */
   const GEO_POOL={
