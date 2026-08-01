@@ -974,10 +974,33 @@ function initGameEngine() {
     x.fillStyle='#ff4b3e';x.shadowColor='#ff4b3e';x.shadowBlur=12;x.fillText('SERVICE SUSPENDED',30,50);
     x.fillStyle='#ffb400';x.shadowColor='#ffb400';x.fillText('LOOP SEALED — SHELTER IN PLACE',520,50);return c;}
 
-  function grafCnv(txt,color='#ffb400'){const[c,x]=cnv(512,128);x.clearRect(0,0,512,128);
-    x.font='600 26px "Archivo Black", sans-serif';x.textAlign='center';x.textBaseline='middle';
-    x.shadowColor=color;x.shadowBlur=10;x.fillStyle=color;x.fillText(txt,256,64);
-    x.fillStyle=color;for(let i=0;i<10;i++){x.fillRect(R(40,470),R(70,110),R(1,3),R(4,16));}return c;}
+  function grafCnv(txt,color='#ffb400'){
+    const[c,x]=cnv(512,160);x.clearRect(0,0,512,160);
+    x.font='900 38px "Barlow Condensed","Chakra Petch",sans-serif';
+    x.textAlign='center';x.textBaseline='middle';
+    x.shadowColor=color;x.shadowBlur=10;x.fillStyle=color;x.fillText(txt,256,80);
+    for(let i=0;i<10;i++){x.fillRect(R(40,470),R(90,130),R(1,3),R(4,16));}
+    return c;
+  }
+  function puddleCnv(){
+    const[c,x]=cnv(256,256);x.clearRect(0,0,256,256);
+    const g=x.createRadialGradient(128,128,10,128,128,120);
+    g.addColorStop(0,'rgba(12,16,22,0.85)');
+    g.addColorStop(0.5,'rgba(18,24,32,0.65)');
+    g.addColorStop(0.85,'rgba(25,32,42,0.25)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    x.fillStyle=g;x.beginPath();x.ellipse(128,128,115,110,0.2,0,Math.PI*2);x.fill();
+    x.lineWidth=2.5;
+    for(let r of [25,52,80,102]){
+      x.strokeStyle='rgba(180,210,245,'+(0.28-r*0.002)+')';
+      x.beginPath();x.ellipse(128,128,r,r*0.88,0,0,Math.PI*2);x.stroke();
+    }
+    const sg=x.createRadialGradient(100,100,2,100,100,25);
+    sg.addColorStop(0,'rgba(235,245,255,0.7)');
+    sg.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=sg;x.beginPath();x.arc(100,100,25,0,Math.PI*2);x.fill();
+    return c;
+  }
 
   const WALL_MSGS=[
     "AQUÍ NO HAY PLATA",
@@ -1158,34 +1181,34 @@ function initGameEngine() {
         const sp2=box(1.4,.4,.05,sm);sp2.position.set(lp.x+ln.x*(outerW+.1),2.8,lp.z+ln.z*(outerW+.1));
         const tn=trackTan(lt);sp2.rotation.y=Math.atan2(tn.x,tn.z);g.add(sp2);
 
-        // Graffiti Pintado en las Paredes de la Estación
+        // Graffiti Pintado Proporcional en Paredes
         const msg=WALL_MSGS[s%WALL_MSGS.length];
-        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6']))),transparent:true,opacity:.88,depthWrite:false});
-        const gMesh=box(3.2,.8,.02,gMat);gMesh.position.set(lp.x+ln.x*(outerW+.38),2.1,lp.z+ln.z*(outerW+.38));
+        const gMat=new THREE.MeshBasicMaterial({map:mk(grafCnv(msg,pick(['#ffb400','#ff4b3e','#00ffaa','#f2efe6']))),transparent:true,opacity:.85,depthWrite:false});
+        const gMesh=box(1.5,.45,.01,gMat);gMesh.position.set(lp.x+ln.x*(outerW+.38),1.95,lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
 
-        /* ── REFLEJOS HÚMEDOS EN EL SUELO (GLOW REFLECTIVO) ── */
+        /* ── CHARCOS DE AGUA Y HUMEDAD EN EL SUELO CON GOTAS Y ONDULACIÓN ── */
+        const puddleTex=mk(puddleCnv());
+        const puddleGeo=new THREE.PlaneGeometry(2.2,2.2);
+        const puddleMat=std({map:puddleTex,transparent:true,opacity:.60,roughness:.04,metalness:.05,depthWrite:false},.85);
         for(let rq of [.15,.4,.65,.9]){
           const rt=t0+(t1-t0)*rq; const rp=trackPos(rt),rn=outN(rt);
           const rx=rp.x+rn.x*R(1.5,5.0),rz=rp.z+rn.z*R(1.5,5.0);
-          const refGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:mk(T.glow),
-            color:new THREE.Color(0.6+Math.sin(rq*10)*0.3,0.4+Math.cos(rq*7)*0.3,0.8+Math.sin(rq*12)*0.2),
-            transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:.12}));
-          refGlow.scale.setScalar(2.8+Math.sin(rq*5)*0.8);
-          refGlow.position.set(rx,getFloorY(rx,rz)+0.05,rz);
-          g.add(refGlow);
-        }      }
-      // GRAFITI EN PAREDES INTERIORES (todos los sectores, incluyendo túneles)
+          const pMesh=new THREE.Mesh(puddleGeo,puddleMat);
+          pMesh.rotation.x=-Math.PI/2;
+          pMesh.position.set(rx,getFloorY(rx,rz)+0.015,rz);
+          g.add(pMesh);
+        }
+      }
+      // GRAFITI PROPORCIONAL EN PAREDES INTERIORES
       {
         const glt=(t0+t1)/2;const glp=trackPos(glt),gln=outN(glt),gtn=trackTan(glt);
         const gColor=pick(['#ff4b3e','#00ffaa','#ffb400','#ff80ff','#80cfff']);
         const gMsg=WALL_MSGS[(s*3+7)%WALL_MSGS.length];
         const gMat2=new THREE.MeshBasicMaterial({map:mk(grafCnv(gMsg,gColor)),transparent:true,opacity:.82,depthWrite:false});
-        const gMesh2=box(3.0,.7,.015,gMat2);
-        // Colocar en pared interior (lado -3 del track)
-        gMesh2.position.set(glp.x+gln.x*-5.15,2.1,glp.z+gln.z*-5.15);
+        const gMesh2=box(1.5,.45,.01,gMat2);
+        gMesh2.position.set(glp.x+gln.x*-5.15,1.95,glp.z+gln.z*-5.15);
         gMesh2.rotation.y=Math.atan2(gtn.x,gtn.z)+Math.PI;g.add(gMesh2);
-        // Grafiti en TECHO — ELIMINADO
       }
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         /* GQW-VIS-5.0: Reduced tunnel PointLight intensity for dramatic contrast */
@@ -1199,7 +1222,7 @@ function initGameEngine() {
           const cH=R(1.2,2.5);cMesh.position.set(cp3.x+cn3.x*R(-1,3),wH-cH/2,cp3.z+cn3.z*R(-1,3));
           g.add(cMesh);}}
     }
-    // SECCIONES ELIMINADAS: mapa secreto, escaleras 3D, cabina control, molinetes, casillero
+
 
     // SISTEMA DINÁMICO DE GENERACIÓN DE MUNICIÓN DINÁMICA DELANTE DEL JUGADOR
     const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.7,roughness:.3},.5);
@@ -1707,11 +1730,8 @@ function initGameEngine() {
   function limbGeo(cylG,capG,len,material){
     const g=new THREE.Group();
     const cyl=new THREE.Mesh(cylG,material);
-    cyl.position.y=-len/2;cyl.castShadow=true;g.add(cyl);
-    const capT=new THREE.Mesh(capG,material);
-    capT.position.y=0;capT.castShadow=true;g.add(capT);
-    const capB=new THREE.Mesh(capG,material);
-    capB.position.y=-len;capB.castShadow=true;g.add(capB);
+    cyl.position.y=-len/2;
+    g.add(cyl);
     return g;
   }
   /* Fase 6B+ — Pool de 60 slots con LODs pre-creados (cero allocaciones por spawn) */
