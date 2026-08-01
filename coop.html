@@ -270,20 +270,24 @@ box-shadow:0 0 8px rgba(255,210,87,0.5);transition:transform 0.04s ease-out}
 /* Zona de Apuntado Derecho */
 #touchLookZone{position:absolute;right:0;top:0;width:60vw;height:100vh;pointer-events:auto;touch-action:none}
 
-/* Botonera de Acción en Arco de Pulgar Derecho */
-#touchActions{position:absolute;right:14px;bottom:18px;display:flex;flex-direction:column;gap:8px;
-align-items:flex-end;pointer-events:auto;touch-action:none}
-.tBtn{width:46px;height:46px;border-radius:50%;background:linear-gradient(180deg,rgba(35,42,51,0.85),rgba(18,22,28,0.85));
-border:1.5px solid rgba(255,180,0,0.8);color:var(--amber2);font-family:var(--disp);font-size:9px;
-display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.5);cursor:pointer;touch-action:none;
-backdrop-filter:blur(3px);transition:transform 0.08s, background 0.1s}
-.tBtn:active, .tBtn.active{background:var(--amber);color:#111;transform:scale(0.90);box-shadow:0 0 10px rgba(255,180,0,0.6)}
-#tBtnFire{width:66px;height:66px;border-color:var(--red);color:var(--paper);background:linear-gradient(180deg,rgba(158,27,18,0.9),rgba(84,10,5,0.9));font-size:12px;box-shadow:0 0 14px rgba(255,75,62,0.4)}
-#tBtnFire:active, #tBtnFire.active{background:var(--red);color:#fff}
+/* Botonera de Acción Ergonómica Táctil Móvil de Alta Respuesta */
+#touchActions{position:absolute;right:14px;bottom:18px;display:flex;flex-direction:column;gap:10px;
+align-items:flex-end;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
+.tBtn{width:48px;height:48px;border-radius:50%;background:linear-gradient(180deg,rgba(24,30,38,0.88),rgba(12,16,22,0.88));
+border:1.5px solid rgba(255,180,0,0.65);color:var(--amber2);font-family:var(--disp);font-size:9px;font-weight:700;
+display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,0.6);cursor:pointer;touch-action:none;
+backdrop-filter:blur(6px);-webkit-tap-highlight-color:transparent;user-select:none;
+transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-shadow 0.08s}
+.tBtn:active, .tBtn.active{background:var(--amber);color:#0a0d10;transform:scale(0.88);box-shadow:0 0 16px rgba(255,180,0,0.85);border-color:#fff}
+#tBtnFire{width:68px;height:68px;border-color:rgba(255,75,62,0.9);color:#ffffff;background:linear-gradient(135deg,rgba(220,38,38,0.92),rgba(153,27,27,0.92));font-size:13px;font-weight:900;box-shadow:0 0 18px rgba(255,75,62,0.55)}
+#tBtnFire:active, #tBtnFire.active{background:linear-gradient(135deg,#ff4d3d,#dc2626);color:#fff;transform:scale(0.90);box-shadow:0 0 22px rgba(255,75,62,0.95)}
 .tRow{display:flex;gap:8px;align-items:center}
 
-/* Estilos de Cristal Translúcido para Paneles HUD (Más espacio libre) */
-.pnl{background:rgba(14,18,24,0.48) !important;backdrop-filter:blur(4px);border:1px solid rgba(43,51,62,0.6) !important}
+/* Estilos de Cristal Translúcido Ultra-Inmersivo para Paneles HUD */
+.pnl{background:rgba(10,14,18,0.72) !important;backdrop-filter:blur(10px) !important;border:1.5px solid rgba(255,180,0,0.25) !important;box-shadow:0 6px 20px rgba(0,0,0,0.5) !important;border-radius:4px !important}
+#ammoPanel.low{animation:ammoPulse 1.1s infinite alternate;border-color:rgba(255,75,62,0.8) !important}
+@keyframes ammoPulse{0%{box-shadow:0 0 8px rgba(255,75,62,0.3)}100%{box-shadow:0 0 18px rgba(255,75,62,0.85);background:rgba(40,10,12,0.88) !important}}
+#health.low{border-color:rgba(255,75,62,0.85) !important;box-shadow:0 0 16px rgba(255,75,62,0.6) !important}
 
 /* Orientación Vertical (Portrait) */
 @media (orientation: portrait){
@@ -2288,9 +2292,14 @@ function initGameEngine() {
         sl.inUse=false;
         _rkMtx.identity().scale(_rkZero);
         instRocks.setMatrixAt(i,_rkMtx);
-      }else{activeCount++;}
+      }else{
+        activeCount++;
+        // Estela de magma pulsante mientras la roca vuela hacia la posición objetivo
+        if(Math.random()<0.45) burst(sl.pos,'spark',1,1.2);
+      }
     }
     instRocks.count=activeCount;
+    instRocks.instanceMatrix.needsUpdate=true;
   }
 
   function getPlayerWorldPos(){
