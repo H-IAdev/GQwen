@@ -1652,10 +1652,15 @@ function initGameEngine() {
     const t=closestT(p.x,p.z),st=stationness(t);
     const P=trackPos(t),N=outN(t);
     let lat=(p.x-P.x)*N.x+(p.z-P.z)*N.z;
-    const inside=lat<-2&&p.x>-4.5&&p.x<9.5&&p.z>-29.5&&p.z<14.5;
-    if(inside){p.x=clamp(p.x,-3.3,8.3);p.z=clamp(p.z,-28.5,13.5);return;}
-    const minLat=lerp(-2.6,-3.5,st);
-    const maxLat=lerp(2.6,5.5,st);
+    // Clampear dentro de límites estrictos de pared para evitar atravesar muros
+    const inside=lat<-2.2&&p.x>-4.2&&p.x<9.2&&p.z>-29.0&&p.z<14.0;
+    if(inside){
+      p.x=clamp(p.x,-3.0,8.0);
+      p.z=clamp(p.z,-28.0,13.0);
+      return;
+    }
+    const minLat=lerp(-2.2,-3.1,st);
+    const maxLat=lerp(2.2,4.8,st);
     if(lat<minLat){const push=minLat-lat;p.x+=N.x*push;p.z+=N.z*push;}
     else if(lat>maxLat){const push=maxLat-lat;p.x+=N.x*push;p.z+=N.z*push;}
   }
@@ -1667,9 +1672,9 @@ function initGameEngine() {
     const dist=Math.hypot(dx,dz)||0.001;
     g.position.x+=dx/dist*speed*dt;g.position.z+=dz/dist*speed*dt;
     navBotClamp(g.position);
+    // Asentar pies exactamente al nivel de superficie del suelo (0 flotación / 0 hundimiento)
     g.position.y=getFloorY(g.position.x,g.position.z);
 
-    // Orientar suavemente en dirección del movimiento (si no está apuntando a un zombie)
     if(dist > 0.05 && !b.aimingTgt){
       const moveAng = Math.atan2(dx, dz);
       g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
@@ -1680,7 +1685,7 @@ function initGameEngine() {
       if(b.mixer){
         b.mixer.update(dt);
         const targetAction = speed > 4.8 ? 'Running' : 'Walking';
-        if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death'){
+        if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
           b.actions[targetAction].reset().fadeIn(0.18).play();
           b.activeAction = targetAction;
@@ -1799,17 +1804,44 @@ function initGameEngine() {
         }
       } else {
         b.aimingTgt = false;
-        // Formación táctica independiente alrededor del jugador (apuntando al frente del camino)
-        const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
-        const targetPos = camera.position.clone().add(bOff);
-        if(g.position.distanceTo(targetPos) > 1.8){
-          moveBotTo(b, targetPos, 4.2, dt);
+        const hasZombiesOnMap = zombies.some(z => !z.dead);
+
+        if(!hasZombiesOnMap){
+          // --- MODO DESCANSO Y REUNIÓN PAZ (SIN ENEMIGOS) ---
+          const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
+          const regroupPos = camera.position.clone().add(bOff);
+          const distToPlayer = g.position.distanceTo(regroupPos);
+
+          if(distToPlayer > 2.2){
+            moveBotTo(b, regroupPos, 3.8, dt);
+          } else {
+            // Llegó junto al jugador: orientarse al centro y entrar en postura de descanso
+            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 6);
+
+            // Variaciones de descanso según el bot (Sit, Idle, Dance)
+            let restAction = 'Idle';
+            if(b.id === 1 && b.actions['Sitting']) restAction = 'Sitting';
+            else if(b.id === 3 && b.actions['Dance'] && Math.random() < 0.3) restAction = 'Dance';
+
+            if(b.actions[restAction] && b.activeAction !== restAction){
+              if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.25);
+              b.actions[restAction].reset().fadeIn(0.25).play();
+              b.activeAction = restAction;
+            }
+          }
         } else {
-          g.rotation.y = yaw;
-          if(b.actions['Idle'] && b.activeAction !== 'Idle'){
-            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
-            b.actions['Idle'].reset().fadeIn(0.2).play();
-            b.activeAction = 'Idle';
+          // --- COMBATE ACTIVO: MÁXIMA INDEPENDENCIA TÁCTICA ---
+          // El bot NO se pega al jugador, sino que patrulla su propio sector asignado
+          const tSector = closestT(camera.position.x, camera.position.z);
+          const patrolPos = trackPos(tSector + (b.id - 2) * 0.03);
+          if(g.position.distanceTo(patrolPos) > 3.0){
+            moveBotTo(b, patrolPos, 4.5, dt);
+          } else {
+            if(b.actions['Idle'] && b.activeAction !== 'Idle'){
+              if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+              b.actions['Idle'].reset().fadeIn(0.2).play();
+              b.activeAction = 'Idle';
+            }
           }
         }
       }
