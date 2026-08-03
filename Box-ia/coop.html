@@ -1647,30 +1647,51 @@ function initGameEngine() {
   }
 
   function navBotClamp(p){
-    const t=closestT(p.x,p.z),st=stationness(t);
-    const P=trackPos(t),N=outN(t);
-    let lat=(p.x-P.x)*N.x+(p.z-P.z)*N.z;
-    // Clampear dentro de límites estrictos de pared para evitar atravesar muros
-    const inside=lat<-2.2&&p.x>-4.2&&p.x<9.2&&p.z>-29.0&&p.z<14.0;
-    if(inside){
-      p.x=clamp(p.x,-3.0,8.0);
-      p.z=clamp(p.z,-28.0,13.0);
-      return;
+    const t = closestT(p.x, p.z);
+    const P = trackPos(t), N = outN(t);
+    const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
+    const st = stationness(t);
+    
+    // Clampear estrictamente dentro de las paredes laterales del túnel y andén
+    const minLat = lerp(-3.8, -2.6, st);
+    const maxLat = lerp(6.8, 3.6, st);
+    
+    if(lat < minLat){
+      const push = minLat - lat;
+      p.x += N.x * push;
+      p.z += N.z * push;
+    } else if(lat > maxLat){
+      const push = maxLat - lat;
+      p.x += N.x * push;
+      p.z += N.z * push;
     }
-    const minLat=lerp(-2.2,-3.1,st);
-    const maxLat=lerp(2.2,4.8,st);
-    if(lat<minLat){const push=minLat-lat;p.x+=N.x*push;p.z+=N.z*push;}
-    else if(lat>maxLat){const push=maxLat-lat;p.x+=N.x*push;p.z+=N.z*push;}
+
+    // Paredes físicas perimetrales de la estación
+    p.x = clamp(p.x, -4.2, 9.2);
+    p.z = clamp(p.z, -29.2, 14.2);
   }
 
   function moveBotTo(b,dest,speed,dt){
     const g=b.group;
     if(!g) return;
+    const oldX = g.position.x, oldZ = g.position.z;
     const dx=dest.x-g.position.x,dz=dest.z-g.position.z;
     const dist=Math.hypot(dx,dz)||0.001;
-    g.position.x+=dx/dist*speed*dt;g.position.z+=dz/dist*speed*dt;
+
+    // Avanzar con deslizamiento tangencial a paredes
+    g.position.x += (dx / dist) * speed * dt;
+    g.position.z += (dz / dist) * speed * dt;
     navBotClamp(g.position);
-    // Asentar pies exactamente al nivel de superficie del suelo (0 flotación / 0 hundimiento)
+
+    // Si colisionó y fue empujado por la pared, deslizar a lo largo de la tangente
+    const actualDx = g.position.x - oldX;
+    const actualDz = g.position.z - oldZ;
+    if(Math.hypot(actualDx, actualDz) < 0.001 && dist > 0.5){
+      // Re-elegir punto de destino libre si está atascado contra un muro
+      b.roamTarget = null;
+      b.patrolPos = null;
+    }
+
     g.position.y=getFloorY(g.position.x,g.position.z);
 
     if(dist > 0.05 && !b.aimingTgt){
