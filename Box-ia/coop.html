@@ -1599,7 +1599,7 @@ function initGameEngine() {
           const robotClone = gltf.scene.clone(true);
           robotClone.scale.setScalar(0.35);
           robotClone.position.set(0, 0, 0);
-          robotClone.rotation.y = Math.PI;
+          robotClone.rotation.y = 0; // Mirar hacia el frente del vector de movimiento
           
           // Limpiar mallas procedurales anteriores del grupo
           while(b.group.children.length > 0){
@@ -1710,24 +1710,26 @@ function initGameEngine() {
 
       // --- ROBOT CAÍDO (DOWNED STATE) ---
       if(b.downed){
-        g.rotation.x=THREE.MathUtils.lerp(g.rotation.x,-Math.PI/2,dt*6);
-        g.position.y=THREE.MathUtils.lerp(g.position.y,getFloorY(g.position.x,g.position.z)+0.25,dt*6);
-        b.downT-=dt;
+        g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
+        g.position.y = getFloorY(g.position.x, g.position.z);
+        b.downT -= dt;
         if(b.actions['Death'] && b.activeAction !== 'Death'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
-          b.actions['Death'].reset().fadeIn(0.15).play();
+          b.actions['Death'].reset().fadeIn(0.15).setLoop(THREE.LoopOnce, 1);
+          b.actions['Death'].clampWhenFinished = true;
+          b.actions['Death'].play();
           b.activeAction = 'Death';
         }
-        if(b.downT<=0){
-          b.downed=false;b.hp=70;g.rotation.x=0;
+        if(b.downT <= 0){
+          b.downed = false; b.hp = 70; g.rotation.x = 0;
           if(b.actions['Death']) b.actions['Death'].stop();
           if(b.actions['Idle']) b.actions['Idle'].reset().fadeIn(0.2).play();
           b.activeAction = 'Idle';
-          feed(b.name+' SE REINCORPORA','g');
+          feed(b.name + ' SE REINCORPORA', 'g');
         }
         continue;
       }
-      g.rotation.x=THREE.MathUtils.lerp(g.rotation.x,0,dt*6);
+      g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
 
       // --- RESCATAR JUGADOR DERRIBADO ---
       if(playerState==='downed'){
@@ -1812,13 +1814,14 @@ function initGameEngine() {
           const regroupPos = camera.position.clone().add(bOff);
           const distToPlayer = g.position.distanceTo(regroupPos);
 
-          if(distToPlayer > 2.2){
-            moveBotTo(b, regroupPos, 3.8, dt);
+          // Moverse SOLO si el jugador se ha alejado significativamente (> 5.5m)
+          if(distToPlayer > 5.5 || b.isRegrouping){
+            b.isRegrouping = distToPlayer > 1.8;
+            moveBotTo(b, regroupPos, 3.5, dt);
           } else {
-            // Llegó junto al jugador: orientarse al centro y entrar en postura de descanso
-            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 6);
+            b.isRegrouping = false;
+            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 4);
 
-            // Variaciones de descanso según el bot (Sit, Idle, Dance)
             let restAction = 'Idle';
             if(b.id === 1 && b.actions['Sitting']) restAction = 'Sitting';
             else if(b.id === 3 && b.actions['Dance'] && Math.random() < 0.3) restAction = 'Dance';
@@ -1831,11 +1834,13 @@ function initGameEngine() {
           }
         } else {
           // --- COMBATE ACTIVO: MÁXIMA INDEPENDENCIA TÁCTICA ---
-          // El bot NO se pega al jugador, sino que patrulla su propio sector asignado
-          const tSector = closestT(camera.position.x, camera.position.z);
-          const patrolPos = trackPos(tSector + (b.id - 2) * 0.03);
-          if(g.position.distanceTo(patrolPos) > 3.0){
-            moveBotTo(b, patrolPos, 4.5, dt);
+          // Patrullaje independiente sin reflejar los pasos del jugador
+          if(!b.patrolPos || g.position.distanceTo(b.patrolPos) < 1.2){
+            const tSector = closestT(g.position.x, g.position.z);
+            b.patrolPos = trackPos(tSector + R(-0.04, 0.04));
+          }
+          if(g.position.distanceTo(b.patrolPos) > 1.5){
+            moveBotTo(b, b.patrolPos, 3.8, dt);
           } else {
             if(b.actions['Idle'] && b.activeAction !== 'Idle'){
               if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
