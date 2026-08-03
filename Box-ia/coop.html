@@ -1574,8 +1574,9 @@ function initGameEngine() {
      3 compañeros IA: NOAH, ELENA, MARCUS — disparan, reaniman, cubren flancos
      ═══════════════════════════════════════════════════════════════════ */
   const BOT_NAMES=['VEGA','RUIZ','KIDO'];
-  const BOT_OFFSETS=[new THREE.Vector3(-4.5,0,3.2),new THREE.Vector3(4.5,0,3.2),new THREE.Vector3(0,0,5.8)];
+  const BOT_OFFSETS=[new THREE.Vector3(-3.5,0,2.5),new THREE.Vector3(3.5,0,2.5),new THREE.Vector3(0,0,4.2)];
   let bots=[],botReviveT=0,botsEnabled=false;
+  let squadRegroupTimer = 40.0, isSquadRegrouping = false, squadRegroupDur = 0;
 
   const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
   let cachedRobotGLTF = null, isRobotLoading = false;
@@ -1729,26 +1730,44 @@ function initGameEngine() {
       }
       g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
 
-      // --- RESCATAR JUGADOR DERRIBADO ---
+      // --- RESCATAR COMPAÑEROS O JUGADOR DERRIBADOS (AYUDA MUTUA A ALIADOS) ---
+      let downedTarget = null;
       if(playerState==='downed'){
+        downedTarget = { pos: camera.position, isPlayer: true };
+      } else {
+        for(const ob of bots){
+          if(ob !== b && ob.downed && !ob.dead){
+            downedTarget = { pos: ob.group.position, isPlayer: false, bot: ob };
+            break;
+          }
+        }
+      }
+
+      if(downedTarget){
         b.aimingTgt = true;
-        const pd=g.position.distanceTo(camera.position);
-        const aimAng = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z);
+        const pd = g.position.distanceTo(downedTarget.pos);
+        const aimAng = Math.atan2(downedTarget.pos.x - g.position.x, downedTarget.pos.z - g.position.z);
         g.rotation.y = aimAng;
-        if(pd>2.0) moveBotTo(b,camera.position,6.8,dt);
-        else{
-          botReviveT+=dt;
+        if(pd > 2.0){
+          moveBotTo(b, downedTarget.pos, 7.2, dt);
+        } else {
+          botReviveT += dt;
           if(b.actions['Wave'] && b.activeAction !== 'Wave'){
             if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
             b.actions['Wave'].reset().fadeIn(0.15).play();
             b.activeAction = 'Wave';
           }
-          if(botReviveT>3.5){
-            playerState='alive';hp=55;hudHP();
-            feed(b.name+' TE REANIMÓ','g');sfx.revive();
-            if($('#downedHud')) $('#downedHud').classList.remove('show');
-            botReviveT=0;
-            netSend({type:'state',hp:hp,state:'alive'});
+          if(botReviveT > 3.0){
+            if(downedTarget.isPlayer){
+              playerState='alive'; hp=55; hudHP();
+              feed(b.name+' TE REANIMÓ','g'); sfx.revive();
+              if($('#downedHud')) $('#downedHud').classList.remove('show');
+              netSend({type:'state',hp:hp,state:'alive'});
+            } else if(downedTarget.bot){
+              downedTarget.bot.downed = false; downedTarget.bot.hp = 70; downedTarget.bot.group.rotation.x = 0;
+              feed(b.name+' REANIMÓ A '+downedTarget.bot.name, 'g'); sfx.revive();
+            }
+            botReviveT = 0;
           }
         }
         continue;
@@ -1806,23 +1825,20 @@ function initGameEngine() {
         b.aimingTgt = false;
         const hasZombiesOnMap = zombies.some(z => !z.dead);
 
-        if(!hasZombiesOnMap){
-          // --- MODO DESCANSO Y REUNIÓN PAZ (SIN ENEMIGOS) ---
+        if(isSquadRegrouping || !hasZombiesOnMap){
+          // --- REUNIÓN PERIÓDICA O PAUSA PAZ (DESCANSO Y ENSAMBLE DE ESCUADRÓN) ---
           const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
           const regroupPos = camera.position.clone().add(bOff);
           const distToPlayer = g.position.distanceTo(regroupPos);
 
-          // Moverse SOLO si el jugador se ha alejado significativamente (> 5.5m)
-          if(distToPlayer > 5.5 || b.isRegrouping){
-            b.isRegrouping = distToPlayer > 1.8;
-            moveBotTo(b, regroupPos, 3.5, dt);
+          if(distToPlayer > 2.0){
+            moveBotTo(b, regroupPos, 5.2, dt);
           } else {
-            b.isRegrouping = false;
-            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 4);
+            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 5);
 
             let restAction = 'Idle';
             if(b.id === 1 && b.actions['Sitting']) restAction = 'Sitting';
-            else if(b.id === 3 && b.actions['Dance'] && Math.random() < 0.3) restAction = 'Dance';
+            else if(b.id === 3 && b.actions['Dance']) restAction = 'Dance';
 
             if(b.actions[restAction] && b.activeAction !== restAction){
               if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.25);
@@ -1831,14 +1847,14 @@ function initGameEngine() {
             }
           }
         } else {
-          // --- COMBATE ACTIVO: MÁXIMA INDEPENDENCIA TÁCTICA ---
-          // Patrullaje independiente sin reflejar los pasos del jugador
-          if(!b.patrolPos || g.position.distanceTo(b.patrolPos) < 1.2){
-            const tSector = closestT(g.position.x, g.position.z);
-            b.patrolPos = trackPos(tSector + R(-0.04, 0.04));
+          // --- EXPLORACIÓN LIBRE Y PATRULLAJE POR TODO EL MAPA (MÁXIMA INDEPENDENCIA) ---
+          if(!b.roamTarget || g.position.distanceTo(b.roamTarget) < 2.0){
+            const curT = closestT(g.position.x, g.position.z);
+            const nextT = (curT + R(0.08, 0.25)) % 1;
+            b.roamTarget = trackPos(nextT);
           }
-          if(g.position.distanceTo(b.patrolPos) > 1.5){
-            moveBotTo(b, b.patrolPos, 3.8, dt);
+          if(g.position.distanceTo(b.roamTarget) > 1.8){
+            moveBotTo(b, b.roamTarget, 4.5, dt);
           } else {
             if(b.actions['Idle'] && b.activeAction !== 'Idle'){
               if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
@@ -1864,6 +1880,26 @@ function initGameEngine() {
         if(g.position.distanceTo(ob.group.position)<3.0){
           ob.downT-=dt*2;
         }
+      }
+    }
+
+    // --- EVENTOS PERIÓDICOS DE REUNIÓN DE ESCUADRÓN (CADA 40 SEGUNDOS) ---
+    squadRegroupTimer -= dt;
+    if(squadRegroupTimer <= 0){
+      squadRegroupTimer = 45.0;
+      isSquadRegrouping = true;
+      squadRegroupDur = 10.0;
+      feed('📡 COMUNICACIÓN DE ESCUADRÓN — REUNIÓN DE TÁCTICA', 'h');
+      bots.forEach(b => {
+        if(!b.downed && !b.dead && b.actions['Wave']){
+          b.actions['Wave'].reset().play();
+        }
+      });
+    }
+    if(isSquadRegrouping){
+      squadRegroupDur -= dt;
+      if(squadRegroupDur <= 0 || zombies.some(z => !z.dead && camera.position.distanceTo(z.g.position) < 12)){
+        isSquadRegrouping = false;
       }
     }
   }
