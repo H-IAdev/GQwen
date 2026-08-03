@@ -1070,15 +1070,12 @@ function initGameEngine() {
   const M={};
   M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35}); M.tile.side = THREE.DoubleSide;
   M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2}); M.tileDk.side = THREE.DoubleSide;
-  /* Suelo Empapado Realista con Capa Especular Física WebGL (MeshPhysicalMaterial) */
-  M.floor = new THREE.MeshPhysicalMaterial({
-    color: 0x1e2126,
-    roughness: 0.06,
-    metalness: 0.12,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.03,
-    reflectivity: 0.95,
-    envMapIntensity: 1.8
+  /* Suelo de Estación Industrial Limpio (Sin Efecto de Agua) */
+  M.floor = new THREE.MeshStandardMaterial({
+    color: 0x22262c,
+    roughness: 0.55,
+    metalness: 0.15,
+    envMapIntensity: 0.35
   });
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
   M.ceil     = std({color:0x181b1f,roughness:.95},.08); M.ceil.side = THREE.DoubleSide;
@@ -1711,7 +1708,8 @@ function initGameEngine() {
       // --- ROBOT CAÍDO (DOWNED STATE) ---
       if(b.downed){
         g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
-        g.position.y = getFloorY(g.position.x, g.position.z);
+        // Compensar desfase de elevación del hueso raíz de la animación Death (0 flotación en aire)
+        g.position.y = getFloorY(g.position.x, g.position.z) - 0.28;
         b.downT -= dt;
         if(b.actions['Death'] && b.activeAction !== 'Death'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
@@ -1772,10 +1770,10 @@ function initGameEngine() {
         g.rotation.y = aimAng;
 
         // Maniobras tácticas: avanzar si está lejos (>6m), replegarse/backpedal si está muy cerca (<2.2m)
-        if(td > 6.0) moveBotTo(b, tgt.g.position, Math.min(5.8, 2.8 + td * 0.08), dt);
+        if(td > 5.0) moveBotTo(b, tgt.g.position, Math.min(6.5, 3.5 + td * 0.10), dt);
         else if(td < 2.2){
           const retreatPos = g.position.clone().sub(tgt.g.position.clone().sub(g.position).normalize().multiplyScalar(3.0));
-          moveBotTo(b, retreatPos, 3.8, dt);
+          moveBotTo(b, retreatPos, 4.2, dt);
         } else {
           if(b.actions['Idle'] && b.activeAction !== 'Idle' && b.activeAction !== 'Punch'){
             if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
