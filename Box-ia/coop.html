@@ -2507,12 +2507,14 @@ function initGameEngine() {
         instRocks.setMatrixAt(i,_rkMtx);
       }else{
         activeCount++;
-        // Estela de magma pulsante mientras la roca vuela hacia la posición objetivo
-        if(Math.random()<0.45) burst(sl.pos,'spark',1,1.2);
+        // Estela de chispa con culling de distancia (<25m) para evitar caída de FPS
+        if(distToCam < 25.0 && Math.random() < 0.28) burst(sl.pos,'spark',1,1.0);
       }
     }
     instRocks.count=activeCount;
-    instRocks.instanceMatrix.needsUpdate=true;
+    if(activeCount > 0 || instRocks.count > 0){
+      instRocks.instanceMatrix.needsUpdate=true;
+    }
   }
 
   function getPlayerWorldPos(){
@@ -4272,6 +4274,13 @@ function initGameEngine() {
             clearing = true; clearT = 3.5; reserve += 45; hp = Math.min(100, hp + 25);
             if(playerState === 'downed' || playerState === 'dead') revivePlayer();
             banner('SECTOR CLEAR', '+45 ROUNDS · WOUNDS PATCHED'); sfx.pickup(); hudAmmo(); hudHP();
+            bots.forEach(b => {
+              if(!b.downed && !b.dead && b.actions['Dance']){
+                if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+                b.actions['Dance'].reset().fadeIn(0.2).play();
+                b.activeAction = 'Dance';
+              }
+            });
           }
           if(clearing){ clearT -= dt; if(clearT <= 0){ clearing = false; startWave(wave + 1); } }
           updateZombies(dt);
