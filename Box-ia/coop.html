@@ -1662,19 +1662,27 @@ function initGameEngine() {
 
   function moveBotTo(b,dest,speed,dt){
     const g=b.group;
+    if(!g) return;
     const dx=dest.x-g.position.x,dz=dest.z-g.position.z;
     const dist=Math.hypot(dx,dz)||0.001;
     g.position.x+=dx/dist*speed*dt;g.position.z+=dz/dist*speed*dt;
     navBotClamp(g.position);
     g.position.y=getFloorY(g.position.x,g.position.z);
+
+    // Orientar suavemente en dirección del movimiento (si no está apuntando a un zombie)
+    if(dist > 0.05 && !b.aimingTgt){
+      const moveAng = Math.atan2(dx, dz);
+      g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
+    }
+
     if(!b.downed){
       b.walk+=dt*speed*2.4;
       if(b.mixer){
         b.mixer.update(dt);
-        const targetAction = speed > 5.0 ? 'Running' : 'Walking';
-        if(b.actions[targetAction] && b.activeAction !== targetAction){
-          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
-          b.actions[targetAction].reset().fadeIn(0.2).play();
+        const targetAction = speed > 4.8 ? 'Running' : 'Walking';
+        if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death'){
+          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
+          b.actions[targetAction].reset().fadeIn(0.18).play();
           b.activeAction = targetAction;
         }
       } else {
@@ -1690,30 +1698,50 @@ function initGameEngine() {
     for(const b of bots){
       const g=b.group;
       if(!g)continue;
-      // --- DEAD BOT: skip ---
       if(b.dead)continue;
-      // --- DOWNED BOT: countdown + visual tilt ---
+
+      // Actualizar mezclador de animaciones GLTF RobotExpressive
+      if(b.mixer) b.mixer.update(dt);
+
+      // --- ROBOT CAÍDO (DOWNED STATE) ---
       if(b.downed){
         g.rotation.x=THREE.MathUtils.lerp(g.rotation.x,-Math.PI/2,dt*6);
         g.position.y=THREE.MathUtils.lerp(g.position.y,getFloorY(g.position.x,g.position.z)+0.25,dt*6);
         b.downT-=dt;
+        if(b.actions['Death'] && b.activeAction !== 'Death'){
+          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
+          b.actions['Death'].reset().fadeIn(0.15).play();
+          b.activeAction = 'Death';
+        }
         if(b.downT<=0){
-          b.downed=false;b.hp=60;g.rotation.x=0;
+          b.downed=false;b.hp=70;g.rotation.x=0;
+          if(b.actions['Death']) b.actions['Death'].stop();
+          if(b.actions['Idle']) b.actions['Idle'].reset().fadeIn(0.2).play();
+          b.activeAction = 'Idle';
           feed(b.name+' SE REINCORPORA','g');
         }
         continue;
       }
       g.rotation.x=THREE.MathUtils.lerp(g.rotation.x,0,dt*6);
-      // --- RESCUE DOWNED PLAYER ---
+
+      // --- RESCATAR JUGADOR DERRIBADO ---
       if(playerState==='downed'){
+        b.aimingTgt = true;
         const pd=g.position.distanceTo(camera.position);
-        if(pd>2.2) moveBotTo(b,camera.position,6.5,dt);
+        const aimAng = Math.atan2(camera.position.x - g.position.x, camera.position.z - g.position.z);
+        g.rotation.y = aimAng;
+        if(pd>2.0) moveBotTo(b,camera.position,6.8,dt);
         else{
           botReviveT+=dt;
-          if(botReviveT>4){
-            playerState='alive';hp=50;hudHP();
+          if(b.actions['Wave'] && b.activeAction !== 'Wave'){
+            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
+            b.actions['Wave'].reset().fadeIn(0.15).play();
+            b.activeAction = 'Wave';
+          }
+          if(botReviveT>3.5){
+            playerState='alive';hp=55;hudHP();
             feed(b.name+' TE REANIMÓ','g');sfx.revive();
-            $('#downedHud').classList.remove('show');
+            if($('#downedHud')) $('#downedHud').classList.remove('show');
             botReviveT=0;
             netSend({type:'state',hp:hp,state:'alive'});
           }
@@ -1721,45 +1749,81 @@ function initGameEngine() {
         continue;
       }
       botReviveT=0;
-      // --- ENGAGE CLOSEST ZOMBIE (búsqueda agresiva) ---
+
+      // --- SELECCIÓN TÁCTICA DE OBJETIVO (ENGAGE ZOMBIE) ---
       let tgt=null,td=Infinity;
       for(const z of zombies){
         if(z.dead)continue;
         const d=g.position.distanceTo(z.g.position);
         if(d<td){td=d;tgt=z;}
       }
-      if(tgt&&td<40){
-        const ang=Math.atan2(tgt.g.position.x-g.position.x,tgt.g.position.z-g.position.z);
-        g.rotation.y=ang;
-        // Persecución activa: acercarse si lejos, retroceder si muy cerca
-        if(td>5) moveBotTo(b,tgt.g.position,Math.min(5.5,2.5+td*0.06),dt);
-        else if(td<2.5) moveBotTo(b,camera.position,3.0,dt);
-        // Disparar a cualquier distancia
-        b.fireCd-=dt;
-        if(b.fireCd<=0){
-          b.fireCd=R(.6,1.3);
-          if(b.flash){b.flash.visible=true;b.flash.material.rotation=R(0,6.28);}
-          if(b.fLight)b.fLight.intensity=40;
-          sfx.shot();
-          if(Math.random()<.65&&!tgt.dead){
-            const hs=Math.random()<.15;
-            const dmg=hs?50:20;
-            hurtZombie(tgt,hs?'head':'body',tgt.g.position,dmg);
-            burst(tgt.g.position,'ichor',hs?10:5,2.5);
+
+      if(tgt && td < 42){
+        b.aimingTgt = true;
+        // Orientarse de frente hacia el zombie objetivo
+        const aimAng = Math.atan2(tgt.g.position.x - g.position.x, tgt.g.position.z - g.position.z);
+        g.rotation.y = aimAng;
+
+        // Maniobras tácticas: avanzar si está lejos (>6m), replegarse/backpedal si está muy cerca (<2.2m)
+        if(td > 6.0) moveBotTo(b, tgt.g.position, Math.min(5.8, 2.8 + td * 0.08), dt);
+        else if(td < 2.2){
+          const retreatPos = g.position.clone().sub(tgt.g.position.clone().sub(g.position).normalize().multiplyScalar(3.0));
+          moveBotTo(b, retreatPos, 3.8, dt);
+        } else {
+          if(b.actions['Idle'] && b.activeAction !== 'Idle' && b.activeAction !== 'Punch'){
+            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+            b.actions['Idle'].reset().fadeIn(0.2).play();
+            b.activeAction = 'Idle';
           }
         }
-      }else{
-        // --- FORMATION FOLLOWING (vuelve al jugador si no hay enemigos cerca) ---
-        const off=BOT_OFFSETS[b.id-1].clone().applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
-        const dest=new THREE.Vector3().copy(camera.position).add(off);
-        const d=g.position.distanceTo(dest);
-        if(d>1.6) moveBotTo(b,dest,d>8?8:4.2,dt);
-        g.rotation.y=yaw;
+
+        // --- RÁFAGA DE DISPARO Y EFECTOS VISUALES ---
+        b.fireCd -= dt;
+        if(b.fireCd <= 0){
+          b.fireCd = R(0.5, 1.1);
+          if(b.flash){ b.flash.visible = true; b.flash.material.rotation = R(0, 6.28); }
+          if(b.fLight) b.fLight.intensity = 45;
+          sfx.shot();
+
+          // Gesto de disparo animado (Punch/Yes clip)
+          if(b.actions['Punch']){
+            b.actions['Punch'].stop().play();
+          }
+
+          if(Math.random() < 0.72 && !tgt.dead){
+            const hs = Math.random() < 0.20;
+            const dmg = hs ? 55 : 22;
+            hurtZombie(tgt, hs ? 'head' : 'body', tgt.g.position, dmg);
+            burst(tgt.g.position, 'ichor', hs ? 12 : 6, 2.8);
+          }
+        }
+      } else {
+        b.aimingTgt = false;
+        // Formación táctica independiente alrededor del jugador (apuntando al frente del camino)
+        const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
+        const targetPos = camera.position.clone().add(bOff);
+        if(g.position.distanceTo(targetPos) > 1.8){
+          moveBotTo(b, targetPos, 4.2, dt);
+        } else {
+          g.rotation.y = yaw;
+          if(b.actions['Idle'] && b.activeAction !== 'Idle'){
+            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+            b.actions['Idle'].reset().fadeIn(0.2).play();
+            b.activeAction = 'Idle';
+          }
+        }
       }
-      // Decay muzzle flash
-      if(b.fLight)b.fLight.intensity*=Math.exp(-18*dt);
-      if(b.flash&&b.fLight&&b.fLight.intensity<0.5)b.flash.visible=false;
-      // --- REVIVE OTHER DOWNED BOTS ---
+
+      // Desvanecimiento de destello de arma
+      if(b.flash && b.flash.visible){
+        b.flash.scale.multiplyScalar(0.82);
+        if(b.flash.scale.x < 0.05){ b.flash.visible = false; b.flash.scale.setScalar(0.22); }
+      }
+      if(b.fLight && b.fLight.intensity > 0){
+        b.fLight.intensity = Math.max(0, b.fLight.intensity - dt * 220);
+      }
+
+      // --- REANIMAR OTROS BOTS CAÍDOS ---
       for(const ob of bots){
         if(ob===b||!ob.downed||ob.dead)continue;
         if(g.position.distanceTo(ob.group.position)<3.0){
@@ -3338,12 +3402,10 @@ function initGameEngine() {
       c.shadowBlur = 0;
     }
 
-    // Bots Sintéticos — seguimiento en tiempo real con dirección
+    // Bots Sintéticos — seguimiento en tiempo real 100% preciso con ángulo de visión
     for(const b of bots){
       if(b.dead || !b.group) continue;
-      // Derivar posición angular exacta en tiempo real desde b.group.position
-      const botAng = Math.atan2(b.group.position.x, b.group.position.z);
-      const botT = ((botAng / (Math.PI * 2)) % 1 + 1) % 1;
+      const botT = closestT(b.group.position.x, b.group.position.z);
       const ba = 2 * Math.PI * botT;
       const bx = w/2 + Math.sin(ba)*w*0.40;
       const by = h/2 - Math.cos(ba)*h*0.36;
@@ -3355,10 +3417,11 @@ function initGameEngine() {
       c.arc(bx, by, b.downed ? 4.5 : 3.5, 0, Math.PI*2);
       c.fill();
       c.shadowBlur = 0;
-      // Indicador de dirección del bot
-      c.strokeStyle = col; c.lineWidth = 1.2;
+      // Indicador de dirección de visión en tiempo real (b.group.rotation.y)
+      const facingAng = b.group.rotation.y || 0;
+      c.strokeStyle = col; c.lineWidth = 1.4;
       c.beginPath(); c.moveTo(bx, by);
-      c.lineTo(bx + Math.sin(ba)*5, by - Math.cos(ba)*5); c.stroke();
+      c.lineTo(bx + Math.sin(facingAng)*6, by - Math.cos(facingAng)*6); c.stroke();
     }
 
     // Zombies — puntos rojos pequeños
