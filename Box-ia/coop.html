@@ -351,6 +351,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
       <div class="tRow">
         <div class="tBtn" id="tBtnReload">R<br><small style="font-size:7px">RELOAD</small></div>
         <div class="tBtn" id="tBtnWeapon">TAB<br><small style="font-size:7px">WEAPON</small></div>
+        <div class="tBtn" id="tBtnFlashlight">F<br><small style="font-size:7px">LIGHT</small></div>
         <div class="tBtn" id="tBtnPause">PAUSE<br><small style="font-size:7px">⚙️</small></div>
         <div class="tBtn" id="tBtnPtt">VOZ<br><small style="font-size:7px">PTT</small></div>
         <div class="tBtn" id="tBtnJump">JUMP</div>
@@ -4196,11 +4197,16 @@ function initGameEngine() {
         fwdV.set(-Math.sin(yaw), 0, -Math.cos(yaw));
         rgtV.set(Math.cos(yaw), 0, -Math.sin(yaw));
         
-        const f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
-        const r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+        let f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+        let r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+        
+        if (isTouchDevice && (joyVector.x !== 0 || joyVector.y !== 0)) {
+          r = joyVector.x;
+          f = -joyVector.y;
+        }
         
         wish.set(0, 0, 0).addScaledVector(fwdV, f).addScaledVector(rgtV, r);
-        if(wish.lengthSq() > 0) wish.normalize();
+        if(wish.lengthSq() > 0 && (!isTouchDevice || (joyVector.x === 0 && joyVector.y === 0))) wish.normalize();
         vel.addScaledVector(wish, 65 * dt);
         vel.multiplyScalar(Math.exp(-8 * dt));
         if(vel.length() > maxSp) vel.setLength(maxSp);
@@ -4656,9 +4662,18 @@ function initGameEngine() {
   bindTouchBtn('#tBtnJump', () => { if(jumpY <= 0 && playerState === 'alive') vy = 4.6; });
   bindTouchBtn('#tBtnReload', () => { if(playing && !reloading && ammo < MAG && reserve > 0) startReload(); });
   bindTouchBtn('#tBtnWeapon', () => { if(playing) switchWeapon(); });
+  bindTouchBtn('#tBtnFlashlight', () => {
+    if(flashlight){ flashlight.visible = !flashlight.visible; feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h'); }
+  });
   bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });
-  // Fix: botones PTT y PAUSE sin listeners táctiles vinculados
   bindTouchBtn('#tBtnPtt', () => { setPTTState(true); }, () => { setPTTState(false); });
+
+  // Desbloqueo automático de AudioContext en primer toque móvil (iOS Safari & Android Chrome)
+  window.addEventListener('touchstart', () => {
+    if(typeof THREE !== 'undefined' && THREE.AudioContext && THREE.AudioContext.getContext().state === 'suspended'){
+      THREE.AudioContext.getContext().resume();
+    }
+  }, {once: true, passive: true});
   const pauseBtn = $('#tBtnPause');
   if(pauseBtn){
     pauseBtn.addEventListener('touchstart', e => { e.preventDefault(); pauseBtn.classList.add('active');
