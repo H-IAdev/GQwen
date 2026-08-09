@@ -351,6 +351,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
       <div class="tRow">
         <div class="tBtn" id="tBtnReload">R<br><small style="font-size:7px">RELOAD</small></div>
         <div class="tBtn" id="tBtnWeapon">TAB<br><small style="font-size:7px">WEAPON</small></div>
+        <div class="tBtn" id="tBtnFlashlight">F<br><small style="font-size:7px">LIGHT</small></div>
         <div class="tBtn" id="tBtnPause">PAUSE<br><small style="font-size:7px">⚙️</small></div>
         <div class="tBtn" id="tBtnPtt">VOZ<br><small style="font-size:7px">PTT</small></div>
         <div class="tBtn" id="tBtnJump">JUMP</div>
@@ -436,6 +437,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
 <!-- CARGA CON MÚLTIPLES CDN FALLBACKS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 if (typeof THREE === 'undefined') {
   document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"><\/script>');
@@ -1069,15 +1071,12 @@ function initGameEngine() {
   const M={};
   M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35}); M.tile.side = THREE.DoubleSide;
   M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2}); M.tileDk.side = THREE.DoubleSide;
-  /* Suelo Empapado Realista con Capa Especular Física WebGL (MeshPhysicalMaterial) */
-  M.floor = new THREE.MeshPhysicalMaterial({
-    color: 0x1e2126,
-    roughness: 0.06,
-    metalness: 0.12,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.03,
-    reflectivity: 0.95,
-    envMapIntensity: 1.8
+  /* Suelo de Estación Industrial Limpio (Sin Efecto de Agua) */
+  M.floor = new THREE.MeshStandardMaterial({
+    color: 0x22262c,
+    roughness: 0.55,
+    metalness: 0.15,
+    envMapIntensity: 0.35
   });
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
   M.ceil     = std({color:0x181b1f,roughness:.95},.08); M.ceil.side = THREE.DoubleSide;
@@ -1576,8 +1575,57 @@ function initGameEngine() {
      3 compañeros IA: NOAH, ELENA, MARCUS — disparan, reaniman, cubren flancos
      ═══════════════════════════════════════════════════════════════════ */
   const BOT_NAMES=['VEGA','RUIZ','KIDO'];
-  const BOT_OFFSETS=[new THREE.Vector3(-4.5,0,3.2),new THREE.Vector3(4.5,0,3.2),new THREE.Vector3(0,0,5.8)];
+  const BOT_OFFSETS=[new THREE.Vector3(-3.5,0,2.5),new THREE.Vector3(3.5,0,2.5),new THREE.Vector3(0,0,4.2)];
   let bots=[],botReviveT=0,botsEnabled=false;
+  let squadRegroupTimer = 40.0, isSquadRegrouping = false, squadRegroupDur = 0;
+
+  const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
+  let cachedRobotGLTF = null, isRobotLoading = false;
+
+  function loadRobotGLTFForBots(){
+    if(cachedRobotGLTF || isRobotLoading || typeof THREE.GLTFLoader === 'undefined') return;
+    isRobotLoading = true;
+    logDiag('Cargando RobotExpressive.glb desde CDN...','info');
+    const loader = new THREE.GLTFLoader();
+    loader.load(ROBOT_GLB_URL, (gltf) => {
+      cachedRobotGLTF = gltf;
+      isRobotLoading = false;
+      logDiag('✓ RobotExpressive.glb cargado con exito (' + gltf.animations.length + ' animaciones)','ok');
+      // Reemplazar mallas procedimentales por el modelo 3D de Robot animado
+      bots.forEach((b, idx) => {
+        if(!b.group) return;
+        try {
+          const robotClone = gltf.scene.clone(true);
+          robotClone.scale.setScalar(0.35);
+          robotClone.position.set(0, 0, 0);
+          robotClone.rotation.y = 0; // Mirar hacia el frente del vector de movimiento
+          
+          // Limpiar mallas procedurales anteriores del grupo
+          while(b.group.children.length > 0){
+            b.group.remove(b.group.children[0]);
+          }
+          b.group.add(robotClone);
+          
+          // Configurar AnimationMixer y clips
+          if(gltf.animations && gltf.animations.length > 0){
+            b.mixer = new THREE.AnimationMixer(robotClone);
+            b.actions = {};
+            gltf.animations.forEach(clip => {
+              b.actions[clip.name] = b.mixer.clipAction(clip);
+            });
+            if(b.actions['Idle']) b.actions['Idle'].play();
+            b.activeAction = 'Idle';
+          }
+          logDiag('Bot ' + b.name + ' actualizado a Robot 3D animado','ok');
+        } catch(e) {
+          logDiag('Aviso al reemplazar bot por GLTF: ' + e.message, 'err');
+        }
+      });
+    }, undefined, (err) => {
+      isRobotLoading = false;
+      logDiag('Error al cargar RobotExpressive.glb (usando fallback procedimental): ' + err.message, 'err');
+    });
+  }
 
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
@@ -1590,37 +1638,83 @@ function initGameEngine() {
         downed:false,downT:0,dead:false,
         fireCd:R(.8,1.5),
         vel:new THREE.Vector3(),
-        revivingPlayer:false
+        revivingPlayer:false,
+        mixer:null,actions:{},activeAction:null
       });
     }
     botsEnabled=true;
     logDiag('Escuadrón IA desplegado: '+BOT_NAMES.join(', '),'ok');
+    loadRobotGLTFForBots();
   }
 
   function navBotClamp(p){
-    const t=closestT(p.x,p.z),st=stationness(t);
-    const P=trackPos(t),N=outN(t);
-    let lat=(p.x-P.x)*N.x+(p.z-P.z)*N.z;
-    const inside=lat<-2&&p.x>-4.5&&p.x<9.5&&p.z>-29.5&&p.z<14.5;
-    if(inside){p.x=clamp(p.x,-3.3,8.3);p.z=clamp(p.z,-28.5,13.5);return;}
-    const minLat=lerp(-2.6,-3.5,st);
-    const maxLat=lerp(2.6,5.5,st);
-    if(lat<minLat){const push=minLat-lat;p.x+=N.x*push;p.z+=N.z*push;}
-    else if(lat>maxLat){const push=maxLat-lat;p.x+=N.x*push;p.z+=N.z*push;}
+    const t = closestT(p.x, p.z);
+    const P = trackPos(t), N = outN(t);
+    const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
+    const st = stationness(t);
+    
+    // Clampear estrictamente dentro de las paredes laterales del túnel y andén
+    const minLat = lerp(-3.8, -2.6, st);
+    const maxLat = lerp(6.8, 3.6, st);
+    
+    if(lat < minLat){
+      const push = minLat - lat;
+      p.x += N.x * push;
+      p.z += N.z * push;
+    } else if(lat > maxLat){
+      const push = maxLat - lat;
+      p.x += N.x * push;
+      p.z += N.z * push;
+    }
+
+    // Paredes físicas perimetrales de la estación
+    p.x = clamp(p.x, -4.2, 9.2);
+    p.z = clamp(p.z, -29.2, 14.2);
   }
 
   function moveBotTo(b,dest,speed,dt){
     const g=b.group;
+    if(!g) return;
+    const oldX = g.position.x, oldZ = g.position.z;
     const dx=dest.x-g.position.x,dz=dest.z-g.position.z;
     const dist=Math.hypot(dx,dz)||0.001;
-    g.position.x+=dx/dist*speed*dt;g.position.z+=dz/dist*speed*dt;
+
+    // Avanzar con deslizamiento tangencial a paredes
+    g.position.x += (dx / dist) * speed * dt;
+    g.position.z += (dz / dist) * speed * dt;
     navBotClamp(g.position);
+
+    // Si colisionó y fue empujado por la pared, deslizar a lo largo de la tangente
+    const actualDx = g.position.x - oldX;
+    const actualDz = g.position.z - oldZ;
+    if(Math.hypot(actualDx, actualDz) < 0.001 && dist > 0.5){
+      // Re-elegir punto de destino libre si está atascado contra un muro
+      b.roamTarget = null;
+      b.patrolPos = null;
+    }
+
     g.position.y=getFloorY(g.position.x,g.position.z);
+
+    if(dist > 0.05 && !b.aimingTgt){
+      const moveAng = Math.atan2(dx, dz);
+      g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
+    }
+
     if(!b.downed){
       b.walk+=dt*speed*2.4;
-      const sw=Math.sin(b.walk);
-      if(b.refs.armL){b.refs.armL.rotation.x=sw*0.6;b.refs.armR.rotation.x=-sw*0.6;}
-      if(b.refs.legL){b.refs.legL.rotation.x=-sw*0.7;b.refs.legR.rotation.x=sw*0.7;}
+      if(b.mixer){
+        b.mixer.update(dt);
+        const targetAction = speed > 4.8 ? 'Running' : 'Walking';
+        if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
+          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
+          b.actions[targetAction].reset().fadeIn(0.18).play();
+          b.activeAction = targetAction;
+        }
+      } else {
+        const sw=Math.sin(b.walk);
+        if(b.refs.armL){b.refs.armL.rotation.x=sw*0.6;b.refs.armR.rotation.x=-sw*0.6;}
+        if(b.refs.legL){b.refs.legL.rotation.x=-sw*0.7;b.refs.legR.rotation.x=sw*0.7;}
+      }
     }
   }
 
@@ -1629,81 +1723,205 @@ function initGameEngine() {
     for(const b of bots){
       const g=b.group;
       if(!g)continue;
-      // --- DEAD BOT: skip ---
       if(b.dead)continue;
-      // --- DOWNED BOT: countdown + visual tilt ---
+
+      // Actualizar mezclador de animaciones GLTF RobotExpressive
+      if(b.mixer) b.mixer.update(dt);
+
+      // --- ROBOT CAÍDO (DOWNED STATE) ---
       if(b.downed){
-        g.rotation.x=THREE.MathUtils.lerp(g.rotation.x,-Math.PI/2,dt*6);
-        g.position.y=THREE.MathUtils.lerp(g.position.y,getFloorY(g.position.x,g.position.z)+0.25,dt*6);
-        b.downT-=dt;
-        if(b.downT<=0){
-          b.downed=false;b.hp=60;g.rotation.x=0;
-          feed(b.name+' SE REINCORPORA','g');
+        g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
+        // Compensar desfase de elevación del hueso raíz de la animación Death (0 flotación en aire)
+        g.position.y = getFloorY(g.position.x, g.position.z) - 0.28;
+        b.downT -= dt;
+        if(b.actions['Death'] && b.activeAction !== 'Death'){
+          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
+          b.actions['Death'].reset().fadeIn(0.15).setLoop(THREE.LoopOnce, 1);
+          b.actions['Death'].clampWhenFinished = true;
+          b.actions['Death'].play();
+          b.activeAction = 'Death';
+        }
+        if(b.downT <= 0){
+          b.downed = false; b.hp = 70; g.rotation.x = 0;
+          if(b.actions['Death']) b.actions['Death'].stop();
+          if(b.actions['Idle']) b.actions['Idle'].reset().fadeIn(0.2).play();
+          b.activeAction = 'Idle';
+          feed(b.name + ' SE REINCORPORA', 'g');
         }
         continue;
       }
-      g.rotation.x=THREE.MathUtils.lerp(g.rotation.x,0,dt*6);
-      // --- RESCUE DOWNED PLAYER ---
+      g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
+
+      // --- RESCATAR COMPAÑEROS O JUGADOR DERRIBADOS (AYUDA MUTUA A ALIADOS) ---
+      let downedTarget = null;
       if(playerState==='downed'){
-        const pd=g.position.distanceTo(camera.position);
-        if(pd>2.2) moveBotTo(b,camera.position,6.5,dt);
-        else{
-          botReviveT+=dt;
-          if(botReviveT>4){
-            playerState='alive';hp=50;hudHP();
-            feed(b.name+' TE REANIMÓ','g');sfx.revive();
-            $('#downedHud').classList.remove('show');
-            botReviveT=0;
-            netSend({type:'state',hp:hp,state:'alive'});
+        downedTarget = { pos: camera.position, isPlayer: true };
+      } else {
+        for(const ob of bots){
+          if(ob !== b && ob.downed && !ob.dead){
+            downedTarget = { pos: ob.group.position, isPlayer: false, bot: ob };
+            break;
+          }
+        }
+      }
+
+      if(downedTarget){
+        b.aimingTgt = true;
+        const pd = g.position.distanceTo(downedTarget.pos);
+        const aimAng = Math.atan2(downedTarget.pos.x - g.position.x, downedTarget.pos.z - g.position.z);
+        g.rotation.y = aimAng;
+        if(pd > 2.0){
+          moveBotTo(b, downedTarget.pos, 7.2, dt);
+        } else {
+          botReviveT += dt;
+          if(b.actions['Wave'] && b.activeAction !== 'Wave'){
+            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
+            b.actions['Wave'].reset().fadeIn(0.15).play();
+            b.activeAction = 'Wave';
+          }
+          if(botReviveT > 3.0){
+            if(downedTarget.isPlayer){
+              playerState='alive'; hp=55; hudHP();
+              feed(b.name+' TE REANIMÓ','g'); sfx.revive();
+              if($('#downedHud')) $('#downedHud').classList.remove('show');
+              netSend({type:'state',hp:hp,state:'alive'});
+            } else if(downedTarget.bot){
+              downedTarget.bot.downed = false; downedTarget.bot.hp = 70; downedTarget.bot.group.rotation.x = 0;
+              feed(b.name+' REANIMÓ A '+downedTarget.bot.name, 'g'); sfx.revive();
+            }
+            botReviveT = 0;
           }
         }
         continue;
       }
       botReviveT=0;
-      // --- ENGAGE CLOSEST ZOMBIE (búsqueda agresiva) ---
+
+      // --- SELECCIÓN TÁCTICA DE OBJETIVO (ENGAGE ZOMBIE) ---
       let tgt=null,td=Infinity;
       for(const z of zombies){
         if(z.dead)continue;
         const d=g.position.distanceTo(z.g.position);
         if(d<td){td=d;tgt=z;}
       }
-      if(tgt&&td<40){
-        const ang=Math.atan2(tgt.g.position.x-g.position.x,tgt.g.position.z-g.position.z);
-        g.rotation.y=ang;
-        // Persecución activa: acercarse si lejos, retroceder si muy cerca
-        if(td>5) moveBotTo(b,tgt.g.position,Math.min(5.5,2.5+td*0.06),dt);
-        else if(td<2.5) moveBotTo(b,camera.position,3.0,dt);
-        // Disparar a cualquier distancia
-        b.fireCd-=dt;
-        if(b.fireCd<=0){
-          b.fireCd=R(.6,1.3);
-          if(b.flash){b.flash.visible=true;b.flash.material.rotation=R(0,6.28);}
-          if(b.fLight)b.fLight.intensity=40;
-          sfx.shot();
-          if(Math.random()<.65&&!tgt.dead){
-            const hs=Math.random()<.15;
-            const dmg=hs?50:20;
-            hurtZombie(tgt,hs?'head':'body',tgt.g.position,dmg);
-            burst(tgt.g.position,'ichor',hs?10:5,2.5);
+
+      if(tgt && td < 42){
+        b.aimingTgt = true;
+        // Orientarse de frente hacia el zombie objetivo
+        const aimAng = Math.atan2(tgt.g.position.x - g.position.x, tgt.g.position.z - g.position.z);
+        g.rotation.y = aimAng;
+
+        // Maniobras tácticas: avanzar si está lejos (>6m), replegarse/backpedal si está muy cerca (<2.2m)
+        if(td > 5.0) moveBotTo(b, tgt.g.position, Math.min(6.5, 3.5 + td * 0.10), dt);
+        else if(td < 2.2){
+          const retreatPos = g.position.clone().sub(tgt.g.position.clone().sub(g.position).normalize().multiplyScalar(3.0));
+          moveBotTo(b, retreatPos, 4.2, dt);
+        } else {
+          if(b.actions['Idle'] && b.activeAction !== 'Idle' && b.activeAction !== 'Punch'){
+            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+            b.actions['Idle'].reset().fadeIn(0.2).play();
+            b.activeAction = 'Idle';
           }
         }
-      }else{
-        // --- FORMATION FOLLOWING (vuelve al jugador si no hay enemigos cerca) ---
-        const off=BOT_OFFSETS[b.id-1].clone().applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
-        const dest=new THREE.Vector3().copy(camera.position).add(off);
-        const d=g.position.distanceTo(dest);
-        if(d>1.6) moveBotTo(b,dest,d>8?8:4.2,dt);
-        g.rotation.y=yaw;
+
+        // --- RÁFAGA DE DISPARO Y EFECTOS VISUALES ---
+        b.fireCd -= dt;
+        if(b.fireCd <= 0){
+          b.fireCd = R(0.5, 1.1);
+          if(b.flash){ b.flash.visible = true; b.flash.material.rotation = R(0, 6.28); }
+          if(b.fLight) b.fLight.intensity = 45;
+          sfx.shot();
+
+          // Gesto de disparo animado (Punch/Yes clip)
+          if(b.actions['Punch']){
+            b.actions['Punch'].stop().play();
+          }
+
+          if(Math.random() < 0.72 && !tgt.dead){
+            const hs = Math.random() < 0.20;
+            const dmg = hs ? 55 : 22;
+            hurtZombie(tgt, hs ? 'head' : 'body', tgt.g.position, dmg);
+            burst(tgt.g.position, 'ichor', hs ? 12 : 6, 2.8);
+          }
+        }
+      } else {
+        b.aimingTgt = false;
+        const hasZombiesOnMap = zombies.some(z => !z.dead);
+
+        if(isSquadRegrouping || !hasZombiesOnMap){
+          // --- REUNIÓN PERIÓDICA O PAUSA PAZ (DESCANSO Y ENSAMBLE DE ESCUADRÓN) ---
+          const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
+          const regroupPos = camera.position.clone().add(bOff);
+          const distToPlayer = g.position.distanceTo(regroupPos);
+
+          if(distToPlayer > 2.0){
+            moveBotTo(b, regroupPos, 5.2, dt);
+          } else {
+            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 5);
+
+            let restAction = 'Idle';
+            if(b.id === 1 && b.actions['Sitting']) restAction = 'Sitting';
+            else if(b.id === 3 && b.actions['Dance']) restAction = 'Dance';
+
+            if(b.actions[restAction] && b.activeAction !== restAction){
+              if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.25);
+              b.actions[restAction].reset().fadeIn(0.25).play();
+              b.activeAction = restAction;
+            }
+          }
+        } else {
+          // --- EXPLORACIÓN LIBRE Y PATRULLAJE POR TODO EL MAPA (MÁXIMA INDEPENDENCIA) ---
+          if(!b.roamTarget || g.position.distanceTo(b.roamTarget) < 2.0){
+            const curT = closestT(g.position.x, g.position.z);
+            const nextT = (curT + R(0.08, 0.25)) % 1;
+            b.roamTarget = trackPos(nextT);
+          }
+          if(g.position.distanceTo(b.roamTarget) > 1.8){
+            moveBotTo(b, b.roamTarget, 4.5, dt);
+          } else {
+            if(b.actions['Idle'] && b.activeAction !== 'Idle'){
+              if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+              b.actions['Idle'].reset().fadeIn(0.2).play();
+              b.activeAction = 'Idle';
+            }
+          }
+        }
       }
-      // Decay muzzle flash
-      if(b.fLight)b.fLight.intensity*=Math.exp(-18*dt);
-      if(b.flash&&b.fLight&&b.fLight.intensity<0.5)b.flash.visible=false;
-      // --- REVIVE OTHER DOWNED BOTS ---
+
+      // Desvanecimiento de destello de arma
+      if(b.flash && b.flash.visible){
+        b.flash.scale.multiplyScalar(0.82);
+        if(b.flash.scale.x < 0.05){ b.flash.visible = false; b.flash.scale.setScalar(0.22); }
+      }
+      if(b.fLight && b.fLight.intensity > 0){
+        b.fLight.intensity = Math.max(0, b.fLight.intensity - dt * 220);
+      }
+
+      // --- REANIMAR OTROS BOTS CAÍDOS ---
       for(const ob of bots){
         if(ob===b||!ob.downed||ob.dead)continue;
         if(g.position.distanceTo(ob.group.position)<3.0){
           ob.downT-=dt*2;
         }
+      }
+    }
+
+    // --- EVENTOS PERIÓDICOS DE REUNIÓN DE ESCUADRÓN (CADA 40 SEGUNDOS) ---
+    squadRegroupTimer -= dt;
+    if(squadRegroupTimer <= 0){
+      squadRegroupTimer = 45.0;
+      isSquadRegrouping = true;
+      squadRegroupDur = 10.0;
+      feed('📡 COMUNICACIÓN DE ESCUADRÓN — REUNIÓN DE TÁCTICA', 'h');
+      bots.forEach(b => {
+        if(!b.downed && !b.dead && b.actions['Wave']){
+          b.actions['Wave'].reset().play();
+        }
+      });
+    }
+    if(isSquadRegrouping){
+      squadRegroupDur -= dt;
+      if(squadRegroupDur <= 0 || zombies.some(z => !z.dead && camera.position.distanceTo(z.g.position) < 12)){
+        isSquadRegrouping = false;
       }
     }
   }
@@ -2382,12 +2600,14 @@ function initGameEngine() {
         instRocks.setMatrixAt(i,_rkMtx);
       }else{
         activeCount++;
-        // Estela de magma pulsante mientras la roca vuela hacia la posición objetivo
-        if(Math.random()<0.45) burst(sl.pos,'spark',1,1.2);
+        // Estela de chispa con culling de distancia (<25m) para evitar caída de FPS
+        if(distToCam < 25.0 && Math.random() < 0.28) burst(sl.pos,'spark',1,1.0);
       }
     }
     instRocks.count=activeCount;
-    instRocks.instanceMatrix.needsUpdate=true;
+    if(activeCount > 0 || instRocks.count > 0){
+      instRocks.instanceMatrix.needsUpdate=true;
+    }
   }
 
   function getPlayerWorldPos(){
@@ -3277,12 +3497,10 @@ function initGameEngine() {
       c.shadowBlur = 0;
     }
 
-    // Bots Sintéticos — seguimiento en tiempo real con dirección
+    // Bots Sintéticos — seguimiento en tiempo real 100% preciso con ángulo de visión
     for(const b of bots){
       if(b.dead || !b.group) continue;
-      // Derivar posición angular exacta en tiempo real desde b.group.position
-      const botAng = Math.atan2(b.group.position.x, b.group.position.z);
-      const botT = ((botAng / (Math.PI * 2)) % 1 + 1) % 1;
+      const botT = closestT(b.group.position.x, b.group.position.z);
       const ba = 2 * Math.PI * botT;
       const bx = w/2 + Math.sin(ba)*w*0.40;
       const by = h/2 - Math.cos(ba)*h*0.36;
@@ -3294,10 +3512,11 @@ function initGameEngine() {
       c.arc(bx, by, b.downed ? 4.5 : 3.5, 0, Math.PI*2);
       c.fill();
       c.shadowBlur = 0;
-      // Indicador de dirección del bot
-      c.strokeStyle = col; c.lineWidth = 1.2;
+      // Indicador de dirección de visión en tiempo real (b.group.rotation.y)
+      const facingAng = b.group.rotation.y || 0;
+      c.strokeStyle = col; c.lineWidth = 1.4;
       c.beginPath(); c.moveTo(bx, by);
-      c.lineTo(bx + Math.sin(ba)*5, by - Math.cos(ba)*5); c.stroke();
+      c.lineTo(bx + Math.sin(facingAng)*6, by - Math.cos(facingAng)*6); c.stroke();
     }
 
     // Zombies — puntos rojos pequeños
@@ -3978,11 +4197,16 @@ function initGameEngine() {
         fwdV.set(-Math.sin(yaw), 0, -Math.cos(yaw));
         rgtV.set(Math.cos(yaw), 0, -Math.sin(yaw));
         
-        const f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
-        const r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+        let f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+        let r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+        
+        if (isTouchDevice && (joyVector.x !== 0 || joyVector.y !== 0)) {
+          r = joyVector.x;
+          f = -joyVector.y;
+        }
         
         wish.set(0, 0, 0).addScaledVector(fwdV, f).addScaledVector(rgtV, r);
-        if(wish.lengthSq() > 0) wish.normalize();
+        if(wish.lengthSq() > 0 && (!isTouchDevice || (joyVector.x === 0 && joyVector.y === 0))) wish.normalize();
         vel.addScaledVector(wish, 65 * dt);
         vel.multiplyScalar(Math.exp(-8 * dt));
         if(vel.length() > maxSp) vel.setLength(maxSp);
@@ -4148,6 +4372,13 @@ function initGameEngine() {
             clearing = true; clearT = 3.5; reserve += 45; hp = Math.min(100, hp + 25);
             if(playerState === 'downed' || playerState === 'dead') revivePlayer();
             banner('SECTOR CLEAR', '+45 ROUNDS · WOUNDS PATCHED'); sfx.pickup(); hudAmmo(); hudHP();
+            bots.forEach(b => {
+              if(!b.downed && !b.dead && b.actions['Dance']){
+                if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
+                b.actions['Dance'].reset().fadeIn(0.2).play();
+                b.activeAction = 'Dance';
+              }
+            });
           }
           if(clearing){ clearT -= dt; if(clearT <= 0){ clearing = false; startWave(wave + 1); } }
           updateZombies(dt);
@@ -4431,9 +4662,18 @@ function initGameEngine() {
   bindTouchBtn('#tBtnJump', () => { if(jumpY <= 0 && playerState === 'alive') vy = 4.6; });
   bindTouchBtn('#tBtnReload', () => { if(playing && !reloading && ammo < MAG && reserve > 0) startReload(); });
   bindTouchBtn('#tBtnWeapon', () => { if(playing) switchWeapon(); });
+  bindTouchBtn('#tBtnFlashlight', () => {
+    if(flashlight){ flashlight.visible = !flashlight.visible; feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h'); }
+  });
   bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });
-  // Fix: botones PTT y PAUSE sin listeners táctiles vinculados
   bindTouchBtn('#tBtnPtt', () => { setPTTState(true); }, () => { setPTTState(false); });
+
+  // Desbloqueo automático de AudioContext en primer toque móvil (iOS Safari & Android Chrome)
+  window.addEventListener('touchstart', () => {
+    if(typeof THREE !== 'undefined' && THREE.AudioContext && THREE.AudioContext.getContext().state === 'suspended'){
+      THREE.AudioContext.getContext().resume();
+    }
+  }, {once: true, passive: true});
   const pauseBtn = $('#tBtnPause');
   if(pauseBtn){
     pauseBtn.addEventListener('touchstart', e => { e.preventDefault(); pauseBtn.classList.add('active');

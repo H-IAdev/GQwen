@@ -1,0 +1,10 @@
+# Ignore local working directories and workspace assets
+Box-ia/
+Proyectos/
+Recursos/
+memory/
+wiki/
+graphify-out/
+skills-lock.json
+*.zip
+.agents/

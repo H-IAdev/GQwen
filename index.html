@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biblioteca Viva · Experimentos de IA</title>
+<meta name="description" content="Galería serena de prototipos e ideas de IA: lenguaje, visión, audio, agentes, datos y ética.">
+<meta name="theme-color" content="#F3F4EF">
+<script>
+(function(){try{var t=localStorage.getItem('bv-tema')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'oscuro':'claro');document.documentElement.dataset.tema=t;}catch(e){}})();
+</script>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link href="https://cdn.jsdelivr.net/fontsource/css/fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700/latin.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/karla:ital,wght@0,300..800;1,300..800/latin.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/fontsource/css/spline-sans-mono:wght@300..700/latin.css" rel="stylesheet">
+<style>
+/* ============ BASE Y PALETA ============ */
+:root{
+  --paper:#F3F4EF; --paper-2:#FAFAF5; --card:#FCFCF8;
+  --ink:#243129; --ink-suave:#5D6C62; --ink-tenue:#8B968C;
+  --linea:#E1E5DA; --linea-fuerte:#CBD2C4;
+  --salvia:#6F8F7C; --salvia-honda:#476554;
+  --ambar:#C29A55; --niebla:#DCE3D8;
+  --sombra:0 1px 2px rgba(36,49,41,.04),0 12px 32px -18px rgba(36,49,41,.18);
+  --sombra-alta:0 2px 4px rgba(36,49,41,.05),0 24px 48px -24px rgba(36,49,41,.28);
+  --grano:.05;
+  --f-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --f-texto:'Karla',system-ui,-apple-system,sans-serif;
+  --f-mono:'Spline Sans Mono',ui-monospace,'Courier New',monospace;
+  --radio:14px;
+  --ease:cubic-bezier(.22,1,.36,1);
+  --c-lenguaje:#6F8F7C; --c-vision:#7A93A7; --c-audio:#C29A55;
+  --c-agentes:#A87D6A; --c-datos:#5F8D8A; --c-etica:#8E86A3;
+}
+[data-tema="oscuro"]{
+  --paper:#121814; --paper-2:#171E19; --card:#1A221C;
+  --ink:#E6EAE2; --ink-suave:#9DAB9F; --ink-tenue:#6E7C70;
+  --linea:#28332B; --linea-fuerte:#3A473D;
+  --salvia:#8FB09C; --salvia-honda:#A9C4B2;
+  --ambar:#D2AF6E; --niebla:#1E2A22;
+  --sombra:0 1px 2px rgba(0,0,0,.2),0 14px 34px -18px rgba(0,0,0,.5);
+  --sombra-alta:0 2px 4px rgba(0,0,0,.25),0 26px 52px -24px rgba(0,0,0,.6);
+  --grano:.07;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--f-texto); background:var(--paper); color:var(--ink);
+  font-size:16px; line-height:1.6; overflow-x:hidden;
+  transition:background-color .6s var(--ease),color .6s var(--ease);
+}
+::selection{background:var(--salvia);color:var(--paper)}
+img,svg{display:block}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer;color:inherit}
+:focus-visible{outline:2px solid var(--salvia);outline-offset:3px;border-radius:4px}
+section{scroll-margin-top:92px}
+
+/* grano de papel */
+body::after{
+  content:"";position:fixed;inset:0;z-index:2;pointer-events:none;opacity:var(--grano);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* niebla ambiental */
+.niebla{position:fixed;inset:-20%;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(42% 38% at 18% 12%, color-mix(in srgb,var(--salvia) 14%,transparent), transparent 70%),
+    radial-gradient(36% 34% at 86% 78%, color-mix(in srgb,var(--ambar) 10%,transparent), transparent 70%),
+    radial-gradient(30% 30% at 70% 18%, color-mix(in srgb,var(--c-vision) 8%,transparent), transparent 70%);
+  animation:deriva 46s ease-in-out infinite alternate;
+}
+@keyframes deriva{
+  0%{transform:translate(0,0) scale(1)}
+  50%{transform:translate(-2.5%,2%) scale(1.04)}
+  100%{transform:translate(2%,-2%) scale(1.02)}
+}
+#motas{position:fixed;inset:0;z-index:0;pointer-events:none}
+main,header,footer{position:relative;z-index:1}
+
+/* ============ CORTINA DE ENTRADA ============ */
+#cortina{position:fixed;inset:0;z-index:100;background:var(--paper);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1.4rem;transition:opacity .7s var(--ease),visibility .7s}
+#cortina.fuera{opacity:0;visibility:hidden}
+#cortina .palabra{font-family:var(--f-display);font-weight:560;font-size:clamp(1.8rem,5vw,3rem);letter-spacing:.01em;display:flex}
+#cortina .palabra span{opacity:0;transform:translateY(.5em);animation:letra .55s var(--ease) forwards;animation-delay:calc(var(--i)*45ms)}
+@keyframes letra{to{opacity:1;transform:none}}
+#cortina .hilo{width:min(220px,40vw);height:1px;background:var(--linea-fuerte);position:relative;overflow:hidden}
+#cortina .hilo::after{content:"";position:absolute;inset:0;background:var(--salvia);transform-origin:left;animation:hilo .9s .3s var(--ease) forwards;transform:scaleX(0)}
+@keyframes hilo{to{transform:scaleX(1)}}
+#cortina .nota{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:var(--ink-tenue);opacity:0;animation:letra .5s .7s var(--ease) forwards}
+
+/* barra de progreso de lectura */
+#progreso{position:fixed;top:0;left:0;height:2px;width:0;background:var(--salvia);z-index:60;transition:width .1s linear}
+
+/* ============ ENLACE SALTAR ============ */
+.saltar{position:fixed;top:-60px;left:1rem;z-index:90;background:var(--ink);color:var(--paper);
+  padding:.6rem 1.1rem;border-radius:999px;font-family:var(--f-mono);font-size:.75rem;text-decoration:none;transition:top .3s var(--ease)}
+.saltar:focus{top:.8rem}
+
+/* ============ CABECERA ============ */
+#cabecera{position:fixed;top:0;left:0;right:0;z-index:50;height:66px;display:flex;align-items:center;
+  padding:0 clamp(1rem,4vw,2.6rem);gap:1.5rem;
+  background:color-mix(in srgb,var(--paper) 0%,transparent);border-bottom:1px solid transparent;
+  transition:background-color .5s,border-color .5s,box-shadow .5s}
+#cabecera.flota{background:color-mix(in srgb,var(--paper) 94%,transparent);border-color:var(--linea);box-shadow:0 8px 24px -20px rgba(36,49,41,.25)}
+.marca{display:flex;align-items:center;gap:.7rem;text-decoration:none}
+.marca .glifo{width:34px;height:34px;border-radius:10px;background:var(--salvia);display:grid;place-items:center;
+  color:var(--paper);transition:transform .5s var(--ease)}
+.marca:hover .glifo{transform:rotate(-8deg) scale(1.06)}
+.marca .nombres{line-height:1.15}
+.marca .nombres strong{font-family:var(--f-display);font-weight:600;font-size:1.02rem;display:block;letter-spacing:.005em}
+.marca .nombres small{font-family:var(--f-mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-tenue)}
+#cabecera nav{margin-left:auto;display:flex;gap:1.6rem}
+#cabecera nav a{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;
+  color:var(--ink-suave);position:relative;padding:.3rem 0;transition:color .3s;display:inline-flex;align-items:center;gap:.35rem}
+#cabecera nav a::after{content:"";position:absolute;left:0;bottom:0;height:1px;width:100%;background:var(--salvia);
+  transform:scaleX(0);transform-origin:right;transition:transform .4s var(--ease)}
+#cabecera nav a:hover{color:var(--ink)}
+#cabecera nav a:hover::after{transform:scaleX(1);transform-origin:left}
+#cabecera nav a.externa svg{opacity:.6;transition:transform .3s var(--ease),opacity .3s}
+#cabecera nav a.externa:hover svg{transform:translate(2px,-2px);opacity:1}
+#btnTema{width:40px;height:40px;border-radius:50%;border:1px solid var(--linea-fuerte);background:var(--card);
+  display:grid;place-items:center;position:relative;overflow:hidden;transition:border-color .3s,transform .3s var(--ease)}
+#btnTema:hover{border-color:var(--salvia);transform:rotate(15deg)}
+#btnTema svg{position:absolute;transition:opacity .45s,transform .6s var(--ease)}
+#btnTema .sol{opacity:1;transform:none}
+#btnTema .luna{opacity:0;transform:rotate(-90deg) scale(.6)}
+[data-tema="oscuro"] #btnTema .sol{opacity:0;transform:rotate(90deg) scale(.6)}
+[data-tema="oscuro"] #btnTema .luna{opacity:1;transform:none}
+
+/* ============ PORTADA ============ */
+.portada{min-height:92vh;display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(2rem,5vw,4.5rem);
+  align-items:center;padding:calc(66px + clamp(2.5rem,6vh,5rem)) clamp(1rem,5vw,4rem) clamp(3rem,7vh,5.5rem);
+  max-width:1240px;margin:0 auto;position:relative}
+.sello-vertical{position:absolute;left:-.4rem;top:52%;transform:rotate(180deg);writing-mode:vertical-rl;
+  font-family:var(--f-mono);font-size:.62rem;letter-spacing:.42em;text-transform:uppercase;color:var(--ink-tenue)}
+.ojiva{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:var(--salvia-honda);
+  display:flex;align-items:center;gap:.8rem;margin-bottom:1.4rem}
+.ojiva::before{content:"";width:34px;height:1px;background:var(--salvia)}
+.portada h1{font-family:var(--f-display);font-weight:520;font-size:clamp(2.7rem,6.4vw,5.1rem);line-height:1.04;letter-spacing:-.015em}
+.portada h1 em{font-style:italic;font-weight:480;color:var(--salvia-honda)}
+.portada .parrafo{max-width:34rem;margin-top:1.5rem;color:var(--ink-suave);font-size:clamp(1rem,1.4vw,1.13rem);font-weight:400;line-height:1.75}
+.acciones{display:flex;gap:.9rem;margin-top:2.2rem;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:.55rem;padding:.85rem 1.6rem;border-radius:999px;text-decoration:none;
+  font-weight:600;font-size:.92rem;letter-spacing:.01em;border:1px solid transparent;
+  transition:transform .35s var(--ease),box-shadow .35s,background-color .35s,color .35s,border-color .35s}
+.btn svg{transition:transform .35s var(--ease)}
+.btn.primario{background:var(--salvia-honda);color:#F6F7F2}
+.btn.primario:hover{transform:translateY(-3px);box-shadow:0 14px 28px -14px color-mix(in srgb,var(--salvia-honda) 70%,transparent)}
+.btn.primario:hover svg{transform:translateY(3px)}
+.btn.fantasma{border-color:var(--linea-fuerte);color:var(--ink);background:transparent}
+.btn.fantasma:hover{border-color:var(--ink);transform:translateY(-3px)}
+.btn.fantasma .flecha-ext{opacity:.65}
+.btn.fantasma:hover .flecha-ext{transform:translate(3px,-3px)}
+
+/* fichero apilado */
+.portada-der{display:flex;flex-direction:column;gap:2rem;align-items:flex-end;position:relative}
+.fichero{position:relative;width:min(340px,100%);height:238px}
+.ficha-pila{position:absolute;inset:0;background:var(--card);border:1px solid var(--linea-fuerte);border-radius:12px;
+  padding:1.3rem 1.4rem;box-shadow:var(--sombra);transition:transform .8s var(--ease),opacity .8s;will-change:transform}
+.ficha-pila[data-pos="0"]{transform:rotate(-1deg);z-index:3}
+.ficha-pila[data-pos="1"]{transform:rotate(2.4deg) translate(12px,-12px) scale(.985);z-index:2;opacity:.85}
+.ficha-pila[data-pos="2"]{transform:rotate(-4deg) translate(-14px,-22px) scale(.97);z-index:1;opacity:.6}
+.ficha-pila .fp-area{font-family:var(--f-mono);font-size:.62rem;letter-spacing:.24em;text-transform:uppercase;color:var(--salvia-honda);
+  display:flex;align-items:center;gap:.5rem}
+.ficha-pila .fp-area i{width:7px;height:7px;border-radius:50%;background:var(--fp-color,var(--salvia))}
+.ficha-pila .fp-titulo{font-family:var(--f-display);font-weight:560;font-size:1.45rem;line-height:1.2;margin:.7rem 0 .6rem}
+.ficha-pila .fp-num{position:absolute;top:1.2rem;right:1.3rem;font-family:var(--f-mono);font-size:.68rem;color:var(--ink-tenue)}
+.ficha-pila .lineas{margin-top:.4rem;display:grid;gap:.55rem}
+.ficha-pila .lineas i{display:block;height:6px;border-radius:3px;background:var(--niebla)}
+.ficha-pila .lineas i:nth-child(1){width:88%}.ficha-pila .lineas i:nth-child(2){width:70%}.ficha-pila .lineas i:nth-child(3){width:46%}
+.ficha-pila:not([data-pos="0"]) .fp-titulo,.ficha-pila:not([data-pos="0"]) .fp-area{opacity:.35}
+
+/* sello circular giratorio */
+.sello{position:absolute;right:-26px;bottom:-34px;width:104px;height:104px;z-index:4;animation:girar 32s linear infinite;opacity:.9}
+@keyframes girar{to{transform:rotate(360deg)}}
+.sello text{font-family:var(--f-mono);font-size:9.2px;letter-spacing:.32em;fill:var(--ink-suave);text-transform:uppercase}
+.sello .centro{fill:var(--salvia)}
+
+/* cifras + respira */
+.cifras{display:flex;gap:clamp(1.4rem,3vw,2.6rem);align-items:flex-end}
+.cifras .cifra{display:flex;flex-direction:column;line-height:1}
+.cifras strong{font-family:var(--f-display);font-weight:560;font-size:clamp(2rem,3.4vw,2.9rem);letter-spacing:-.02em}
+.cifras span{font-family:var(--f-mono);font-size:.64rem;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-tenue);margin-top:.45rem}
+.cifras .infinito strong{animation:latido 5s ease-in-out infinite;display:inline-block}
+@keyframes latido{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.cifras .cifra + .cifra{border-left:1px solid var(--linea);padding-left:clamp(1.4rem,3vw,2.6rem)}
+.respira{display:flex;align-items:center;gap:.7rem;font-family:var(--f-mono);font-size:.64rem;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-tenue)}
+.respira .pulso{width:11px;height:11px;border-radius:50%;background:var(--salvia);animation:respirar 5.5s ease-in-out infinite}
+@keyframes respirar{0%,100%{transform:scale(.7);opacity:.55}50%{transform:scale(1.25);opacity:1}}
+
+/* ============ SEPARADOR ============ */
+.separador{display:flex;align-items:center;gap:1.2rem;max-width:1240px;margin:0 auto;padding:0 clamp(1rem,5vw,4rem)}
+.separador::before,.separador::after{content:"";flex:1;height:1px;background:var(--linea)}
+.separador svg{color:var(--salvia);animation:mecer 6s ease-in-out infinite;transform-origin:top}
+@keyframes mecer{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+
+/* ============ GUÍA (CÓMO USAR) ============ */
+.guia{max-width:1240px;margin:0 auto;padding:clamp(3.5rem,8vh,6.5rem) clamp(1rem,5vw,4rem)}
+.cabeza-seccion{display:flex;align-items:baseline;gap:1.2rem;flex-wrap:wrap;margin-bottom:.9rem}
+.cabeza-seccion .indice{font-family:var(--f-mono);font-size:.72rem;color:var(--ambar);letter-spacing:.2em}
+.cabeza-seccion h2{font-family:var(--f-display);font-weight:540;font-size:clamp(1.9rem,3.6vw,2.9rem);letter-spacing:-.01em}
+.guia .lead{color:var(--ink-suave);max-width:36rem;margin-bottom:3rem}
+.pasos-guia{list-style:none;display:grid;gap:0;position:relative;max-width:56rem}
+.pasos-guia li{display:grid;grid-template-columns:5.4rem 1fr;gap:1.6rem;padding:2rem 0;position:relative;align-items:start}
+.pasos-guia li::before{content:"";position:absolute;left:2.55rem;top:0;bottom:0;width:1px;background:var(--linea)}
+.pasos-guia li:first-child::before{top:50%}.pasos-guia li:last-child::before{bottom:50%}
+.pasos-guia .numero{font-family:var(--f-display);font-weight:300;font-size:3.4rem;line-height:1;color:transparent;
+  -webkit-text-stroke:1px var(--salvia);position:relative;z-index:1;background:var(--paper);padding:.2rem 0;
+  transition:color .5s var(--ease)}
+.pasos-guia li:hover .numero{color:var(--salvia)}
+.pasos-guia h3{font-family:var(--f-display);font-weight:600;font-size:1.35rem;margin-bottom:.5rem}
+.pasos-guia p{color:var(--ink-suave);max-width:32rem}
+.pasos-guia .pista{display:inline-block;margin-top:.8rem;font-family:var(--f-mono);font-size:.66rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--salvia-honda);border:1px solid var(--linea-fuerte);border-radius:999px;padding:.32rem .8rem;
+  transition:background-color .3s,color .3s}
+.pasos-guia li:hover .pista{background:var(--salvia);color:var(--paper);border-color:var(--salvia)}
+@media(min-width:860px){.pasos-guia li:nth-child(even){padding-left:3.2rem}}
+
+/* ============ GALERÍA ============ */
+.galeria{max-width:1240px;margin:0 auto;padding:clamp(2.5rem,6vh,4.5rem) clamp(1rem,5vw,4rem) clamp(4rem,9vh,7rem)}
+.galeria .lead{color:var(--ink-suave);max-width:38rem;margin-bottom:2.4rem}
+.barra{position:sticky;top:66px;z-index:30;background:color-mix(in srgb,var(--paper) 95%,transparent);
+  border-block:1px solid var(--linea);padding:.9rem 0;display:flex;gap:1rem;align-items:center;flex-wrap:wrap;
+  margin:0 -0.6rem;padding-inline:.6rem}
+.chips{display:flex;gap:.5rem;flex-wrap:wrap;flex:1;min-width:min(100%,320px)}
+.chip{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;padding:.5rem .95rem;border-radius:999px;
+  border:1px solid var(--linea-fuerte);background:transparent;color:var(--ink-suave);
+  display:inline-flex;align-items:center;gap:.5rem;transition:all .3s var(--ease)}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--chip-color,var(--ink-tenue));transition:transform .3s}
+.chip sup{font-size:.58rem;color:var(--ink-tenue)}
+.chip:hover{border-color:var(--ink);color:var(--ink);transform:translateY(-2px)}
+.chip:hover i{transform:scale(1.4)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chip[aria-pressed="true"] sup{color:color-mix(in srgb,var(--paper) 70%,transparent)}
+.buscador{position:relative;display:flex;align-items:center}
+.buscador svg.lupa{position:absolute;left:.95rem;color:var(--ink-tenue);pointer-events:none}
+.buscador input{font-family:var(--f-mono);font-size:.8rem;width:min(280px,72vw);padding:.68rem 2.4rem .68rem 2.5rem;
+  border-radius:999px;border:1px solid var(--linea-fuerte);background:var(--card);color:var(--ink);
+  transition:border-color .3s,box-shadow .3s,width .4s var(--ease)}
+.buscador input::placeholder{color:var(--ink-tenue)}
+.buscador input:focus{outline:none;border-color:var(--salvia);box-shadow:0 0 0 4px color-mix(in srgb,var(--salvia) 18%,transparent)}
+.buscador input:focus{width:min(320px,78vw)}
+#limpiarQ{position:absolute;right:.6rem;width:26px;height:26px;border-radius:50%;border:none;background:var(--niebla);
+  display:none;place-items:center;color:var(--ink-suave);font-size:.85rem;line-height:1;transition:background-color .3s}
+#limpiarQ:hover{background:var(--linea-fuerte)}
+.buscador.con-texto #limpiarQ{display:grid}
+.resultados{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-tenue);margin:1.6rem 0 1.4rem}
+.resultados b{color:var(--salvia-honda);font-weight:600}
+
+.rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:1.15rem}
+.ficha{position:relative;background:var(--card);border:1px solid var(--linea);border-radius:var(--radio);
+  padding:1.5rem 1.5rem 1.25rem 1.75rem;display:flex;flex-direction:column;gap:.7rem;overflow:hidden;cursor:pointer;
+  transition:transform .45s var(--ease),border-color .45s,box-shadow .45s;box-shadow:var(--sombra)}
+.ficha::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s;
+  background:radial-gradient(240px circle at var(--mx,50%) var(--my,50%),color-mix(in srgb,var(--acento) 12%,transparent),transparent 70%)}
+.ficha:hover::before{opacity:1}
+.ficha:hover{transform:translateY(-6px);border-color:color-mix(in srgb,var(--acento) 55%,var(--linea));box-shadow:var(--sombra-alta)}
+.ficha .lomo{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--acento);transform:scaleY(.35);transform-origin:top;
+  transition:transform .5s var(--ease);border-radius:0 2px 2px 0}
+.ficha:hover .lomo{transform:scaleY(1)}
+.ficha.boceto{border-style:dashed;border-color:var(--linea-fuerte)}
+.ficha.boceto .lomo{opacity:.5}
+.ficha-cabeza{display:flex;justify-content:space-between;align-items:center}
+.ficha-cabeza .area{font-family:var(--f-mono);font-size:.64rem;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-suave);
+  display:flex;align-items:center;gap:.45rem}
+.ficha-cabeza .punto{width:7px;height:7px;border-radius:50%;background:var(--acento)}
+.ficha-cabeza .num{font-family:var(--f-mono);font-size:.68rem;color:var(--ink-tenue)}
+.insignias{display:flex;gap:.4rem;flex-wrap:wrap}
+.insignia{font-family:var(--f-mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;padding:.24rem .6rem;border-radius:999px;
+  background:color-mix(in srgb,var(--acento) 14%,transparent);color:color-mix(in srgb,var(--acento) 70%,var(--ink))}
+.insignia.boc{background:color-mix(in srgb,var(--ambar) 16%,transparent);color:color-mix(in srgb,var(--ambar) 72%,var(--ink))}
+.ficha-titulo{font-family:var(--f-display);font-weight:600;font-size:1.38rem;line-height:1.22;letter-spacing:-.005em;
+  transition:color .3s}
+.ficha:hover .ficha-titulo{color:color-mix(in srgb,var(--acento) 65%,var(--ink))}
+.ficha-resumen{color:var(--ink-suave);font-size:.92rem;line-height:1.65;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ficha-tags{list-style:none;display:flex;gap:.45rem;flex-wrap:wrap;margin-top:auto;padding-top:.4rem}
+.ficha-tags li{font-family:var(--f-mono);font-size:.64rem;color:var(--ink-tenue);border:1px solid var(--linea);
+  border-radius:5px;padding:.18rem .5rem;transition:border-color .3s,color .3s}
+.ficha:hover .ficha-tags li{border-color:color-mix(in srgb,var(--acento) 40%,var(--linea));color:var(--ink-suave)}
+.ficha-pie{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--linea);
+  padding-top:.85rem;margin-top:.5rem}
+.ficha-pie .abrir{font-family:var(--f-mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--salvia-honda);
+  display:inline-flex;align-items:center;gap:.4rem}
+.ficha-pie .abrir svg{transition:transform .35s var(--ease)}
+.ficha:hover .abrir svg{transform:translateX(5px)}
+.ficha-pie .rec{font-family:var(--f-mono);font-size:.64rem;color:var(--ink-tenue)}
+.ficha.nueva{animation:aparecerFicha 1.8s var(--ease)}
+@keyframes aparecerFicha{
+  0%{opacity:0;transform:translateY(24px) scale(.96)}
+  40%{opacity:1;transform:none}
+  55%{box-shadow:0 0 0 5px color-mix(in srgb,var(--acento) 35%,transparent)}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+
+/* estado vacío */
+#vacio{display:none;text-align:center;padding:4.5rem 1rem;border:1px dashed var(--linea-fuerte);border-radius:20px;margin-top:.5rem}
+#vacio.visible{display:block;animation:aparecer .6s var(--ease)}
+@keyframes aparecer{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+#vacio svg{margin:0 auto 1.2rem;color:var(--ink-tenue);animation:mecer 5s ease-in-out infinite;transform-origin:top}
+#vacio h3{font-family:var(--f-display);font-weight:560;font-size:1.6rem;margin-bottom:.5rem}
+#vacio p{color:var(--ink-suave);max-width:26rem;margin:0 auto 1.6rem}
+
+/* ============ REVEAL ============ */
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .8s var(--ease),transform .8s var(--ease);transition-delay:var(--d,0ms)}
+.reveal.in{opacity:1;transform:none}
+
+/* ============ PIE ============ */
+footer{border-top:1px solid var(--linea);margin-top:2rem;overflow:hidden}
+.pie-fantasma{font-family:var(--f-display);font-weight:600;font-size:clamp(3.4rem,12vw,9.5rem);line-height:1;text-align:center;
+  color:transparent;-webkit-text-stroke:1px var(--linea-fuerte);letter-spacing:-.02em;user-select:none;
+  padding:2.6rem 1rem 0;white-space:nowrap;opacity:.75}
+.pie-grid{max-width:1240px;margin:0 auto;padding:3rem clamp(1rem,5vw,4rem) 2rem;display:grid;
+  grid-template-columns:1.3fr 1fr 1fr;gap:2.5rem}
+.pie-grid h4{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.26em;text-transform:uppercase;color:var(--ink-tenue);margin-bottom:1rem}
+.pie-grid p{color:var(--ink-suave);font-size:.92rem;max-width:24rem}
+.pie-grid ul{list-style:none;display:grid;gap:.55rem}
+.pie-grid ul a{text-decoration:none;color:var(--ink-suave);font-size:.92rem;transition:color .3s,padding-left .3s var(--ease);
+  display:inline-flex;align-items:center;gap:.4rem}
+.pie-grid ul a:hover{color:var(--salvia-honda);padding-left:.4rem}
+.pie-grid ul a svg{opacity:.55}
+.pie-bajo{max-width:1240px;margin:0 auto;padding:1.4rem clamp(1rem,5vw,4rem) 2.2rem;border-top:1px solid var(--linea);
+  display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;
+  font-family:var(--f-mono);font-size:.68rem;letter-spacing:.1em;color:var(--ink-tenue)}
+
+/* ============ VELO / DETALLE ============ */
+#velo{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:1.2rem;
+  background:color-mix(in srgb,var(--ink) 0%,transparent);visibility:hidden;transition:background-color .4s,visibility .4s}
+#velo.abierto{background:color-mix(in srgb,#1c2620 46%,transparent);visibility:visible}
+.detalle{width:min(660px,100%);max-height:min(86vh,760px);overflow-y:auto;background:var(--paper-2);
+  border:1px solid var(--linea);border-radius:20px;padding:clamp(1.6rem,4vw,2.6rem);position:relative;
+  box-shadow:var(--sombra-alta);opacity:0;transform:translateY(34px) scale(.98);
+  transition:opacity .45s var(--ease),transform .45s var(--ease)}
+#velo.abierto .detalle{opacity:1;transform:none}
+.detalle::-webkit-scrollbar{width:8px}
+.detalle::-webkit-scrollbar-thumb{background:var(--linea-fuerte);border-radius:4px}
+.detalle .cerrar{position:absolute;top:1.1rem;right:1.1rem;width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--linea-fuerte);background:var(--card);display:grid;place-items:center;
+  transition:transform .35s var(--ease),border-color .3s}
+.detalle .cerrar:hover{transform:rotate(90deg);border-color:var(--ink)}
+.det-cabeza{display:flex;align-items:center;gap:.8rem;margin-bottom:1rem;padding-right:3rem;flex-wrap:wrap}
+.det-area{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:.5rem;color:var(--ink-suave)}
+.det-area i{width:8px;height:8px;border-radius:50%;background:var(--acento)}
+.det-num{font-family:var(--f-mono);font-size:.68rem;color:var(--ink-tenue)}
+.detalle h2{font-family:var(--f-display);font-weight:560;font-size:clamp(1.7rem,4vw,2.4rem);line-height:1.15;letter-spacing:-.01em;margin-bottom:1.4rem}
+.det-bloque{margin-bottom:1.7rem}
+.det-bloque h3{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.26em;text-transform:uppercase;color:var(--ambar);
+  display:flex;align-items:center;gap:.8rem;margin-bottom:.9rem}
+.det-bloque h3::after{content:"";flex:1;height:1px;background:var(--linea)}
+.det-bloque>p{color:var(--ink-suave);line-height:1.75}
+.nota-boceto{margin:-.4rem 0 1.6rem;padding:.8rem 1rem;border:1px dashed var(--linea-fuerte);border-radius:10px;
+  font-family:var(--f-mono);font-size:.72rem;color:var(--ink-suave);display:flex;gap:.6rem;align-items:flex-start;line-height:1.6}
+.nota-boceto svg{flex-shrink:0;color:var(--ambar);margin-top:.1rem}
+.ruta{list-style:none;counter-reset:paso;display:grid;gap:.2rem}
+.ruta li{counter-increment:paso;display:grid;grid-template-columns:2.2rem 1fr;gap:.9rem;align-items:start;padding:.55rem 0;position:relative}
+.ruta li::before{content:counter(paso,decimal-leading-zero);font-family:var(--f-mono);font-size:.72rem;
+  width:2rem;height:2rem;border-radius:50%;border:1px solid var(--linea-fuerte);display:grid;place-items:center;
+  color:var(--salvia-honda);background:var(--card);position:relative;z-index:1;transition:background-color .3s,color .3s}
+.ruta li:hover::before{background:var(--salvia);color:var(--paper);border-color:var(--salvia)}
+.ruta li::after{content:"";position:absolute;left:1rem;top:2.6rem;bottom:-.4rem;width:1px;background:var(--linea)}
+.ruta li:last-child::after{display:none}
+.ruta li span{color:var(--ink-suave);font-size:.94rem;line-height:1.6;padding-top:.25rem}
+.recursos{list-style:none;display:grid;gap:.55rem}
+.recursos a{display:flex;justify-content:space-between;align-items:center;gap:1rem;text-decoration:none;
+  border:1px solid var(--linea);border-radius:10px;padding:.8rem 1rem;background:var(--card);
+  transition:border-color .3s,transform .3s var(--ease)}
+.recursos a:hover{border-color:var(--salvia);transform:translateX(5px)}
+.recursos .nombre{font-weight:600;font-size:.92rem}
+.recursos .fuente{font-family:var(--f-mono);font-size:.64rem;color:var(--ink-tenue);display:block;margin-top:.1rem}
+.recursos svg{color:var(--salvia-honda);flex-shrink:0}
+.det-acciones{display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;border-top:1px solid var(--linea);padding-top:1.4rem}
+.btn.mini{padding:.7rem 1.3rem;font-size:.84rem}
+.dominios{display:none;gap:.45rem;flex-wrap:wrap;align-items:center}
+.dominios.visible{display:flex;animation:aparecer .4s var(--ease)}
+.dominios .rotulo{font-family:var(--f-mono);font-size:.64rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-tenue);margin-right:.3rem}
+.dom-chip{font-family:var(--f-mono);font-size:.72rem;padding:.45rem .9rem;border-radius:999px;border:1px solid var(--linea-fuerte);
+  background:transparent;transition:all .3s var(--ease)}
+.dom-chip:hover{background:var(--salvia);border-color:var(--salvia);color:var(--paper);transform:translateY(-2px)}
+
+/* toast */
+#toast{position:fixed;bottom:1.6rem;left:50%;transform:translate(-50%,140%);z-index:80;background:var(--ink);color:var(--paper);
+  font-family:var(--f-mono);font-size:.76rem;letter-spacing:.06em;padding:.85rem 1.5rem;border-radius:999px;
+  box-shadow:var(--sombra-alta);transition:transform .55s var(--ease);display:flex;align-items:center;gap:.6rem;max-width:90vw}
+#toast.visible{transform:translate(-50%,0)}
+#toast i{width:8px;height:8px;border-radius:50%;background:var(--salvia);flex-shrink:0}
+
+/* ============ RESPONSIVE ============ */
+@media(max-width:960px){
+  .portada{grid-template-columns:1fr;min-height:auto;padding-top:calc(66px + 3rem)}
+  .portada-der{align-items:flex-start}
+  .fichero{max-width:360px}
+  .sello-vertical{display:none}
+  .pie-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:640px){
+  #cabecera nav{display:none}
+  .pie-grid{grid-template-columns:1fr}
+  .barra{position:static}
+  .sello{display:none}
+  .pasos-guia li{grid-template-columns:3.6rem 1fr;gap:1rem}
+  .pasos-guia li::before{left:1.65rem}
+  .pasos-guia .numero{font-size:2.3rem}
+}
+/* movimiento reducido */
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001s!important;animation-iteration-count:1!important;transition-duration:.001s!important}
+  .reveal{opacity:1;transform:none}
+  .niebla,#motas{display:none}
+}
+</style>
+</head>
+<body>
+
+<a class="saltar" href="#galeria">Saltar a la galería</a>
+
+<div id="cortina" aria-hidden="true">
+  <div class="palabra" id="palabraCortina"></div>
+  <div class="hilo"></div>
+  <div class="nota">abriendo la sala</div>
+</div>
+
+<div id="progreso" aria-hidden="true"></div>
+<canvas id="motas" aria-hidden="true"></canvas>
+<div class="niebla" aria-hidden="true"></div>
+
+<header id="cabecera">
+  <a class="marca" href="#inicio">
+    <span class="glifo" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M12 7c1.5 1.2 1.5 3.3 0 4.5-1.5-1.2-1.5-3.3 0-4.5z" fill="currentColor" stroke="none" opacity=".85"/></svg>
+    </span>
+    <span class="nombres"><strong>Biblioteca Viva</strong><small>Experimentos IA</small></span>
+  </a>
+  <nav aria-label="Principal">
+    <a href="#galeria">Galería</a>
+    <a href="#como">Cómo usar</a>
+    <a href="coop.html" class="externa">Sala Coop
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+    </a>
+  </nav>
+  <button id="btnTema" aria-label="Cambiar tema">
+    <svg class="sol" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.4"/><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5 5l1.7 1.7M17.3 17.3 19 19M19 5l-1.7 1.7M6.7 17.3 5 19"/></svg>
+    <svg class="luna" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+  </button>
+</header>
+
+<main>
+  <!-- ============ PORTADA ============ -->
+  <section class="portada" id="inicio">
+    <span class="sello-vertical" aria-hidden="true">sala 01 · prototipos · estantería abierta</span>
+    <div class="portada-izq">
+      <p class="ojiva reveal">Galería · Biblioteca de prototipos</p>
+      <h1 class="reveal" style="--d:90ms">Ideas de IA como una biblioteca <em>infinita</em></h1>
+      <p class="parrafo reveal" style="--d:180ms">Una vista previa con estética de galería serena para explorar experimentos de desarrollo con inteligencia artificial: lenguaje, visión, audio, agentes, datos y ética. Cada tarjeta abre una ficha con propósito, pasos y vínculos a recursos.</p>
+      <div class="acciones reveal" style="--d:270ms">
+        <a class="btn primario" href="#galeria">Explorar galería
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        </a>
+        <a class="btn fantasma" href="#como">Cómo usar</a>
+        <a class="btn fantasma" href="coop.html">Sala Coop
+          <svg class="flecha-ext" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+        </a>
+      </div>
+    </div>
+    <div class="portada-der reveal" style="--d:240ms">
+      <div class="fichero" id="fichero" aria-hidden="true">
+        <div class="ficha-pila" data-pos="2"><span class="fp-num">nº ···</span><div class="fp-area"><i></i><span>—</span></div><div class="fp-titulo">·</div><div class="lineas"><i></i><i></i><i></i></div></div>
+        <div class="ficha-pila" data-pos="1"><span class="fp-num">nº ···</span><div class="fp-area"><i></i><span>—</span></div><div class="fp-titulo">·</div><div class="lineas"><i></i><i></i><i></i></div></div>
+        <div class="ficha-pila" data-pos="0"><span class="fp-num">nº 001</span><div class="fp-area"><i></i><span>—</span></div><div class="fp-titulo">·</div><div class="lineas"><i></i><i></i><i></i></div></div>
+        <svg class="sello" viewBox="0 0 104 104" aria-hidden="true">
+          <defs><path id="orbita" d="M52,52 m-38,0 a38,38 0 1,1 76,0 a38,38 0 1,1 -76,0"/></defs>
+          <circle cx="52" cy="52" r="3.4" class="centro"/>
+          <text><textPath href="#orbita">biblioteca viva · sala de prototipos ·</textPath></text>
+        </svg>
+      </div>
+      <div class="cifras" id="cifras">
+        <div class="cifra"><strong data-fin="0" id="cifIdeas">0</strong><span>ideas</span></div>
+        <div class="cifra"><strong data-fin="0" id="cifAreas">0</strong><span>áreas</span></div>
+        <div class="cifra infinito"><strong>∞</strong><span>variantes</span></div>
+      </div>
+      <div class="respira"><span class="pulso"></span><span>inhala · exhala</span></div>
+    </div>
+  </section>
+
+  <div class="separador" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21C7 16 5 11 6.5 5.5 12 7 16 10.5 16.5 16c.2 2-.8 3.8-2.5 5"/><path d="M12 21c0-5 .5-9 2.5-12"/></svg>
+  </div>
+
+  <!-- ============ CÓMO USAR ============ -->
+  <section class="guia" id="como">
+    <div class="cabeza-seccion reveal"><span class="indice">— 01</span><h2>Cómo usar esta sala</h2></div>
+    <p class="lead reveal" style="--d:80ms">Piensa en este sitio como una sala de exposición donde cada idea es un libro abierto. Puedes filtrar, buscar y entrar en cada experimento.</p>
+    <ol class="pasos-guia">
+      <li class="reveal">
+        <span class="numero" aria-hidden="true">01</span>
+        <div><h3>Filtra y busca</h3>
+          <p>Filtra por área, por bocetos pendientes de pulir, o busca por etiqueta, título o concepto. La sala responde al instante, sin recargas.</p>
+          <span class="pista">lenguaje · visión · audio · agentes · datos · ética</span></div>
+      </li>
+      <li class="reveal" style="--d:100ms">
+        <span class="numero" aria-hidden="true">02</span>
+        <div><h3>Abre una ficha</h3>
+          <p>Entra en una tarjeta para ver el propósito, la ruta sugerida paso a paso y los recursos de documentación pública.</p>
+          <span class="pista">propósito → ruta → recursos</span></div>
+      </li>
+      <li class="reveal" style="--d:200ms">
+        <span class="numero" aria-hidden="true">03</span>
+        <div><h3>Duplica y reimagina</h3>
+          <p>Duplica una idea y cámbiale el dominio: biblioteca, música, salud o ciudad. La variante se añade a la estantería al momento.</p>
+          <span class="pista">una idea → muchas variantes</span></div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ============ GALERÍA ============ -->
+  <section class="galeria" id="galeria">
+    <div class="cabeza-seccion reveal"><span class="indice">— 02</span><h2>Colecciones</h2></div>
+    <p class="lead reveal" style="--d:80ms">Selecciona un área para curar la galería, asómate a los bocetos por pulir, o escribe para buscar entre títulos, etiquetas y conceptos.</p>
+
+    <div class="barra">
+      <div class="chips" id="chips" role="group" aria-label="Filtrar por área"></div>
+      <div class="buscador" id="buscador">
+        <svg class="lupa" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="campoQ" placeholder="Buscar ideas… ( / )" aria-label="Buscar ideas" autocomplete="off">
+        <button id="limpiarQ" aria-label="Limpiar búsqueda">✕</button>
+      </div>
+    </div>
+
+    <p class="resultados" id="resultados" aria-live="polite"></p>
+    <div class="rejilla" id="rejilla"></div>
+
+    <div id="vacio">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5C4.5 4.8 8 4.5 12 6.5c4-2 7.5-1.7 10 0v11c-2.5-1.7-6-2-10 0-4-2-7.5-1.7-10 0z"/><path d="M12 6.5v11"/><path d="M12 3.5c.9.8.9 2.2 0 3-.9-.8-.9-2.2 0-3z" fill="currentColor" stroke="none" opacity=".6"/></svg>
+      <h3>Sin resultados en esta sala</h3>
+      <p>Prueba con otra palabra o cambia de colección. También puedes limpiar la búsqueda para volver a la biblioteca completa.</p>
+      <button class="btn fantasma" id="btnLimpiar">Limpiar búsqueda</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="pie-fantasma" aria-hidden="true">Biblioteca Viva</div>
+  <div class="pie-grid">
+    <div>
+      <h4>Biblioteca Viva</h4>
+      <p>Vista previa de galería serena para experimentos de desarrollo con IA. Hecha con HTML, CSS y JavaScript en un solo archivo, pensada para cargar ligero y leerse despacio.</p>
+    </div>
+    <div>
+      <h4>Salas</h4>
+      <ul>
+        <li><a href="#inicio">Portada</a></li>
+        <li><a href="#como">Cómo usar</a></li>
+        <li><a href="#galeria">Galería</a></li>
+        <li><a href="coop.html">Sala Coop
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+        </a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Colofón</h4>
+      <p>Los vínculos externos apuntan a documentación y recursos públicos. Tipografías: Fraunces, Karla y Spline Sans Mono.</p>
+    </div>
+  </div>
+  <div class="pie-bajo">
+    <span>© 2026 · Sala de prototipos</span>
+    <span class="respira"><span class="pulso"></span><span>respira</span></span>
+    <span>hecho a mano, con calma</span>
+  </div>
+</footer>
+
+<!-- ============ FICHA DETALLE ============ -->
+<div id="velo">
+  <div class="detalle" role="dialog" aria-modal="true" aria-labelledby="detTitulo" id="detContenido"></div>
+</div>
+
+<div id="toast" role="status"><i></i><span id="toastTexto"></span></div>
+
+<script>
+'use strict';
+/* ================= DATOS ================= */
+const AREAS = {
+  lenguaje:{nombre:'Lenguaje', color:'var(--c-lenguaje)'},
+  vision:{nombre:'Visión', color:'var(--c-vision)'},
+  audio:{nombre:'Audio', color:'var(--c-audio)'},
+  agentes:{nombre:'Agentes', color:'var(--c-agentes)'},
+  datos:{nombre:'Datos', color:'var(--c-datos)'},
+  etica:{nombre:'Ética', color:'var(--c-etica)'}
+};
+const DOMINIOS = ['biblioteca','música','salud','ciudad'];
+
+const IDEAS = [
+ {id:'1',num:1,area:'lenguaje',destacado:true,titulo:'Resúmenes que respiran',
+  resumen:'Convierte documentos largos en síntesis ajustables: una frase, un párrafo o un índice completo.',
+  proposito:'Explorar cómo los modelos de lenguaje condensan información sin perder matices, midiendo fidelidad, tono y extensión de forma sistemática.',
+  pasos:['Reúne cinco documentos largos de tu propia biblioteca.','Define tres niveles de resumen: frase, párrafo e índice.','Genera resúmenes con un pipeline de transformers local.','Evalúa fidelidad con ROUGE y una lectura humana lenta.','Ajusta temperatura y longitud hasta dar con el tono justo.'],
+  recursos:[['Transformers','Documentación · Hugging Face','https://huggingface.co/docs/transformers'],['OpenAI API','Referencia de la API','https://platform.openai.com/docs']],
+  etiquetas:['nlp','transformers','síntesis','rouge']},
+ {id:'2',num:2,area:'lenguaje',titulo:'Traductor de jerga',
+  resumen:'Un puente entre el lenguaje técnico y el lenguaje claro: reescribe párrafos densos para cualquier persona.',
+  proposito:'Investigar la traducción de registros dentro del mismo idioma, conservando el significado y suavizando la complejidad innecesaria.',
+  pasos:['Recopila pares de textos técnicos y sus versiones claras.','Entrena o afina un modelo seq2seq pequeño con ellos.','Define una métrica de legibilidad (por ejemplo, Flesch).','Prueba con lectores reales y registra dónde tropiezan.','Itera el prompt o el ajuste con los casos fallidos.'],
+  recursos:[['spaCy','Guías de uso · NLP industrial','https://spacy.io/usage'],['Plain Language','Guía federal de lenguaje claro','https://www.plainlanguage.gov/guidelines/']],
+  etiquetas:['nlp','lenguaje claro','seq2seq']},
+ {id:'3',num:3,area:'vision',destacado:true,titulo:'Herbario automático',
+  resumen:'Clasifica plantas a partir de fotografías de campo y construye un herbario digital con fichas generadas.',
+  proposito:'Aprender clasificación de imágenes con datos abiertos de biodiversidad y evaluar el modelo con especies locales poco representadas.',
+  pasos:['Descarga un subconjunto de imágenes de plantas de GBIF.','Prepara un dataset balanceado por especie (train/val).','Entrena un clasificador con transfer learning.','Genera una ficha textual por especie con un LLM.','Publica el herbario como galería web estática.'],
+  recursos:[['TensorFlow','Tutorial de clasificación de imágenes','https://www.tensorflow.org/tutorials/images/classification'],['GBIF','Datos abiertos de biodiversidad','https://www.gbif.org/es/']],
+  etiquetas:['visión','clasificación','biodiversidad']},
+ {id:'4',num:4,area:'vision',titulo:'Lectura de planos',
+  resumen:'Modelos multimodales que interpretan diagramas, planos y esquemas, y los describen paso a paso.',
+  proposito:'Medir hasta qué punto un modelo de visión-lenguaje comprende estructuras técnicas dibujadas, y dónde alucina detalles.',
+  pasos:['Selecciona veinte planos o diagramas de dominios distintos.','Pide descripciones a un modelo multimodal con visión.','Contrasta cada salida con la lectura de una persona experta.','Anota errores por categoría: escala, símbolos, relaciones.','Propón un prompt con andamiaje que reduzca los fallos.'],
+  recursos:[['OpenAI Vision','Guía de entrada de imágenes','https://platform.openai.com/docs/guides/vision'],['CLIP','Investigación · OpenAI','https://openai.com/research/clip']],
+  etiquetas:['multimodal','diagramas','evaluación']},
+ {id:'5',num:5,area:'audio',titulo:'Paisajes sonoros',
+  resumen:'Clasifica ambientes sonoros —bosque, calle, mercado— y compone una cartografía auditiva de tu ciudad.',
+  proposito:'Usar clasificación de audio para estudiar entornos urbanos y naturales, y visualizar cómo cambia el sonido a lo largo del día.',
+  pasos:['Graba fragmentos de un minuto en seis lugares distintos.','Clasifícalos con YAMNet u otro modelo preentrenado.','Agrega resultados por hora y por lugar.','Dibuja una cartografía sonora con los porcentajes.','Compara días laborables y fines de semana.'],
+  recursos:[['YAMNet','Tutorial · TensorFlow Hub','https://www.tensorflow.org/hub/tutorials/yamnet'],['Freesound','Sonidos con licencia abierta','https://freesound.org']],
+  etiquetas:['audio','clasificación','cartografía']},
+ {id:'6',num:6,area:'audio',titulo:'Transcriptor sereno',
+  resumen:'Transcribe reuniones con Whisper y separa las voces por participante para actas claras y accionables.',
+  proposito:'Construir un flujo de transcripción + diarización que convierta horas de audio en resúmenes legibles sin fricción manual.',
+  pasos:['Transcribe el audio con Whisper en tu idioma.','Aplica diarización con pyannote para separar hablantes.','Fusiona ambos resultados en un acta por turnos.','Resume los acuerdos con un LLM al final.','Empaqueta el flujo como un pequeño servicio local.'],
+  recursos:[['Whisper','Repositorio oficial · OpenAI','https://github.com/openai/whisper'],['pyannote-audio','Diarización de hablantes','https://github.com/pyannote/pyannote-audio']],
+  etiquetas:['asr','diarización','productividad']},
+ {id:'7',num:7,area:'agentes',destacado:true,titulo:'Bibliotecario autónomo',
+  resumen:'Un agente que cataloga recursos sueltos: los lee, los etiqueta y los ordena en estanterías temáticas.',
+  proposito:'Explorar agentes con herramientas que actúan sobre un sistema real (archivos, bases de datos) con criterios de orden definidos por ti.',
+  pasos:['Define el esquema de catálogo: áreas, etiquetas, estados.','Dota al agente de herramientas para leer y escribir fichas.','Deja que procese veinte recursos sin supervisión.','Revisa sus decisiones y registra los criterios dudosos.','Refina las instrucciones del sistema con lo aprendido.'],
+  recursos:[['LangChain','Documentación de agentes','https://python.langchain.com/docs/introduction/'],['Function calling','Guía · OpenAI','https://platform.openai.com/docs/guides/function-calling']],
+  etiquetas:['agentes','herramientas','catalogación']},
+ {id:'8',num:8,area:'agentes',titulo:'Cuadrilla de revisores',
+  resumen:'Varios agentes con roles —persona escéptica, editora, lectora novata— revisan un texto por turnos.',
+  proposito:'Estudiar cómo la diversidad de roles en un sistema multiagente mejora la revisión frente a un único modelo generalista.',
+  pasos:['Escribe un texto base para someter a revisión.','Define tres agentes con instrucciones de rol distintas.','Orquesta turnos con un grafo de estados (LangGraph).','Compara sus hallazgos con una revisión humana.','Mide si el desacuerdo entre agentes aporta valor.'],
+  recursos:[['LangGraph','Guías de orquestación','https://langchain-ai.github.io/langgraph/'],['Anthropic','Documentación de modelos','https://docs.anthropic.com']],
+  etiquetas:['multiagente','revisión','roles']},
+ {id:'9',num:9,area:'datos',titulo:'Censo de estanterías',
+  resumen:'Agrupa una colección (libros, discos, artículos) en familias invisibles mediante clustering y reducción de dimensión.',
+  proposito:'Descubrir la estructura oculta de una colección personal o institucional, y comunicar el resultado con visualizaciones honestas.',
+  pasos:['Construye una tabla de características de tu colección.','Aplica TF-IDF o embeddings según el tipo de dato.','Reduce a dos dimensiones con UMAP o t-SNE.','Agrupa con KMeans o DBSCAN y nombra cada familia.','Publica un cuaderno interactivo con los resultados.'],
+  recursos:[['scikit-learn','Guía de usuario · clustering','https://scikit-learn.org/stable/modules/clustering.html'],['Observable','Cuadernos notebooks abiertos','https://observablehq.com']],
+  etiquetas:['clustering','embeddings','visualización']},
+ {id:'10',num:10,area:'datos',titulo:'Detector de deriva',
+  resumen:'Vigila si los datos que alimentan un modelo cambian con el tiempo y avisa antes de que el modelo envejezca.',
+  proposito:'Montar un sistema de monitoreo de deriva de datos y de concepto, con umbrales de alerta comprensibles para humanos.',
+  pasos:['Guarda una instantánea de referencia de tus datos.','Programa comparaciones semanales de distribuciones.','Mide deriva con PSI, KS o herramientas dedicadas.','Define alertas con umbrales por característica.','Documenta cada alerta y su resolución en un registro.'],
+  recursos:[['Evidently AI','Documentación de monitoreo','https://docs.evidentlyai.com'],['scikit-learn','Métricas de evaluación','https://scikit-learn.org/stable/modules/model_evaluation.html']],
+  etiquetas:['ml-ops','deriva','monitoreo']},
+ {id:'11',num:11,area:'etica',titulo:'Tarjetas de modelo',
+  resumen:'Redacta model cards para tus propios modelos: para qué sirven, con qué se entrenaron y dónde fallan.',
+  proposito:'Practicar la transparencia técnica como hábito de diseño, documentando límites e impactos con el mismo cuidado que las métricas.',
+  pasos:['Elige un modelo propio o de un repositorio abierto.','Sigue la estructura clásica de una model card.','Documenta datos de entrenamiento y métricas por grupo.','Describe usos previstos y usos explícitamente no previstos.','Publica la tarjeta junto al artefacto del modelo.'],
+  recursos:[['Model Cards','Sobre el proyecto · Google','https://modelcards.withgoogle.com/about'],['Hugging Face Hub','Guía de model cards','https://huggingface.co/docs/hub/model-cards']],
+  etiquetas:['transparencia','documentación','model cards']},
+ {id:'12',num:12,area:'etica',titulo:'Auditoría de sesgo',
+  resumen:'Pon a prueba un clasificador contra subgrupos demográficos y cuantifica dónde trata peor a quién.',
+  proposito:'Aprender a medir equidad con métricas formales (paridad demográfica, igualdad de oportunidades) y a decidir con ellas, no solo con la intuición.',
+  pasos:['Elige un clasificador y una tarea con etiqueta sensible.','Calcula métricas de equidad por subgrupo con AIF360 o Fairlearn.','Visualiza las brechas en una tabla simple.','Prueba una mitigación: re-muestreo o umbrales por grupo.','Vuelve a medir y documenta la mejora (o el empeoramiento).'],
+  recursos:[['AIF360','Toolkit de equidad · IBM','https://aif360.mybluemix.net'],['Fairlearn','Documentación · Microsoft','https://fairlearn.org']],
+  etiquetas:['equidad','auditoría','métricas']},
+ /* ---- nuevas ideas ---- */
+ {id:'13',num:13,area:'lenguaje',titulo:'Poesía a dos voces',
+  resumen:'Escribe un poema alternado: tú pones un verso, el modelo responde con el siguiente, y una tercera voz edita.',
+  proposito:'Explorar la co-creación humano-modelo con restricciones formales (métrica, tono) y estudiar dónde la máquina sorprende y dónde repite.',
+  pasos:['Define la forma: estrofas de cuatro versos, tono sereno.','Escribe el primer verso y deja que el modelo continúe.','Introduce una voz editora que critique cada turno.','Cierra el poema con un verso humano.','Compara tres poemas con el mismo arranque.'],
+  recursos:[['OpenAI API','Parámetros de muestreo','https://platform.openai.com/docs'],['Poetry Foundation','Glosario de términos métricos','https://www.poetryfoundation.org/learn/glossary-terms']],
+  etiquetas:['nlp','co-creación','restricciones']},
+ {id:'14',num:14,area:'vision',titulo:'Del croquis al plano',
+  resumen:'Dibuja un croquis en una servilleta, fotografíalo y obtén un diagrama vectorial limpio y editable.',
+  proposito:'Encadenar detección de trazos, corrección geométrica y exportación SVG para convertir bocetos en material reutilizable.',
+  pasos:['Digitaliza cinco croquis con luz uniforme.','Detecta contornos y esquinas con visión clásica.','Corrige líneas con un modelo multimodal como respaldo.','Exporta a SVG ordenado por capas.','Prueba el resultado con alguien que no vio el original.'],
+  recursos:[['OpenCV','Detección de contornos','https://docs.opencv.org/4.x/'],['OpenAI Vision','Análisis de imágenes','https://platform.openai.com/docs/guides/vision']],
+  etiquetas:['visión','svg','geometría']},
+ {id:'15',num:15,area:'audio',titulo:'Partituras de lluvia',
+  resumen:'Convierte grabaciones de lluvia en patrones rítmicos y genera una pieza ambiental a partir del clima real.',
+  proposito:'Traducir señales naturales a música: detectar impactos de gotas, estimar intensidad y mapearla a tempo y densidad de notas.',
+  pasos:['Graba diez minutos de lluvia sobre distintas superficies.','Detecta picos de impacto con un umbral adaptativo.','Mapea intensidad a tempo y registro.','Sintetiza la pieza con una librería de audio.','Escucha el resultado sin mirar la grabación original.'],
+  recursos:[['librosa','Análisis de audio en Python','https://librosa.org/doc/main/index.html'],['Freesound','Muestras abiertas','https://freesound.org']],
+  etiquetas:['audio','generativo','clima']},
+ {id:'16',num:16,area:'agentes',titulo:'Conserje de calendario',
+  resumen:'Un agente que negocia horarios entre varias personas y propone la franja más amable para todas.',
+  proposito:'Practicar agentes con herramientas de calendario y preferencias blandas: no solo encontrar un hueco, sino el menos incómodo.',
+  pasos:['Modela preferencias: mañanas, tardes, bloques protegidos.','Dota al agente de lectura de tres calendarios de prueba.','Pídele cinco propuestas ordenadas por amabilidad.','Simula respuestas de los participantes.','Mide cuántas rondas necesita hasta el acuerdo.'],
+  recursos:[['LangGraph','Patrones de agente','https://langchain-ai.github.io/langgraph/'],['Google Calendar API','Referencia','https://developers.google.com/calendar/api']],
+  etiquetas:['agentes','calendario','negociación']},
+ {id:'17',num:17,area:'datos',titulo:'Serie de préstamos',
+  resumen:'Modela los préstamos mensuales de una biblioteca y anticipa las temporadas de más movimiento.',
+  proposito:'Aprender series temporales con datos agregados y anónimos, separando tendencia, estacionalidad y ruido con modelos simples.',
+  pasos:['Construye la serie mensual de tres años.','Descompón tendencia y estacionalidad.','Entrena un modelo sencillo y otro estacional.','Evalúa con los últimos seis meses retenidos.','Traduce el resultado a una nota de una página.'],
+  recursos:[['statsmodels','Series temporales en Python','https://www.statsmodels.org/stable/index.html'],['scikit-learn','Regresión','https://scikit-learn.org/stable/supervised_learning.html']],
+  etiquetas:['series','predicción','biblioteca']},
+ {id:'18',num:18,area:'etica',titulo:'Derecho a réplica',
+  resumen:'Diseña el flujo para que una persona afectada por una decisión automatizada pueda responder y ser escuchada.',
+  proposito:'Prototipar mecanismos de contestación: qué se explica, quién revisa y cuánto tarda, midiendo la fricción para la persona.',
+  pasos:['Elige una decisión automatizada cotidiana (filtro, ranking).','Redacta la notificación que recibiría la persona.','Diseña el canal de réplica en tres pasos o menos.','Define quién revisa y con qué plazo.','Simula cinco casos y mide tiempos reales.'],
+  recursos:[['GDPR · Artículo 22','Decisiones automatizadas','https://gdpr-info.eu/art-22-gdpr/'],['Model Cards','Documentación de límites','https://modelcards.withgoogle.com/about']],
+  etiquetas:['ética','debido proceso','ux']},
+ /* ---- bocetos: semillas simples para mejorar más tarde ---- */
+ {id:'19',num:19,area:'lenguaje',boceto:true,titulo:'Glosario vivo',
+  resumen:'Un glosario que se escribe solo: detecta términos técnicos en tus documentos y propone definiciones de una línea.',
+  proposito:'Semilla sencilla para experimentar con extracción de términos y generación de definiciones. Pendiente de pulir.',
+  pasos:['Extrae los términos más frecuentes de un corpus.','Pide al modelo una definición breve por término.','Revisa a mano y guarda el glosario en Markdown.'],
+  recursos:[['spaCy','Extracción de términos','https://spacy.io/usage']],
+  etiquetas:['nlp','glosario']},
+ {id:'20',num:20,area:'vision',boceto:true,titulo:'Colores de barrio',
+  resumen:'Extrae la paleta cromática dominante de fotos urbanas y compara un barrio con otro.',
+  proposito:'Boceto rápido: clustering de color sobre fotografías. Falta definir la toma de muestras y la métrica de comparación.',
+  pasos:['Recopila fotos de dos barrios distintos.','Extrae colores dominantes con k-means.','Compara las paletas lado a lado.'],
+  recursos:[['scikit-learn','Clustering de color','https://scikit-learn.org/stable/modules/clustering.html']],
+  etiquetas:['visión','color']},
+ {id:'21',num:21,area:'datos',boceto:true,titulo:'Ritmo de la sala',
+  resumen:'Mide la ocupación de un espacio a lo largo del día y encuentra sus horas más serenas.',
+  proposito:'Idea en pañales: registrar afluencia y visualizar ritmos diarios. Pendiente decidir sensores y criterios de privacidad.',
+  pasos:['Registra conteos por hora durante dos semanas.','Dibuja la curva diaria media.','Marca las franjas más tranquilas.'],
+  recursos:[['Observable','Visualización','https://observablehq.com']],
+  etiquetas:['datos','series']}
+];
+
+/* ================= ESTADO ================= */
+const estado = { area:'todas', q:'' };
+let variantes = [];
+let numSig = 100;
+let ideaAbierta = null;
+let focoPrevio = null;
+const rm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const $ = s => document.querySelector(s);
+const todas = () => [...variantes, ...IDEAS];
+const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+
+/* ================= CORTINA ================= */
+(function(){
+  const palabra = 'Biblioteca Viva';
+  $('#palabraCortina').innerHTML = palabra.split('').map((c,i)=>`<span style="--i:${i}">${c===' '?'&nbsp;':c}</span>`).join('');
+  const fuera = ()=>{ const c=$('#cortina'); if(!c) return; c.classList.add('fuera'); setTimeout(()=>c.remove(),800); };
+  if(rm){ fuera(); }
+  else{
+    window.addEventListener('load',()=>setTimeout(fuera,450));
+    setTimeout(fuera,1600);
+  }
+})();
+
+/* ================= TEMA ================= */
+const btnTema = $('#btnTema');
+function aplicarTema(t){
+  document.documentElement.dataset.tema = t;
+  try{ localStorage.setItem('bv-tema', t); }catch(e){}
+  btnTema.setAttribute('aria-label', t==='claro' ? 'Activar modo noche' : 'Activar modo día');
+}
+btnTema.addEventListener('click', ()=>{
+  aplicarTema(document.documentElement.dataset.tema==='claro' ? 'oscuro' : 'claro');
+});
+aplicarTema(document.documentElement.dataset.tema);
+
+/* ================= CABECERA + PROGRESO ================= */
+const cabecera = $('#cabecera'), progreso = $('#progreso');
+let tickScroll = false;
+function alScroll(){
+  cabecera.classList.toggle('flota', window.scrollY > 10);
+  const max = document.documentElement.scrollHeight - innerHeight;
+  progreso.style.width = (max>0 ? (window.scrollY/max)*100 : 0) + '%';
+  tickScroll = false;
+}
+window.addEventListener('scroll', ()=>{ if(!tickScroll){ tickScroll=true; requestAnimationFrame(alScroll); } }, {passive:true});
+alScroll();
+
+/* ================= MOTAS DE POLVO ================= */
+(function(){
+  if(rm) return;
+  const cv = $('#motas'), ctx = cv.getContext('2d');
+  let W, H, motas = [], t = 0;
+  function medir(){
+    W = cv.width = innerWidth * devicePixelRatio;
+    H = cv.height = innerHeight * devicePixelRatio;
+    cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px';
+    const n = Math.min(54, Math.floor(innerWidth/26));
+    motas = Array.from({length:n}, ()=>({
+      x: Math.random()*W, y: Math.random()*H,
+      r: (0.7 + Math.random()*1.9) * devicePixelRatio,
+      vy: (0.06 + Math.random()*0.22) * devicePixelRatio,
+      fase: Math.random()*Math.PI*2,
+      vel: 0.004 + Math.random()*0.008,
+      a: 0.08 + Math.random()*0.22,
+      calida: Math.random() < 0.22
+    }));
+  }
+  function pintar(){
+    t++;
+    const oscuro = document.documentElement.dataset.tema==='oscuro';
+    ctx.clearRect(0,0,W,H);
+    for(const m of motas){
+      m.y -= m.vy;
+      m.x += Math.sin(t*m.vel + m.fase) * 0.25 * devicePixelRatio;
+      if(m.y < -8){ m.y = H + 8; m.x = Math.random()*W; }
+      const base = oscuro ? (m.calida?'210,175,110':'143,176,156') : (m.calida?'194,154,85':'111,143,124');
+      const parp = m.a * (0.7 + 0.3*Math.sin(t*0.02 + m.fase));
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(${base},${parp})`;
+      ctx.fill();
+    }
+    if(!document.hidden) requestAnimationFrame(pintar);
+    else setTimeout(()=>requestAnimationFrame(pintar), 400);
+  }
+  medir();
+  window.addEventListener('resize', medir, {passive:true});
+  requestAnimationFrame(pintar);
+})();
+
+/* ================= REVEAL ================= */
+const io = new IntersectionObserver(entradas=>{
+  entradas.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+},{threshold:.12, rootMargin:'0px 0px -6% 0px'});
+function observar(){ document.querySelectorAll('.reveal:not(.in)').forEach(el=>io.observe(el)); }
+observar();
+
+/* ================= CIFRAS (dinámicas) ================= */
+$('#cifIdeas').dataset.fin = todas().length;
+$('#cifAreas').dataset.fin = Object.keys(AREAS).length;
+function contar(el){
+  const fin = +el.dataset.fin;
+  if(rm || fin===0){ el.textContent = fin; return; }
+  const ini = performance.now(), dur = 1100;
+  (function paso(t){
+    const p = Math.min(1,(t-ini)/dur);
+    el.textContent = Math.round(fin * (1 - Math.pow(1-p,3)));
+    if(p<1) requestAnimationFrame(paso);
+  })(ini);
+}
+const ioCif = new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){ e.target.querySelectorAll('strong[data-fin]').forEach(contar); ioCif.disconnect(); } });
+},{threshold:.4});
+ioCif.observe($('#cifras'));
+
+/* ================= FICHERO ROTATORIO ================= */
+(function(){
+  if(rm) return;
+  const pila = [...IDEAS].sort((a,b)=>(b.destacado?1:0)-(a.destacado?1:0)).slice(0,6);
+  const cartas = [...document.querySelectorAll('.ficha-pila')];
+  let orden = [0,1,2], frente = 0;
+  function pintar(el, idea){
+    el.querySelector('.fp-area span').textContent = AREAS[idea.area].nombre;
+    el.querySelector('.fp-area i').style.background = AREAS[idea.area].color;
+    el.querySelector('.fp-titulo').textContent = idea.titulo;
+    el.querySelector('.fp-num').textContent = 'nº ' + String(idea.num).padStart(3,'0');
+  }
+  pintar(cartas[orden[0]], pila[0]);
+  setInterval(()=>{
+    if(document.hidden) return;
+    const atras = orden.shift(); orden.push(atras);
+    orden.forEach((idx,pos)=>cartas[idx].dataset.pos = pos);
+    frente = (frente+1) % pila.length;
+    setTimeout(()=>pintar(cartas[orden[0]], pila[frente]), 420);
+  }, 3600);
+})();
+
+/* ================= CHIPS ================= */
+const chipsEl = $('#chips');
+function renderChips(){
+  const datos = todas();
+  const cuenta = a => datos.filter(i=>i.area===a).length;
+  const nBocetos = datos.filter(i=>i.boceto).length;
+  let html = `<button class="chip" data-area="todas" aria-pressed="${estado.area==='todas'}">Todas <sup>${datos.length}</sup></button>`;
+  for(const [clave, meta] of Object.entries(AREAS)){
+    html += `<button class="chip" data-area="${clave}" style="--chip-color:${meta.color}" aria-pressed="${estado.area===clave}"><i></i>${meta.nombre} <sup>${cuenta(clave)}</sup></button>`;
+  }
+  html += `<button class="chip" data-area="bocetos" style="--chip-color:var(--ambar)" aria-pressed="${estado.area==='bocetos'}"><i></i>✎ Bocetos <sup>${nBocetos}</sup></button>`;
+  chipsEl.innerHTML = html;
+}
+chipsEl.addEventListener('click', e=>{
+  const b = e.target.closest('.chip'); if(!b) return;
+  estado.area = b.dataset.area;
+  renderChips(); renderRejilla();
+});
+
+/* ================= BÚSQUEDA ================= */
+const campoQ = $('#campoQ'), buscador = $('#buscador');
+let esperaQ = null;
+campoQ.addEventListener('input', ()=>{
+  buscador.classList.toggle('con-texto', campoQ.value.length>0);
+  clearTimeout(esperaQ);
+  esperaQ = setTimeout(()=>{ estado.q = campoQ.value.trim(); renderRejilla(); }, 130);
+});
+$('#limpiarQ').addEventListener('click', ()=>{
+  campoQ.value=''; estado.q=''; buscador.classList.remove('con-texto'); renderRejilla(); campoQ.focus();
+});
+$('#btnLimpiar').addEventListener('click', ()=>{
+  campoQ.value=''; estado.q=''; estado.area='todas';
+  buscador.classList.remove('con-texto');
+  renderChips(); renderRejilla();
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='/' && document.activeElement!==campoQ && !$('#velo').classList.contains('abierto')){
+    e.preventDefault(); campoQ.focus();
+  }
+  if(e.key==='Escape'){
+    if($('#velo').classList.contains('abierto')) cerrarDetalle();
+    else if(document.activeElement===campoQ && campoQ.value){ campoQ.value=''; estado.q=''; buscador.classList.remove('con-texto'); renderRejilla(); }
+  }
+});
+
+/* ================= REJILLA ================= */
+const rejilla = $('#rejilla'), vacio = $('#vacio'), resultados = $('#resultados');
+const flechaSVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+function filtrar(){
+  const q = norm(estado.q);
+  return todas().filter(i=>{
+    if(estado.area==='bocetos'){ if(!i.boceto) return false; }
+    else if(estado.area!=='todas' && i.area!==estado.area) return false;
+    if(!q) return true;
+    const paja = norm([i.titulo,i.resumen,i.proposito,AREAS[i.area].nombre,i.etiquetas.join(' '),i.dominio||''].join(' '));
+    return paja.includes(q);
+  });
+}
+function tarjetaHTML(i, idx){
+  const meta = AREAS[i.area];
+  const insignias = [];
+  if(i.esVariante) insignias.push(`<span class="insignia">variante · ${i.dominio}</span>`);
+  else if(i.boceto) insignias.push(`<span class="insignia boc">✎ boceto · por pulir</span>`);
+  else if(i.destacado) insignias.push(`<span class="insignia">✦ destacado</span>`);
+  const tags = i.etiquetas.slice(0,3).map(t=>`<li>${t}</li>`).join('');
+  return `<article class="ficha reveal${i.boceto?' boceto':''}" data-id="${i.id}" tabindex="0" role="button" aria-haspopup="dialog"
+    aria-label="Abrir ficha: ${i.titulo}" style="--acento:${meta.color};--d:${(idx%6)*70}ms">
+    <span class="lomo" aria-hidden="true"></span>
+    <header class="ficha-cabeza">
+      <span class="area"><i class="punto"></i>${meta.nombre}</span>
+      <span class="num">${String(i.num).padStart(2,'0')}</span>
+    </header>
+    ${insignias.length?`<div class="insignias">${insignias.join('')}</div>`:''}
+    <h3 class="ficha-titulo">${i.titulo}</h3>
+    <p class="ficha-resumen">${i.resumen}</p>
+    <ul class="ficha-tags">${tags}</ul>
+    <footer class="ficha-pie">
+      <span class="abrir">Abrir ficha ${flechaSVG}</span>
+      <span class="rec">${i.recursos.length} ${i.recursos.length===1?'recurso':'recursos'}</span>
+    </footer>
+  </article>`;
+}
+function renderRejilla(resaltarId){
+  const lista = filtrar();
+  rejilla.innerHTML = lista.map(tarjetaHTML).join('');
+  vacio.classList.toggle('visible', lista.length===0);
+  const total = todas().length;
+  resultados.innerHTML = lista.length===total
+    ? `<b>${total}</b> fichas en la sala · estantería completa`
+    : `mostrando <b>${lista.length}</b> de ${total} fichas`;
+  $('#cifIdeas').textContent = total;
+  observar();
+  if(resaltarId){
+    const el = rejilla.querySelector(`[data-id="${resaltarId}"]`);
+    if(el){ el.classList.add('nueva'); el.scrollIntoView({behavior: rm?'auto':'smooth', block:'center'}); }
+  }
+}
+rejilla.addEventListener('click', e=>{
+  const f = e.target.closest('.ficha'); if(f) abrirDetalle(f.dataset.id);
+});
+rejilla.addEventListener('keydown', e=>{
+  if((e.key==='Enter'||e.key===' ') && e.target.classList.contains('ficha')){
+    e.preventDefault(); abrirDetalle(e.target.dataset.id);
+  }
+});
+rejilla.addEventListener('mousemove', e=>{
+  const f = e.target.closest('.ficha'); if(!f) return;
+  const r = f.getBoundingClientRect();
+  f.style.setProperty('--mx', ((e.clientX-r.left)/r.width*100)+'%');
+  f.style.setProperty('--my', ((e.clientY-r.top)/r.height*100)+'%');
+});
+
+/* ================= DETALLE ================= */
+const velo = $('#velo'), detContenido = $('#detContenido');
+function abrirDetalle(id){
+  const idea = todas().find(i=>String(i.id)===String(id)); if(!idea) return;
+  ideaAbierta = idea; focoPrevio = document.activeElement;
+  const meta = AREAS[idea.area];
+  const pasos = idea.pasos.map(p=>`<li><span>${p}</span></li>`).join('');
+  const recursos = idea.recursos.map(([nombre,fuente,url])=>`
+    <li><a href="${url}" target="_blank" rel="noopener noreferrer">
+      <span><span class="nombre">${nombre}</span><span class="fuente">${fuente}</span></span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+    </a></li>`).join('');
+  detContenido.style.setProperty('--acento', meta.color);
+  detContenido.innerHTML = `
+    <button class="cerrar" aria-label="Cerrar ficha">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="det-cabeza">
+      <span class="det-area"><i></i>${meta.nombre}</span>
+      <span class="det-num">ficha ${String(idea.num).padStart(3,'0')}</span>
+      ${idea.esVariante?`<span class="insignia">variante · ${idea.dominio}</span>`:''}
+      ${idea.boceto?`<span class="insignia boc">✎ boceto</span>`:''}
+    </div>
+    <h2 id="detTitulo">${idea.titulo}</h2>
+    ${idea.boceto?`<p class="nota-boceto">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      Ficha en construcción: es una semilla simple para desarrollar más adelante. Los pasos y recursos son orientativos.</p>`:''}
+    <div class="det-bloque"><h3>Propósito</h3><p>${idea.proposito}</p></div>
+    <div class="det-bloque"><h3>Ruta sugerida</h3><ol class="ruta">${pasos}</ol></div>
+    <div class="det-bloque"><h3>Recursos</h3><ul class="recursos">${recursos}</ul></div>
+    <div class="det-acciones">
+      <button class="btn fantasma mini" id="btnDup">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        Duplicar idea
+      </button>
+      <div class="dominios" id="dominios">
+        <span class="rotulo">nuevo dominio →</span>
+        ${DOMINIOS.map(d=>`<button class="dom-chip" data-dom="${d}">${d}</button>`).join('')}
+      </div>
+    </div>`;
+  velo.classList.add('abierto');
+  document.body.style.overflow = 'hidden';
+  detContenido.querySelector('.cerrar').focus();
+  detContenido.querySelector('.cerrar').addEventListener('click', cerrarDetalle);
+  detContenido.querySelector('#btnDup').addEventListener('click', ()=>{
+    $('#dominios').classList.toggle('visible');
+  });
+  detContenido.querySelectorAll('.dom-chip').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const v = crearVariante(idea, b.dataset.dom);
+      cerrarDetalle();
+      avisar(`Variante «${b.dataset.dom}» añadida a la estantería`);
+      renderChips(); renderRejilla(v.id);
+    });
+  });
+}
+velo.addEventListener('click', e=>{ if(e.target===velo) cerrarDetalle(); });
+document.addEventListener('keydown', e=>{
+  if(!velo.classList.contains('abierto') || e.key!=='Tab') return;
+  const focos = [...detContenido.querySelectorAll('button, a[href]')].filter(el=>el.offsetParent!==null);
+  if(!focos.length) return;
+  const primero = focos[0], ultimo = focos[focos.length-1];
+  if(e.shiftKey && document.activeElement===primero){ e.preventDefault(); ultimo.focus(); }
+  else if(!e.shiftKey && document.activeElement===ultimo){ e.preventDefault(); primero.focus(); }
+});
+function cerrarDetalle(){
+  velo.classList.remove('abierto');
+  document.body.style.overflow = '';
+  ideaAbierta = null;
+  if(focoPrevio) focoPrevio.focus();
+}
+function crearVariante(base, dominio){
+  const v = {
+    ...base,
+    id:'v'+Date.now(), num:numSig++,
+    esVariante:true, boceto:false, destacado:false, dominio,
+    proposito:`Adaptación al dominio «${dominio}». ${base.proposito}`,
+    etiquetas:[...base.etiquetas, dominio],
+    pasos:[...base.pasos],
+    recursos:base.recursos.map(r=>[...r])
+  };
+  variantes.unshift(v);
+  return v;
+}
+
+/* ================= TOAST ================= */
+let toastTimer = null;
+function avisar(msg){
+  const t = $('#toast');
+  $('#toastTexto').textContent = msg;
+  t.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('visible'), 3000);
+}
+
+/* ================= INICIO ================= */
+renderChips();
+renderRejilla();
+</script>
+</body>
+</html>

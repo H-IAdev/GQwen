@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LUMEN ST // AMPLIACIÓN 42-C/2 — Suministros de largo alcance · hotlinks CDN</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/archivo-black@latest/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/barlow-condensed@latest/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/ibm-plex-sans@latest/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/css/ibm-plex-mono@latest/index.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js"></script>
+<style>
+:root{
+  --bg:#070b0e; --bg2:#0a1014; --panel:#0e161b; --panel2:#122027;
+  --line:#1d3340; --line2:#2c4d5e; --ink:#e6f0f4; --dim:#88a3ad; --dim2:#567079;
+  --amber:#ffb454; --amber-d:#7a4f12; --toxic:#9dff57; --toxic2:#7aa03c;
+  --mag:#ff4fd8; --cyan:#46d6ff; --cyan-d:#13607a; --red:#ff5a45; --paper:#efe9d8;
+  --haz:repeating-linear-gradient(45deg,var(--amber) 0 11px,#191204 11px 22px);
+  --hazc:repeating-linear-gradient(45deg,var(--cyan) 0 9px,#062028 9px 18px);
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --cond:'Barlow Condensed',sans-serif;
+  --disp:'Archivo Black',sans-serif;
+  --body:'IBM Plex Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--body);color:var(--ink);background:var(--bg);
+  line-height:1.55;overflow-x:hidden;
+  background-image:
+    radial-gradient(120% 80% at 50% -10%,rgba(70,214,255,.10),transparent 60%),
+    radial-gradient(90% 60% at 100% 100%,rgba(157,255,87,.06),transparent 55%),
+    linear-gradient(180deg,var(--bg),var(--bg2));
+}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(44,77,94,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(44,77,94,.10) 1px,transparent 1px);
+  background-size:46px 46px;mask-image:radial-gradient(120% 90% at 50% 30%,#000 30%,transparent 92%);}
+body::after{content:"";position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.35;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);mix-blend-mode:multiply;}
+#dust{position:fixed;inset:0;z-index:1;pointer-events:none}
+.wrap{position:relative;z-index:2;max-width:1280px;margin:0 auto;padding:0 20px}
+a{color:inherit}
+::selection{background:var(--cyan);color:#04181f}
+
+.ticker{position:relative;z-index:3;border-bottom:1px solid var(--line);background:#080d11;overflow:hidden}
+.ticker .haz{height:6px;background:var(--hazc)}
+.ticker .track{display:flex;white-space:nowrap;will-change:transform;animation:scroll 40s linear infinite}
+.ticker:hover .track{animation-play-state:paused}
+.ticker .track span{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--dim);padding:9px 22px;text-transform:uppercase}
+.ticker .track b{color:var(--cyan)} .ticker .track i{color:var(--toxic);font-style:normal}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+.topbar{position:sticky;top:0;z-index:40;backdrop-filter:blur(8px);background:rgba(7,11,14,.82);border-bottom:1px solid var(--line)}
+.topbar .haz{height:4px;background:var(--hazc)}
+.topbar .row{display:flex;align-items:center;gap:14px;padding:10px 20px;max-width:1280px;margin:0 auto}
+.brand{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--dim);white-space:nowrap}
+.brand b{color:var(--ink)} .brand em{color:var(--cyan);font-style:normal}
+.rec{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--red);letter-spacing:.15em}
+.rec .dot{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:blink 1.1s steps(2) infinite}
+@keyframes blink{50%{opacity:.15}}
+.search{flex:1;min-width:120px;position:relative}
+.search input{width:100%;background:#0a1116;border:1px solid var(--line);color:var(--ink);font-family:var(--mono);font-size:12.5px;padding:8px 12px 8px 30px;letter-spacing:.04em;outline:none}
+.search input:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(70,214,255,.18)}
+.search::before{content:"⌕";position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--dim2);font-size:14px}
+.mbtn{font-family:var(--mono);font-size:11px;letter-spacing:.12em;background:var(--cyan);color:#04181f;border:none;padding:9px 13px;cursor:pointer;white-space:nowrap;font-weight:700}
+.mbtn:hover{filter:brightness(1.12)}
+
+header.file{position:relative;padding:46px 0 26px;border-bottom:1px solid var(--line)}
+.filemeta{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;margin-bottom:22px}
+.filemeta span{display:inline-flex;align-items:center;gap:7px}
+.filemeta .k{color:var(--dim2)} .filemeta .v{color:var(--ink)}
+.stamp{position:absolute;top:34px;right:0;transform:rotate(8deg);border:2px solid var(--cyan);color:var(--cyan);font-family:var(--disp);font-size:13px;letter-spacing:.1em;padding:7px 12px;line-height:1;box-shadow:inset 0 0 0 2px rgba(70,214,255,.25);text-align:center;opacity:.92}
+.stamp small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;margin-top:4px;color:var(--cyan)}
+h1.title{font-family:var(--disp);line-height:.86;letter-spacing:-.01em;font-size:clamp(38px,8vw,104px)}
+h1.title .l1{display:block;color:var(--ink)}
+h1.title .l2{display:block;-webkit-text-stroke:1.5px var(--cyan-d);color:transparent}
+h1.title .l2 em{font-style:normal;-webkit-text-stroke:0;color:var(--amber)}
+.lede{max-width:780px;margin-top:18px;color:var(--dim);font-size:15.5px}
+.lede b{color:var(--ink)} .lede em{color:var(--cyan);font-style:normal}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:.08em;padding:6px 11px;border:1px solid var(--line);color:var(--dim);background:rgba(18,32,39,.5)}
+.chip b{color:var(--cyan)} .chip.am b{color:var(--amber)} .chip.tx b{color:var(--toxic)}
+
+.banner{position:relative;margin:26px 0 0;border:1px solid var(--line);overflow:hidden;height:clamp(220px,34vw,420px)}
+.banner img{width:100%;height:100%;object-fit:cover;filter:saturate(1.05) contrast(1.05)}
+.banner .ov{position:absolute;inset:0;background:linear-gradient(90deg,rgba(7,11,14,.85),rgba(7,11,14,.15) 60%,rgba(7,11,14,.55)),linear-gradient(0deg,rgba(7,11,14,.9),transparent 45%)}
+.banner .cap{position:absolute;left:0;right:0;bottom:0;padding:16px 18px;display:flex;flex-wrap:wrap;gap:10px;align-items:end;justify-content:space-between}
+.banner .cap h3{font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:clamp(18px,3vw,30px);line-height:1}
+.banner .cap .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--cyan);border:1px solid var(--cyan-d);padding:5px 9px}
+.corner{position:absolute;width:18px;height:18px;border:2px solid var(--cyan)}
+.corner.tl{top:8px;left:8px;border-right:0;border-bottom:0}.corner.tr{top:8px;right:8px;border-left:0;border-bottom:0}
+.corner.bl{bottom:8px;left:8px;border-right:0;border-top:0}.corner.br{bottom:8px;right:8px;border-left:0;border-top:0}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:26px 0 0}
+.stat{background:var(--panel);padding:18px 16px;position:relative}
+.stat .n{font-family:var(--disp);font-size:clamp(28px,5vw,52px);line-height:1;color:var(--ink)}
+.stat .n.cy{color:var(--cyan)} .stat .n.tx{color:var(--toxic)} .stat .n.am{color:var(--amber)} .stat .n.mg{color:var(--mag)}
+.stat .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--dim);margin-top:8px;text-transform:uppercase}
+.stat .bar{position:absolute;left:0;top:0;height:3px;width:100%}
+.stat:nth-child(1) .bar{background:var(--cyan)} .stat:nth-child(2) .bar{background:var(--toxic)} .stat:nth-child(3) .bar{background:var(--amber)} .stat:nth-child(4) .bar{background:var(--mag)}
+
+/* v1 recap */
+.recap{margin:26px 0 0;border:1px dashed var(--line);padding:14px 16px;background:rgba(14,22,27,.5)}
+.recap .h{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--dim2);text-transform:uppercase;margin-bottom:10px}
+.recap .h b{color:var(--toxic2)}
+.recap .row{display:flex;flex-wrap:wrap;gap:7px}
+.recap .r{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--dim);border:1px solid var(--line);padding:5px 9px;display:inline-flex;gap:6px;align-items:center}
+.recap .r b{color:var(--toxic2)} .recap .r .s{color:var(--dim2)}
+
+section.lot{padding:54px 0 8px;scroll-margin-top:74px}
+.sechead{display:flex;align-items:flex-end;gap:18px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:22px;position:relative}
+.sechead .big{font-family:var(--disp);font-size:clamp(50px,9vw,104px);line-height:.8;-webkit-text-stroke:1.5px var(--line2);color:transparent}
+.sechead .meta{flex:1}
+.sechead .meta .ix{font-family:var(--mono);font-size:11px;letter-spacing:.2em;color:var(--cyan)}
+.sechead .meta h2{font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:clamp(22px,3.4vw,34px);line-height:1.02}
+.sechead .meta p{color:var(--dim);font-size:13px;margin-top:4px;max-width:660px}
+.sechead .haz{position:absolute;left:0;right:0;bottom:-1px;height:3px;background:var(--hazc);opacity:.55}
+
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 22px}
+.legend .lg{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--dim);display:flex;align-items:center;gap:7px;border:1px solid var(--line);padding:6px 10px}
+.legend .lg b{font-weight:700}
+.dotc{width:9px;height:9px;border-radius:50%}
+.dotc.g{background:var(--toxic)} .dotc.a{background:var(--amber)} .dotc.r{background:var(--red)} .dotc.c{background:var(--cyan)} .dotc.m{background:var(--mag)}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.fbtn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;background:transparent;border:1px solid var(--line);color:var(--dim);padding:7px 12px;cursor:pointer;text-transform:uppercase;transition:.15s}
+.fbtn:hover{border-color:var(--line2);color:var(--ink)}
+.fbtn.on{background:var(--cyan);color:#04181f;border-color:var(--cyan);font-weight:700}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px 16px 14px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);display:flex;flex-direction:column;transition:transform .18s,border-color .18s,box-shadow .18s;overflow:hidden}
+.card::after{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;background:linear-gradient(100deg,transparent,rgba(70,214,255,.07),transparent);transition:left .5s}
+.card:hover{transform:translateY(-3px);border-color:var(--line2);box-shadow:0 14px 30px -18px rgba(0,0,0,.8)}
+.card:hover::after{left:140%}
+.card.hide{display:none}
+.card .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.lot-id{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--dim2)}
+.lic{font-family:var(--mono);font-size:10px;letter-spacing:.1em;padding:3px 7px;font-weight:700}
+.lic.cc0{background:rgba(157,255,87,.14);color:var(--toxic);border:1px solid rgba(157,255,87,.4)}
+.lic.by{background:rgba(255,180,84,.14);color:var(--amber);border:1px solid rgba(255,180,84,.4)}
+.lic.cuenta{background:rgba(70,214,255,.12);color:var(--cyan);border:1px solid rgba(70,214,255,.4)}
+.lic.warn{background:rgba(255,90,69,.12);color:var(--red);border:1px solid rgba(255,90,69,.4)}
+.lic.libre{background:rgba(157,255,87,.10);color:var(--toxic2);border:1px solid rgba(122,160,60,.5)}
+.lic.mix{background:rgba(255,79,216,.12);color:var(--mag);border:1px solid rgba(255,79,216,.4)}
+.lic.tool{background:rgba(136,163,173,.12);color:var(--dim);border:1px solid var(--line2)}
+.mb{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.opt{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;background:var(--cyan);color:#04181f;padding:3px 7px;font-weight:700}
+.card h4{font-family:var(--cond);font-weight:700;font-size:19px;letter-spacing:.01em;line-height:1.05;text-transform:uppercase}
+.card .src{font-family:var(--mono);font-size:10.5px;color:var(--cyan);letter-spacing:.05em;margin:2px 0 8px}
+.card .desc{font-size:13px;color:var(--dim);margin-bottom:10px}
+.hot{font-family:var(--mono);font-size:10.5px;color:var(--toxic);background:#06140d;border:1px solid rgba(157,255,87,.25);padding:7px 9px;margin-bottom:10px;display:flex;align-items:center;gap:8px;word-break:break-all}
+.hot .u{flex:1;opacity:.92}
+.hot .cp{flex:none;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;background:transparent;border:1px solid rgba(157,255,87,.4);color:var(--toxic);padding:3px 7px;cursor:pointer}
+.hot .cp:hover{background:rgba(157,255,87,.14)}
+.hot .cp.ok{background:var(--toxic);color:#06140d}
+.card .fit{font-size:12px;color:var(--dim2);border-left:2px solid var(--line2);padding-left:10px;margin-bottom:14px}
+.card .fit b{color:var(--cyan);font-family:var(--mono);font-size:10px;letter-spacing:.12em;display:block;margin-bottom:3px}
+.card .foot{display:flex;gap:8px;margin-top:auto;align-items:center}
+.btn-link{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink);text-decoration:none;border:1px solid var(--line2);padding:8px 11px;flex:1;text-align:center;transition:.15s}
+.btn-link:hover{background:var(--line2);color:#fff}
+.btn-test{font-family:var(--mono);font-size:11px;letter-spacing:.08em;background:transparent;border:1px solid var(--cyan);color:var(--cyan);padding:8px 11px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-test:hover{background:rgba(70,214,255,.14)}
+.btn-req{font-family:var(--mono);font-size:11px;letter-spacing:.08em;background:transparent;border:1px solid var(--toxic2);color:var(--toxic);padding:8px 11px;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-req:hover{background:rgba(157,255,87,.12)}
+.btn-req.added{background:var(--toxic);color:#0c120b;border-color:var(--toxic);font-weight:700}
+.toolnote{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--dim2);margin-top:auto;padding-top:6px}
+
+/* viewer */
+.viewer{display:grid;grid-template-columns:1.4fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:8px}
+.vstage{position:relative;background:radial-gradient(120% 90% at 50% 20%,#0c1820,#05080b);min-height:450px}
+.vstage canvas{display:block;width:100%;height:100%}
+.vhud{position:absolute;top:10px;left:10px;font-family:var(--mono);font-size:10.5px;color:var(--cyan);letter-spacing:.06em;background:rgba(5,8,11,.62);border:1px solid var(--line);padding:8px 10px;line-height:1.7;pointer-events:none;max-width:62%}
+.vhud b{color:var(--amber)}
+.vbadge{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--dim);border:1px solid var(--line);padding:5px 8px;background:rgba(5,8,11,.62)}
+.vprog{position:absolute;left:0;right:0;bottom:0;height:4px;background:#05080b;display:none}
+.vprog.on{display:block}
+.vprog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan-d),var(--cyan));transition:width .15s}
+.vsrc{position:absolute;left:10px;bottom:12px;right:10px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--toxic2);background:rgba(5,8,11,.6);border:1px solid var(--line);padding:5px 8px;word-break:break-all;pointer-events:none}
+.vpanel{background:var(--panel);padding:16px;display:flex;flex-direction:column;gap:14px}
+.vpanel h3{font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:18px}
+.vpanel .grp{display:flex;flex-direction:column;gap:7px}
+.vpanel .grp > label{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--dim2);text-transform:uppercase}
+.vrow{display:flex;flex-wrap:wrap;gap:6px}
+.vb{font-family:var(--mono);font-size:11px;letter-spacing:.06em;background:#0a1116;border:1px solid var(--line);color:var(--dim);padding:8px 10px;cursor:pointer;transition:.12s}
+.vb:hover{border-color:var(--line2);color:var(--ink)}
+.vb.on{background:var(--cyan);color:#04181f;border-color:var(--cyan);font-weight:700}
+.vb.tx.on{background:var(--toxic);border-color:var(--toxic);color:#0c120b}
+.vlog{font-family:var(--mono);font-size:10.5px;color:var(--dim);background:#05080b;border:1px solid var(--line);padding:8px 10px;height:104px;overflow:auto;line-height:1.6}
+.vlog .e{color:var(--toxic)} .vlog .w{color:var(--amber)} .vlog .c{color:var(--cyan)}
+.slider{display:flex;align-items:center;gap:10px}
+.slider input{flex:1;accent-color:var(--cyan)}
+.slider .val{font-family:var(--mono);font-size:11px;color:var(--cyan);min-width:42px;text-align:right}
+.pizza{display:flex;gap:6px}
+.pizza input{flex:1;background:#0a1116;border:1px solid var(--line);color:var(--ink);font-family:var(--mono);font-size:11px;padding:8px 10px;outline:none}
+.pizza input:focus{border-color:var(--cyan)}
+.pizza button{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;background:var(--mag);color:#1a0416;border:none;padding:8px 11px;cursor:pointer;font-weight:700}
+.vnote{font-size:11.5px;color:var(--dim2);border-top:1px dashed var(--line);padding-top:10px}
+
+.codeblock{border:1px solid var(--line);margin:14px 0;background:#05090c}
+.codeblock .ch{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a1217;border-bottom:1px solid var(--line)}
+.codeblock .ch .fn{font-family:var(--mono);font-size:11.5px;color:var(--cyan);letter-spacing:.04em}
+.codeblock .ch .dots{display:flex;gap:5px}
+.codeblock .ch .dots i{width:9px;height:9px;border-radius:50%;display:block}
+.codeblock .ch .dots i:nth-child(1){background:var(--red)} .codeblock .ch .dots i:nth-child(2){background:var(--amber)} .codeblock .ch .dots i:nth-child(3){background:var(--toxic)}
+.codeblock .ch .cp{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;background:transparent;border:1px solid var(--line2);color:var(--dim);padding:5px 10px;cursor:pointer;transition:.12s}
+.codeblock .ch .cp:hover{color:var(--ink);border-color:var(--cyan)}
+.codeblock .ch .cp.ok{background:var(--toxic);color:#0c120b;border-color:var(--toxic)}
+.codeblock pre{margin:0;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.65;color:#c4d6dc;tab-size:2}
+.codeblock pre .c{color:#4f7a82;font-style:italic}
+.codeblock pre .s{color:#e0a85a}
+.codeblock pre .k{color:#7fc7ff}
+.codeblock pre .n{color:#d98ad6}
+.codeblock pre .f{color:#9dff57}
+
+.tblwrap{overflow-x:auto;border:1px solid var(--line);margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
+th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line)}
+th{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase;background:#0a1217}
+td{color:var(--dim)} td b{color:var(--ink)}
+tbody tr:hover{background:rgba(70,214,255,.04)}
+td .pill{font-family:var(--mono);font-size:10px;padding:2px 7px}
+.pill.g{background:rgba(157,255,87,.14);color:var(--toxic)} .pill.a{background:rgba(255,180,84,.14);color:var(--amber)}
+.pill.c{background:rgba(70,214,255,.12);color:var(--cyan)} .pill.r{background:rgba(255,90,69,.12);color:var(--red)} .pill.m{background:rgba(255,79,216,.12);color:var(--mag)}
+
+.manifest{position:fixed;right:16px;bottom:16px;z-index:50;width:330px;max-width:calc(100vw - 32px);background:var(--panel);border:1px solid var(--line2);box-shadow:0 20px 50px -20px #000}
+.manifest .mh{display:flex;align-items:center;gap:10px;padding:11px 13px;background:#0a1217;cursor:pointer;border-bottom:1px solid var(--line)}
+.manifest .mh .ic{font-family:var(--mono);color:var(--cyan);font-size:14px}
+.manifest .mh .ti{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--ink);flex:1}
+.manifest .mh .cnt{font-family:var(--mono);font-size:11px;color:var(--toxic)}
+.manifest .mh .tog{font-family:var(--mono);color:var(--dim);transition:.2s}
+.manifest.open .mh .tog{transform:rotate(180deg)}
+.manifest .body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.manifest.open .body{max-height:60vh;overflow:auto}
+.manifest .body .empty{padding:18px 14px;font-family:var(--mono);font-size:11px;color:var(--dim2);letter-spacing:.05em}
+.manifest .mi{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--line);font-size:12px}
+.manifest .mi .lid{font-family:var(--mono);font-size:10px;color:var(--dim2);min-width:34px}
+.manifest .mi .nm{flex:1;color:var(--ink)}
+.manifest .mi .mb{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.manifest .mi .x{cursor:pointer;color:var(--red);font-family:var(--mono);font-size:13px;padding:0 4px}
+.manifest .mf{padding:12px 13px;background:#0a1217}
+.manifest .mf .tot{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.08em;margin-bottom:8px}
+.manifest .mf .tot b{font-size:14px}
+.manifest .mf .tot b.g{color:var(--toxic)} .manifest .mf .tot b.a{color:var(--amber)} .manifest .mf .tot b.r{color:var(--red)}
+.manifest .mf .bar{height:6px;background:#05080b;border:1px solid var(--line);overflow:hidden;margin-bottom:10px}
+.manifest .mf .bar i{display:block;height:100%;background:var(--toxic);transition:width .3s,background .3s}
+.manifest .mf .clr{width:100%;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;background:transparent;border:1px solid var(--line2);color:var(--dim);padding:8px;cursor:pointer}
+.manifest .mf .clr:hover{border-color:var(--red);color:var(--red)}
+
+footer{margin-top:60px;border-top:1px solid var(--line);padding:34px 0 90px}
+footer .links{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+footer .links a{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--dim);border:1px solid var(--line);padding:7px 11px;text-decoration:none}
+footer .links a:hover{border-color:var(--cyan);color:var(--cyan)}
+footer .end{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--dim2);line-height:1.8}
+footer .end b{color:var(--cyan)}
+
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s,transform .6s}
+.reveal.in{opacity:1;transform:none}
+
+@media(max-width:880px){
+  .viewer{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .stamp{position:static;transform:none;display:inline-block;margin-bottom:14px}
+  .brand{display:none}
+}
+@media(prefers-reduced-motion:reduce){.ticker .track{animation:none}.reveal{transition:none;opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<canvas id="dust"></canvas>
+
+<div class="ticker"><div class="haz"></div><div class="track" id="track"></div></div>
+
+<div class="topbar">
+  <div class="haz"></div>
+  <div class="row">
+    <span class="brand"><b>LUMEN&nbsp;ST</b> // REQUISAS · <em>AMPLIACIÓN 42-C/2</em></span>
+    <span class="rec"><span class="dot"></span>REC</span>
+    <div class="search"><input id="q" type="text" placeholder="filtrar lotes…  (cdn, poly.pizza, 8k, mocap, cc-by, remarc)" aria-label="Buscar recursos"></div>
+    <button class="mbtn" id="mToggle">▤ MANIFIESTO <span id="mCount">0</span></button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="file">
+    <div class="filemeta">
+      <span><span class="k">EXP.</span><span class="v">42-C/2 · ANEXO</span></span>
+      <span><span class="k">BASE</span><span class="v">CATÁLOGO v1 (LOTES A–I SELLADOS)</span></span>
+      <span><span class="k">MOTOR</span><span class="v">three.js r128 + GLTF/DRACO/MESHOPT</span></span>
+      <span><span class="k">EMITIDO</span><span class="v">01·AGO·2026</span></span>
+      <span><span class="k">COSTE</span><span class="v" style="color:var(--toxic)">0 € · CORS VERIFICADO</span></span>
+    </div>
+    <div class="stamp">LARGO ALCANCE<small>AMPLIACIÓN 42-C/2</small></div>
+    <h1 class="title"><span class="l1">SUMINISTROS DE</span><span class="l2">LARGO <em>ALCANCE</em></span></h1>
+    <p class="lede">Segunda batida de reconocimiento. Traigo lo que el navegador puede cargar <em>hoy mismo</em>: <b>enlaces directos en CDN con CORS abierto</b> (jsDelivr, threejs.org, Supabase, Poly Pizza) que el <code>GLTFLoader</code> consume sin tocar tu servidor, modelos de prueba <b>en vivo</b> en el banco de abajo, y un salto de calidad — <b>mocap de estudio</b> (ActorCore/Rokoko), <b>PBR 8K</b> (Poly Haven/TextureCan) y <b>audio de archivo</b> (Zapsplat/BBC) — sin salir del presupuesto 0 €.</p>
+    <div class="chips">
+      <span class="chip"><b>+19</b> LOTES NUEVOS</span>
+      <span class="chip"><b>6</b> MODELOS EN VIVO</span>
+      <span class="chip"><b>CORS</b> VERIFICADO</span>
+      <span class="chip tx"><b>8K</b> TEXTURAS MÁX</span>
+      <span class="chip am"><b>MOCAP</b> DE ESTUDIO</span>
+      <span class="chip"><b>0 €</b> COSTE TOTAL</span>
+    </div>
+
+    <div class="banner reveal">
+      <img src="https://image.qwenlm.ai/public_source/93c504b3-8231-4aac-9d1c-dba1fd7f2584/186295b32-5d98-47ef-822f-60b17b8aec0e.png" alt="Lanzamiento de suministros con paracaídas sobre estación de metro en cuarentena con infectados entre niebla verde">
+      <div class="ov"></div>
+      <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+      <div class="cap">
+        <h3>Lanzamiento aéreo · vía rápida de suministros CDN</h3>
+        <span class="tag">KEY ART · HOTLINKS ACTIVOS</span>
+      </div>
+    </div>
+
+    <div class="stats reveal">
+      <div class="stat"><span class="bar"></span><div class="n cy" data-count="19">0</div><div class="l">Lotes nuevos (J+K)</div></div>
+      <div class="stat"><span class="bar"></span><div class="n tx" data-count="6">0</div><div class="l">Modelos CDN en vivo</div></div>
+      <div class="stat"><span class="bar"></span><div class="n am" data-count="8">0</div><div class="l">K · resolución máx</div></div>
+      <div class="stat"><span class="bar"></span><div class="n mg" data-count="0">0</div><div class="l">Euros · coste total</div></div>
+    </div>
+
+    <div class="recap reveal">
+      <div class="h">CATÁLOGO v1 · <b>LOTES A–I SELLADOS</b> · véase el documento base</div>
+      <div class="row">
+        <span class="r"><b>A</b> Zombis <span class="s">· Mixamo/Quaternius</span></span>
+        <span class="r"><b>B</b> Jugador <span class="s">· viewmodel+avatar</span></span>
+        <span class="r"><b>C</b> Mundo <span class="s">· PBR+HDRI</span></span>
+        <span class="r"><b>D</b> FX+audio <span class="s">· Kenney/Sonniss</span></span>
+        <span class="r"><b>E</b> Pipeline <span class="s">· Blender/gltf-transform</span></span>
+        <span class="r"><b>F</b> Plan maestro <span class="s">· 18 h</span></span>
+        <span class="r"><b>G</b> Receta 8 pasos</span>
+        <span class="r"><b>H</b> Licencias</span>
+        <span class="r"><b>I</b> Checklist</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- §1 LIVE VIEWER -->
+  <section class="lot" id="banco">
+    <div class="sechead reveal">
+      <div class="big">§1</div>
+      <div class="meta">
+        <div class="ix">BANCO DE PRUEBAS CDN · GLTFLOADER REAL EN VIVO</div>
+        <h2>Modelos que el navegador carga ahora</h2>
+        <p>Cada ficha dispara una descarga <b>real</b> desde su CDN. Lista los clips que trae el archivo, los reproduce con crossfade y libera la VRAM al cambiar. Si una URL falla, la <b>cadena de respaldo</b> prueba la siguiente y, al final, cae al espécimen procedural local (offline). Busca cualquier cosa en Poly Pizza y se spawnea.</p>
+      </div>
+      <div class="haz"></div>
+    </div>
+    <div class="viewer reveal">
+      <div class="vstage" id="vstage">
+        <canvas id="vc"></canvas>
+        <div class="vhud" id="vhud">MODELO: <b>—</b><br>licencia: — · clips: 0<br>tris: 0 · draws: 0 · 0 fps</div>
+        <div class="vbadge">r128 · GLTF+DRACO+MESHOPT</div>
+        <div class="vprog" id="vprog"><i id="vprogBar"></i></div>
+        <div class="vsrc" id="vsrc">esperando selección…</div>
+      </div>
+      <div class="vpanel">
+        <h3>Consola de requisas en vivo</h3>
+        <div class="grp"><label>Fuente CDN (carga real)</label>
+          <div class="vrow" id="modelRow">
+            <button class="vb on" data-m="robot">ROBOT · CC0</button>
+            <button class="vb" data-m="soldier">SOLDADO</button>
+            <button class="vb" data-m="fox">FOX · CC0</button>
+            <button class="vb" data-m="cesium">CESIUM · CC-BY</button>
+            <button class="vb" data-m="zombie">ZOMBI CDN</button>
+            <button class="vb" data-m="local">LOCAL (offline)</button>
+          </div>
+        </div>
+        <div class="grp"><label>Clips descubiertos en el archivo</label><div class="vrow" id="clips"></div></div>
+        <div class="grp"><label>Velocidad (mixer.timeScale)</label>
+          <div class="slider"><input id="tscale" type="range" min="0.2" max="2.5" step="0.05" value="1"><span class="val" id="tscaleV">1.00</span></div>
+        </div>
+        <div class="grp"><label>Requisa Poly Pizza (CC0 · sin cuenta)</label>
+          <div class="pizza"><input id="pizza" type="text" placeholder="zombie · dumpster · street lamp · barricade"><button id="pizzaBtn">BUSCAR</button></div>
+        </div>
+        <div class="grp"><label>Log de red</label><div class="vlog" id="vlog"></div></div>
+        <div class="vnote">Arrastra para rotar · sin interacción hace turntable. En tu build, sustituye <code>setModel()</code> por <code>loadFromCDN()</code> del bloque S-07: el patrón de cadena de respaldo + <code>normalizeModel()</code> + <code>disposeModel()</code> es idéntico.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOTE J -->
+  <section class="lot" id="loteJ">
+    <div class="sechead reveal">
+      <div class="big">J</div>
+      <div class="meta">
+        <div class="ix">LOTE J · 9 FUENTES · ENCHUFA Y DISPARA</div>
+        <h2>Hotlinks CDN · modelos accesibles por URL</h2>
+        <p>URLs que <code>GLTFLoader.load()</code> consume directamente: CDN con CORS abierto, sin descargar nada, cacheables por la PWA. El campo verde es el enlace real — cópialo o púlsalo para probarlo en el banco de arriba.</p>
+      </div>
+      <div class="haz"></div>
+    </div>
+    <div class="legend reveal">
+      <span class="lg"><span class="dotc c"></span><b>CDN</b> enlace directo</span>
+      <span class="lg"><span class="dotc g"></span><b>CC0</b> dominio público</span>
+      <span class="lg"><span class="dotc a"></span><b>CC-BY</b> citar autor</span>
+      <span class="lg"><span class="dotc m"></span><b>MIXAMO</b> espejo</span>
+    </div>
+    <div class="filters reveal"><button class="fbtn on" data-f="all">Todos</button><button class="fbtn" data-f="cc0">CC0</button><button class="fbtn" data-f="by">CC-BY</button><button class="fbtn" data-f="cdn">CDN directo</button><button class="fbtn" data-f="api">API</button><button class="fbtn" data-f="nocuenta">Sin cuenta</button></div>
+    <div class="grid" id="gridJ"></div>
+  </section>
+
+  <!-- LOTE K -->
+  <section class="lot" id="loteK">
+    <div class="sechead reveal">
+      <div class="big">K</div>
+      <div class="meta">
+        <div class="ix">LOTE K · 10 FUENTES · SALTO DE CALIDAD</div>
+        <h2>Mocap de estudio · PBR 8K · audio de archivo</h2>
+        <p>Lo que eleva el listón por encima del low-poly: mocap profesional gratis con cuenta, texturas photoscan hasta 8K y librerías de SFX de estudio. Atención al semáforo legal ampliado (§3): hay una licencia AGPL y una no-comercial que debes leer.</p>
+      </div>
+      <div class="haz"></div>
+    </div>
+    <div class="legend reveal">
+      <span class="lg"><span class="dotc g"></span><b>CC0</b></span>
+      <span class="lg"><span class="dotc a"></span><b>CC-BY / ATRIBUCIÓN</b></span>
+      <span class="lg"><span class="dotc c"></span><b>CUENTA</b> gratis</span>
+      <span class="lg"><span class="dotc r"></span><b>⚠</b> AGPL / NO COMERCIAL</span>
+    </div>
+    <div class="filters reveal"><button class="fbtn on" data-f="all">Todos</button><button class="fbtn" data-f="cc0">CC0</button><button class="fbtn" data-f="cuenta">Con cuenta</button><button class="fbtn" data-f="warn">⚠ leer</button><button class="fbtn" data-f="mocap">Mocap</button><button class="fbtn" data-f="pbr">PBR 8K</button></div>
+    <div class="grid" id="gridK"></div>
+  </section>
+
+  <!-- §2 RECIPES -->
+  <section class="lot" id="recetas">
+    <div class="sechead reveal">
+      <div class="big">§2</div>
+      <div class="meta">
+        <div class="ix">RECETAS DE INTEGRACIÓN · 5 BLOQUES LISTOS PARA PEGAR</div>
+        <h2>De la URL al <code>scene.add()</code></h2>
+        <p>Cargadores con cadena de respaldo, búsqueda dinámica en Poly Pizza, enlaces directos vía la API de Poly Haven y el patrón jsDelivr×GitHub. Respetan los anclajes de tu build (muzzle, melee 0.38 m, zstate 10 Hz, TURN meterizado).</p>
+      </div>
+      <div class="haz"></div>
+    </div>
+    <div class="codeblock reveal" data-src="c-cdn"></div>
+    <div class="codeblock reveal" data-src="c-pizza"></div>
+    <div class="codeblock reveal" data-src="c-phaven"></div>
+    <div class="codeblock reveal" data-src="c-jsdelivr"></div>
+    <div class="codeblock reveal" data-src="c-rpm"></div>
+  </section>
+
+  <!-- §3 LEGAL -->
+  <section class="lot" id="legal">
+    <div class="sechead reveal">
+      <div class="big">§3</div>
+      <div class="meta">
+        <div class="ix">SEMÁFORO LEGAL AMPLIADO · LEE ANTES DE INTEGRAR</div>
+        <h2>Dos señales rojas nuevas</h2>
+        <p>La ampliación trae una licencia <b>AGPL</b> (MB-Lab) y una <b>no comercial</b> (BBC RemArc). El resto sigue siendo verde o ámbar con atribución.</p>
+      </div>
+      <div class="haz"></div>
+    </div>
+    <div class="tblwrap reveal">
+      <table>
+        <thead><tr><th>Licencia</th><th>Permite</th><th>Exige</th><th>En esta ampliación</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill g">CC0</span></td><td>usar, modificar, distribuir, comercial</td><td>nada</td><td>RobotExpressive/Fox (threejs) · Quaternius vía Poly Pizza · Kenney · Poly Haven · TextureCan · ShareTextures · 3DTextures · PBRPX</td></tr>
+          <tr><td><span class="pill a">CC-BY</span></td><td>todo lo anterior</td><td>citar autor en créditos</td><td>CesiumMan (Cesium) · Mannequiny (GDQuest) · CharMorph base · subconjunto CC-BY de Zapsplat</td></tr>
+          <tr><td><span class="pill m">Mixamo (espejo)</span></td><td>uso dentro del juego, incluso comercial</td><td>no revender el asset suelto</td><td>Bucket Supabase vazxmixjsiawhamofees (zombis/personajes Mixamo ya convertidos a glTF)</td></tr>
+          <tr><td><span class="pill c">Royalty-free limitada</span></td><td>uso comercial con cuenta gratuita</td><td>registro; términos del proveedor</td><td>ActorCore (3 actores + 32 motions) · Rokoko Motion Library (100+ clips)</td></tr>
+          <tr><td><span class="pill c">RPM</span></td><td>avatar GLB con rig compatible Mixamo</td><td>cuenta; atribución "Powered by Ready Player Me"</td><td>Avatares remotos por avatarId; retarget de clips por nombre de hueso</td></tr>
+          <tr><td><span class="pill r">AGPL ⚠</span></td><td>generar personajes realistas</td><td>obligaciones de código abierto sobre el asset</td><td>MB-Lab base character → <b>revisión legal antes de uso comercial cerrado</b>; prefiere CharMorph (CC)</td></tr>
+          <tr><td><span class="pill r">RemArc ⚠</span></td><td>uso personal / educativo / investigación</td><td>atribución; <b>no comercial</b>; revocable</td><td>BBC Sound Effects (33.000 sonidos) → solo prototipo no comercial; para comercial usa Zapsplat/Sonniss</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="links">
+      <a href="https://poly.pizza" target="_blank">POLY PIZZA · API CC0</a>
+      <a href="https://cdn.jsdelivr.net" target="_blank">JSDELIVR · CDN</a>
+      <a href="https://threejs.org/examples/" target="_blank">THREEJS.ORG EXAMPLES</a>
+      <a href="https://github.com/KhronosGroup/glTF-Sample-Assets" target="_blank">KHRONOS SAMPLE ASSETS</a>
+      <a href="https://readyplayer.me" target="_blank">READY PLAYER ME</a>
+      <a href="https://github.com/animate1978/MB-Lab" target="_blank">MB-LAB / CHARMORPH</a>
+      <a href="https://actorcore.reallusion.com/3d-motion/free" target="_blank">ACTORCORE FREE</a>
+      <a href="https://www.rokoko.com/free-resources" target="_blank">ROKOKO FREE</a>
+      <a href="https://polyhaven.com/our-api" target="_blank">POLY HAVEN API</a>
+      <a href="https://www.texturecan.com" target="_blank">TEXTURECAN</a>
+      <a href="https://www.sharetextures.com" target="_blank">SHARTEXTURES</a>
+      <a href="https://3dtextures.me" target="_blank">3DTEXTURES</a>
+      <a href="https://www.zapsplat.com" target="_blank">ZAPSPLAT</a>
+      <a href="https://sound-effects.bbcrewind.co.uk" target="_blank">BBC SFX (NO COM.)</a>
+      <a href="https://github.com/gdquest-demos/godot-3d-mannequin" target="_blank">GDQUEST MANNEQUINY</a>
+    </div>
+    <div class="end">AMPLIACIÓN DE REQUISAS · ZONA DE CUARENTENA 42-C/2 · 01·AGO·2026 — ANEXO AL CATÁLOGO v1 (LOTES A–I SELLADOS) — BASE: coop.html VER 4.6 RESILIENT · THREE.JS r128 + GLTF/DRACO/MESHOPT — <b>TODO A 0 € · CORS VERIFICADO</b> · EL LOOP ESTÁ SELLADO, LOS SUMINISTROS AHORA LLEGAN EN VÍA RÁPIDA.</div>
+  </footer>
+
+</div>
+
+<div class="manifest" id="manifest">
+  <div class="mh" id="mHead"><span class="ic">▤</span><span class="ti">MANIFIESTO DE REQUISA</span><span class="cnt" id="mCnt2">0 lotes</span><span class="tog">▾</span></div>
+  <div class="body" id="mBody"><div class="empty">Manifiesto vacío — pulsa ＋ REQUISAR en los lotes J/K que quieras integrar.</div></div>
+  <div class="mf">
+    <div class="tot"><span>PESO ESTIMADO · PWA CACHEABLE</span><b id="mTotal" class="g">0 MB</b></div>
+    <div class="bar"><i id="mBar"></i></div>
+    <button class="clr" id="mClear">VACIAR MANIFIESTO</button>
+  </div>
+</div>
+
+<!-- ============ CODE SOURCES ============ -->
+<script type="text/plain" id="c-cdn" data-lang="js" data-file="S-07 · cargador CDN con cadena de respaldo + DRACO + MESHOPT">
+// ── S-07 · CDN LOADER · cualquier URL con CORS abierto ─────────────
+// Carga GLB/GLTF desde CDN y, si falla, prueba la siguiente URL de la lista.
+const draco = new THREE.DRACOLoader();
+draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+const cdnLoader = new THREE.GLTFLoader();
+cdnLoader.setDRACOLoader(draco);
+if (window.MeshoptDecoder) cdnLoader.setMeshoptDecoder(window.MeshoptDecoder); // EXT_meshopt
+
+const CDN_SOURCES = {
+  robot:  ['https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
+           'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb'],
+  soldado:['https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
+           'https://threejs.org/examples/models/gltf/Soldier.glb'],
+  zombi:  ['https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/zombie/model.gltf',
+           'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/character-13/model.gltf'],
+};
+
+function loadFromCDN(key, onProgress){
+  const urls = CDN_SOURCES[key];
+  return new Promise((resolve) => {
+    (function attempt(i){
+      if (i >= urls.length) return resolve(null);        // null → fallback de cajas
+      cdnLoader.load(urls[i],
+        (gltf) => resolve({ gltf, url: urls[i] }),
+        (ev)  => { if (ev.total && onProgress) onProgress(ev.loaded / ev.total); },
+        (err) => { console.warn('[CDN] fallo', urls[i], err); attempt(i + 1); }
+      );
+    })(0);
+  });
+}
+
+// Cualquier modelo → 1.8 m de alto, pies en y=0 (corrige el zombi en cm, el fox gigante…)
+function normalizeModel(root, targetH = 1.8){
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  root.scale.setScalar(targetH / Math.max(size.y, 1e-4));
+  box.setFromObject(root);
+  root.position.x -= (box.min.x + box.max.x) / 2;
+  root.position.z -= (box.min.z + box.max.z) / 2;
+  root.position.y -= box.min.y;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.frustumCulled = false;       // bug clásico #1
+    if (o.material && o.material.map) o.material.map.encoding = THREE.sRGBEncoding;
+  });
+  return root;
+}
+
+// Libera TODO al hacer hot-swap (sin fugas de VRAM)
+function disposeModel(root){
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry && o.geometry.dispose();
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => {
+      for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose();
+      m.dispose();
+    });
+  });
+}
+</script>
+
+<script type="text/plain" id="c-pizza" data-lang="js" data-file="S-08 · Poly Pizza → spawn dinámico (10.600+ modelos CC0)">
+// ── S-08 · POLY PIZZA · busca y spawnea sin cuenta ─────────────────
+// La API devuelve modelos CC0/CC-BY; el GLB se carga directo por URL.
+async function spawnFromPolyPizza(keyword, pos){
+  const api = 'https://api.poly.pizza/v1.1/search?Keyword=' + encodeURIComponent(keyword) + '&Limit=5';
+  const json = await (await fetch(api)).json();
+  const list = json.Models || json.models || [];
+  for (const m of list){
+    // enlace directo: campo si la API lo trae, si no el patrón conocido
+    const glb = m.glb || m.Glb ||
+      (m.Hash && m.Slug ? 'https://models.poly.pizza/' + m.Hash + '/' + m.Slug + '/glb' : null);
+    if (!glb) continue;
+    try {
+      const gltf = await new Promise((ok, ko) => cdnLoader.load(glb, ok, undefined, ko));
+      const root = normalizeModel(gltf.scene);
+      root.position.copy(pos);
+      scene.add(root);
+      const mixer = gltf.animations.length ? new THREE.AnimationMixer(root) : null;
+      if (mixer) mixer.clipAction(gltf.animations[0]).play();
+      window.zombieHitboxes && window.zombieHitboxes.push(root); // raycast M-42 OK
+      return { root, mixer, name: m.Name || m.Slug };
+    } catch (e) { /* prueba el siguiente candidato */ }
+  }
+  return null; // sin resultados → fallback de cajas
+}
+// Uso: spawnFromPolyPizza('zombie', new THREE.Vector3(4,0,-8));
+//      spawnFromPolyPizza('dumpster', …) · 'barricade' · 'street lamp' · 'barrel'
+</script>
+
+<script type="text/plain" id="c-phaven" data-lang="js" data-file="R-10 · Poly Haven API → enlaces directos dl.polyhaven.org">
+// ── R-10 · POLY HAVEN API · URLs directas por resolución ───────────
+// api.polyhaven.com/files/{id} devuelve todas las resoluciones con CDN URL.
+async function phTexture(id, res = '1k'){
+  const json = await (await fetch('https://api.polyhaven.com/files/' + id)).json();
+  const pick = (slot) => { const s = json[slot] && json[slot][res]; return s ? (s.jpg || s.png) : null; };
+  const load = (u, srgb) => new Promise((ok) => {
+    const t = new THREE.TextureLoader().load(u.url, ok);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (srgb) t.encoding = THREE.sRGBEncoding;       // sRGB SOLO en albedo
+    return t;
+  });
+  const mat = new THREE.MeshStandardMaterial();
+  mat.map          = await load(pick('albedo') || pick('diffuse'), true);
+  mat.normalMap    = await load(pick('nor_gl'), false);          // normal OpenGL
+  mat.roughnessMap = await load(pick('rough'), false);
+  mat.aoMap        = await load(pick('ao'), false);
+  mat.metalnessMap = await load(pick('metal'), false);
+  mat.needsUpdate  = true;
+  return mat;
+}
+// HDRI directo (patrón estable, sin API):
+// https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/empty_warehouse_01_1k.hdr
+// → RGBELoader + PMREMGenerator → scene.environment (NO background)
+</script>
+
+<script type="text/plain" id="c-jsdelivr" data-lang="js" data-file="R-11 · jsDelivr × GitHub · CDN permanente para repos CC0">
+// ── R-11 · JSDELIVR · patrón https://cdn.jsdelivr.net/gh/{u}/{r}@{tag}/{p}
+const GH = {
+  // muestras oficiales glTF (repo archivado → congelado, ideal para fijar versión)
+  cesiumMan: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb',
+  brainStem: 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/BrainStem/glTF-Binary/BrainStem.glb',
+  // GDQuest Mannequiny (CC-BY)
+  mannequiny:'https://cdn.jsdelivr.net/gh/gdquest-demos/godot-3d-mannequin@master/godot-csharp/assets/3d/mannequiny/mannequiny-0.3.0.glb',
+  // espejo completo de Kenney (CC0) — navega el repo para la ruta exacta
+  kenneyBase:'https://cdn.jsdelivr.net/gh/ETdoFresh/kenney.nl@master/',
+  // ejemplos three.js r128 (mismos archivos que threejs.org, con caché CDN)
+  robot:     'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
+  soldier:   'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
+  fox:       'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Fox.glb',
+};
+// Decodificadores (en el <head>, antes de three.js):
+// <script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js"><\/script>
+// DRACO: gstatic 1.5.7 (ver S-07) · MESHOPT: window.MeshoptDecoder → setMeshoptDecoder()
+</script>
+
+<script type="text/plain" id="c-rpm" data-lang="js" data-file="S-09 · Ready Player Me · avatar GLB por URL">
+// ── S-09 · READY PLAYER ME · un avatar por URL ─────────────────────
+// Cuenta gratis → subdominio y avatarId. El GLB trae rig compatible Mixamo
+// (retarget confirmado) y morphTargets para visemas (labial).
+const RPM = {
+  url: (avatarId) => 'https://models.readyplayer.me/' + avatarId +
+        '.glb?morphTargets=visemes_emotion',
+};
+// En el flujo de avatar remoto (S-05): cada peer envía su avatarId en el perfil
+// (fuera de TURN, meterizado) y el rig se comparte: los clips del Ultimate Pack
+// se retargetean a los huesos RPM por nombre (Hips / Spine / LeftArm…).
+// Tier gratis: atribución "Powered by Ready Player Me" obligatoria.
+</script>
+
+<script>
+/* ============================================================ DATA ============================================================ */
+const ITEMS = [
+  // ---- LOTE J ----
+  {id:'j01',lot:'J',lid:'J-01',name:'threejs.org examples · RobotExpressive',src:'threejs.org / jsDelivr',mb:1.4,lic:'cc0',licTxt:'CC0',
+   tags:'cc0 cdn nocuenta',opt:true,test:'robot',
+   hot:'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
+   desc:'14 clips (Dance, Death, Punch, Running, Walking, Jump, Wave…) + morphs faciales. Tomás Laulhé, CC0. Carga directa, CORS abierto.',
+   fit:'Ensayo inmediato de Juggernaut/Stalker: Death + Punch + Running YA son el vocabulario del zombi. Prueba el botón PROBAR.',
+   url:'https://threejs.org/examples/models/gltf/RobotExpressive/'},
+  {id:'j02',lot:'J',lid:'J-02',name:'threejs.org · Soldier + Fox + criaturas',src:'threejs.org / jsDelivr',mb:2.3,lic:'cc0',licTxt:'CC0 (demo)',
+   tags:'cc0 cdn nocuenta',opt:false,test:'soldier',
+   hot:'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
+   desc:'Soldier (Idle/Walk/Run/TPose) para ensayar el avatar; Fox (Survey/Walk/Run) y Horse/Parrot/Flamingo/Stork con morph targets.',
+   fit:'Soldier = avatar remoto de prueba con 3 clips limpios; Fox demuestra que normalizeModel() corrige modelos en centímetros.',
+   url:'https://threejs.org/examples/'},
+  {id:'j03',lot:'J',lid:'J-03',name:'Khronos × jsDelivr · glTF Sample Models',src:'github.com/KhronosGroup',mb:1.7,lic:'by',licTxt:'CC-BY',
+   tags:'by cdn nocuenta',opt:false,test:'cesium',
+   hot:'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb',
+   desc:'Muestras oficiales servidas por jsDelivr: CesiumMan (walk), BrainStem, RiggedFigure, AnimatedMorphCube. Repo archivado → nuevo glTF-Sample-Assets.',
+   fit:'Referencia de rig limpio para validar tu retarget; CesiumMan = prueba de que el loader lee CC-BY desde CDN.',
+   url:'https://github.com/KhronosGroup/glTF-Sample-Assets'},
+  {id:'j04',lot:'J',lid:'J-04',name:'Supabase bucket · Mixamo→glTF',src:'vazxmixjsiawhamofees.supabase.co',mb:4,lic:'mix',licTxt:'MIXAMO (espejo)',
+   tags:'cdn nocuenta',opt:false,test:'zombie',
+   hot:'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/zombie/model.gltf',
+   desc:'Bucket público usado por cientos de demos three.js: personajes Mixamo ya convertidos a .gltf con animaciones. CORS abierto, sin cuenta.',
+   fit:'Zombi real sin tocar Blender; el loader resuelve .bin/texturas relativas. Si el slug "zombie" falla, la cadena prueba "character-13".',
+   url:'https://supabase.com/storage'},
+  {id:'j05',lot:'J',lid:'J-05',name:'Poly Pizza API · motor de búsqueda CC0',src:'poly.pizza',mb:2,lic:'cc0',licTxt:'CC0 / CC-BY',
+   tags:'cc0 api nocuenta cdn',opt:true,
+   hot:'https://api.poly.pizza/v1.1/search?Keyword=zombie&Limit=5',
+   desc:'10.600+ modelos CC0 (catálogo Quaternius incluido); API de búsqueda → enlace GLB directo; sin cuenta; CORS desde el navegador.',
+   fit:'Pipeline infinito: busca "zombie" y spawnea el primer resultado. Pruébalo en el buscador del banco de arriba.',
+   url:'https://poly.pizza/docs/api/v1.1'},
+  {id:'j06',lot:'J',lid:'J-06',name:'Ready Player Me · avatar GLB',src:'readyplayer.me',mb:3,lic:'cuenta',licTxt:'CUENTA + ATRIBUCIÓN',
+   tags:'cuenta',opt:false,
+   hot:'https://models.readyplayer.me/{avatarId}.glb?morphTargets=visemes_emotion',
+   desc:'GLB de avatar desde una selfie, rig compatible Mixamo (retarget confirmado) y morphTargets para visemas.',
+   fit:'Caras reales para avatares remotos: cada jugador su avatar; los clips se retargetean por nombre de hueso.',
+   url:'https://readyplayer.me'},
+  {id:'j07',lot:'J',lid:'J-07',name:'Kenney × jsDelivr · espejo completo',src:'github.com/ETdoFresh/kenney.nl',mb:8,lic:'cc0',licTxt:'CC0',
+   tags:'cc0 cdn nocuenta',opt:false,
+   hot:'https://cdn.jsdelivr.net/gh/ETdoFresh/kenney.nl@master/',
+   desc:'Espejo completo de los assets de Kenney en GitHub → CDN global con caché; más los repos starter-kit de KenneyNL.',
+   fit:'Props y audio CC0 con URL permanente y caché PWA; navega el repo para la ruta exacta del asset.',
+   url:'https://github.com/ETdoFresh/kenney.nl'},
+  {id:'j08',lot:'J',lid:'J-08',name:'GDQuest Mannequiny · maniquí abierto',src:'github.com/gdquest-demos',mb:2,lic:'by',licTxt:'CC-BY',
+   tags:'by cdn nocuenta',opt:false,
+   hot:'https://cdn.jsdelivr.net/gh/gdquest-demos/godot-3d-mannequin@master/godot-csharp/assets/3d/mannequiny/mannequiny-0.3.0.glb',
+   desc:'Maniquí abierto con topología limpia, CC-BY; también el repo godot-4-3D-Characters con rigs preconfigurados.',
+   fit:'Base de rig neutra para retarget de Mixamo/ActorCore cuando no quieres depender de Mixamo.',
+   url:'https://github.com/gdquest-demos/godot-3d-mannequin'},
+  {id:'j09',lot:'J',lid:'J-09',name:'Decodificadores · DRACO + MESHOPT',src:'gstatic / jsDelivr',mb:0,lic:'tool',licTxt:'INFRAESTRUCTURA',tool:true,
+   tags:'cdn',opt:false,
+   hot:'https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js',
+   desc:'Infraestructura para leer cualquier cosa: DRACO 1.5.7 (gstatic) + meshopt (jsDelivr); 2 líneas al GLTFLoader.',
+   fit:'Sin meshopt, los GLB optimizados con gltfpack fallan en silencio. Añádelo antes de three.js.',
+   url:'https://meshoptimizer.org/gltf/'},
+
+  // ---- LOTE K ----
+  {id:'k01',lot:'K',lid:'K-01',name:'CharMorph + MB-Lab · humanos realistas',src:'github.com/animate1978',mb:30,lic:'warn',licTxt:'CC (base) / AGPL ⚠',
+   tags:'warn',opt:false,
+   desc:'Generador de humanos realistas en Blender. CharMorph ofrece un personaje base con licencia Creative Commons; MB-Lab es AGPL.',
+   fit:'Walkers realistas sin cuenta Mixamo; retarget de Mixamo/ActorCore. ⚠ MB-Lab: revisión legal antes de uso comercial cerrado.',
+   url:'https://github.com/animate1978/MB-Lab'},
+  {id:'k02',lot:'K',lid:'K-02',name:'ActorCore · mocap de estudio gratis',src:'actorcore.reallusion.com',mb:25,lic:'cuenta',licTxt:'ROYALTY-FREE + CUENTA',
+   tags:'cuenta mocap',opt:true,
+   desc:'3 actores + 32 motions al registrarte y contenido gratis cada mes; licencia comercial royalty-free; export FBX/BVH.',
+   fit:'Salto de calidad en combate, caídas y reacciones; mocap de estudio a 0 € que retargeteas al rig elegido.',
+   url:'https://actorcore.reallusion.com/3d-motion/free'},
+  {id:'k03',lot:'K',lid:'K-03',name:'Rokoko Motion Library · 100+ clips',src:'rokoko.com',mb:20,lic:'cuenta',licTxt:'COMERCIAL + CUENTA',
+   tags:'cuenta mocap',opt:false,
+   desc:'100+ clips mocap gratis con cuenta; los gratuitos con licencia para uso comercial; FBX.',
+   fit:'Complemento a ActorCore: packs temáticos (club, combate, locomoción) para llenar huecos del zstate.',
+   url:'https://www.rokoko.com/free-resources'},
+  {id:'k04',lot:'K',lid:'K-04',name:'Poly Haven Textures + API · 8K',src:'polyhaven.com',mb:40,lic:'cc0',licTxt:'CC0 · API PÚBLICA',
+   tags:'cc0 pbr',opt:true,
+   desc:'PBR photoscan hasta 8K; API pública api.polyhaven.com/files/{id} → enlace directo dl.polyhaven.org por resolución.',
+   fit:'Sube ambientCG a 8K donde el espacio de pantalla lo exige (suelo M.floor); la API evita descargar ZIPs a mano.',
+   url:'https://polyhaven.com/our-api'},
+  {id:'k05',lot:'K',lid:'K-05',name:'TextureCan · 650+ PBR CC0',src:'texturecan.com',mb:10,lic:'cc0',licTxt:'CC0',
+   tags:'cc0 pbr nocuenta',opt:false,
+   desc:'650+ texturas PBR y modelos 3D CC0, libres para uso comercial; sets completos de mapas.',
+   fit:'Amplía el registro M sin coste; coherente con pbrSet() del bloque R-04.',
+   url:'https://www.texturecan.com'},
+  {id:'k06',lot:'K',lid:'K-06',name:'ShareTextures · CC0 hasta 4K',src:'sharetextures.com',mb:10,lic:'cc0',licTxt:'CC0',
+   tags:'cc0 pbr nocuenta',opt:false,
+   desc:'Archivo de texturas y modelos PBR CC0 (madera, piedra, muro, suelo, metal) hasta 4K.',
+   fit:'Refuerzo de superficies secundarias (cartelería, escombros) con mapas listos.',
+   url:'https://www.sharetextures.com'},
+  {id:'k07',lot:'K',lid:'K-07',name:'3DTextures.me · seamless CC0',src:'3dtextures.me',mb:8,lic:'cc0',licTxt:'CC0',
+   tags:'cc0 pbr nocuenta',opt:false,
+   desc:'Mapas seamless (diffuse/normal/metallic/displacement/roughness/AO) para Unity/Unreal/Godot/three.js.',
+   fit:'Displacement útil para el suelo húmedo del andén si activas tessellation en desktop.',
+   url:'https://3dtextures.me'},
+  {id:'k08',lot:'K',lid:'K-08',name:'Zapsplat · 150k SFX',src:'zapsplat.com',mb:15,lic:'by',licTxt:'ATRIBUCIÓN (algunos CC0)',
+   tags:'by',opt:false,
+   desc:'Una de las mayores librerías de SFX gratis; licencia estándar con atribución; subconjunto CC0 sin atribución.',
+   fit:'Gruñidos, disparos y Foley de estudio; los CC0 van directos, los estándar a créditos.',
+   url:'https://www.zapsplat.com'},
+  {id:'k09',lot:'K',lid:'K-09',name:'BBC Sound Effects · 33k archivo',src:'sound-effects.bbcrewind.co.uk',mb:50,lic:'warn',licTxt:'REMARC · NO COMERCIAL ⚠',
+   tags:'warn',opt:false,
+   desc:'33.000 sonidos de archivo de la BBC bajo licencia RemArc: gratis para uso personal/educativo/investigación.',
+   fit:'⚠ Solo prototipo no comercial; ambientes y Foley icónicos. Para comercial, usa Zapsplat/Sonniss.',
+   url:'https://sound-effects.bbcrewind.co.uk'},
+  {id:'k10',lot:'K',lid:'K-10',name:'PBRPX · CC0 textures/HDRI',src:'pbrpx.com',mb:10,lic:'cc0',licTxt:'CC0',
+   tags:'cc0 pbr nocuenta',opt:false,
+   desc:'Novedad: texturas CC0, HDRI, modelos 3D y fotos curados; sets PBR de alta calidad.',
+   fit:'Fuente extra de HDRIs y mapas cuando Poly Haven no tiene el material exacto.',
+   url:'https://pbrpx.com'},
+];
+
+/* ============================================================ RENDER CARDS ============================================================ */
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function cardHTML(it){
+  const opt = it.opt ? '<span class="opt">★ DESTACADO</span>' : '';
+  const hot = it.hot ? `<div class="hot"><span class="u">${esc(it.hot)}</span><button class="cp" data-hot="${esc(it.hot)}">COPIAR</button></div>` : '';
+  let foot;
+  if (it.tool) foot = '<div class="toolnote">INFRAESTRUCTURA · NO SE REQUISA</div>';
+  else {
+    const test = it.test ? `<button class="btn-test" data-test="${it.test}">▶ PROBAR</button>` : '';
+    foot = `<a class="btn-link" href="${it.url}" target="_blank" rel="noopener">ABRIR ↗</a>${test}<button class="btn-req" data-id="${it.id}">＋ REQUISAR</button>`;
+  }
+  return `<article class="card reveal" data-id="${it.id}" data-tags="${it.tags}" data-search="${(it.name+' '+it.src+' '+it.desc+' '+it.fit+' '+it.licTxt).toLowerCase()}">
+    <div class="top"><span class="lot-id">${it.lid}</span><span class="lic ${it.lic}">${it.licTxt}</span>${opt}<span class="mb">${it.mb?('~'+it.mb+' MB'):''}</span></div>
+    <h4>${it.name}</h4>
+    <div class="src">${it.src}</div>
+    <p class="desc">${it.desc}</p>
+    ${hot}
+    <p class="fit"><b>ENCAJE LUMEN ST</b>${it.fit}</p>
+    <div class="foot">${foot}</div>
+  </article>`;
+}
+document.getElementById('gridJ').innerHTML = ITEMS.filter(i=>i.lot==='J').map(cardHTML).join('');
+document.getElementById('gridK').innerHTML = ITEMS.filter(i=>i.lot==='K').map(cardHTML).join('');
+
+/* hot copy buttons */
+document.addEventListener('click',e=>{
+  const cp=e.target.closest('.hot .cp');
+  if(cp){const t=cp.dataset.hot;const done=()=>{cp.textContent='✓';cp.classList.add('ok');setTimeout(()=>{cp.textContent='COPIAR';cp.classList.remove('ok');},1200);};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done).catch(()=>fb(t,done));else fb(t,done);}
+});
+function fb(text,cb){const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);cb();}
+
+/* ============================================================ CODE BLOCKS ============================================================ */
+function highlight(raw,lang){
+  let s=raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if(lang==='bash'){s=s.replace(/(#.*)$/gm,'<span class="c">$1</span>');s=s.replace(/(--[\w-]+)/g,'<span class="f">$1</span>');return s;}
+  const KW='const|let|var|function|return|new|for|of|in|if|else|async|await|class|true|false|null|undefined|this|try|catch';
+  const re=new RegExp('(\\/\\/[^\\n]*)|(\'(?:[^\'\\\\\\n]|\\\\.)*\'|"(?:[^"\\\\\\n]|\\\\.)*"|`(?:[^`\\\\]|\\\\.)*`)|\\b('+KW+')\\b|\\b(\\d+(?:\\.\\d+)?)\\b','g');
+  return s.replace(re,(m,com,str,kw,num)=>com?`<span class="c">${com}</span>`:str?`<span class="s">${str}</span>`:kw?`<span class="k">${kw}</span>`:`<span class="n">${num}</span>`);
+}
+document.querySelectorAll('.codeblock').forEach(block=>{
+  const src=document.getElementById(block.dataset.src);
+  const raw=src.textContent.replace(/^\n/,'');
+  const lang=src.dataset.lang||'js';
+  block.innerHTML=`<div class="ch"><span class="dots"><i></i><i></i><i></i></span><span class="fn">${src.dataset.file||block.dataset.src}</span><button class="cp">COPIAR</button></div><pre><code>${highlight(raw,lang)}</code></pre>`;
+  block.querySelector('.cp').addEventListener('click',function(){const btn=this;const done=()=>{btn.textContent='COPIADO ✓';btn.classList.add('ok');setTimeout(()=>{btn.textContent='COPIAR';btn.classList.remove('ok');},1400);};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(raw).then(done).catch(()=>fb(raw,done));else fb(raw,done);});
+});
+
+/* ============================================================ FILTERS + SEARCH ============================================================ */
+let activeFilter='all',query='';
+function applyFilter(){
+  document.querySelectorAll('.card').forEach(card=>{
+    const tags=card.dataset.tags,txt=card.dataset.search;
+    const fOk=activeFilter==='all'||tags.split(' ').includes(activeFilter);
+    const qOk=!query||txt.includes(query);
+    card.classList.toggle('hide',!(fOk&&qOk));
+  });
+}
+document.querySelectorAll('.filters .fbtn').forEach(b=>b.addEventListener('click',()=>{
+  const scope=b.closest('.filters');
+  scope.querySelectorAll('.fbtn').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');activeFilter=b.dataset.f;applyFilter();
+}));
+document.getElementById('q').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();applyFilter();});
+
+/* ============================================================ MANIFEST ============================================================ */
+const manifest=JSON.parse(localStorage.getItem('lumen-manifest2')||'[]');
+const manifestEl=document.getElementById('manifest');
+const byId=id=>ITEMS.find(i=>i.id===id);
+function renderManifest(){
+  const body=document.getElementById('mBody');
+  if(!manifest.length)body.innerHTML='<div class="empty">Manifiesto vacío — pulsa ＋ REQUISAR en los lotes J/K que quieras integrar.</div>';
+  else body.innerHTML=manifest.map(id=>{const it=byId(id);return `<div class="mi"><span class="lid">${it.lid}</span><span class="nm">${it.name}</span><span class="mb">${it.mb}MB</span><span class="x" data-id="${id}">✕</span></div>`;}).join('');
+  const total=manifest.reduce((s,id)=>s+(byId(id).mb||0),0);
+  document.getElementById('mCount').textContent=manifest.length;
+  document.getElementById('mCnt2').textContent=manifest.length+' lotes';
+  const tEl=document.getElementById('mTotal');tEl.textContent=total+' MB';
+  tEl.className=total<=40?'g':total<=120?'a':'r';
+  const bar=document.getElementById('mBar');const pct=Math.min(100,total/200*100);
+  bar.style.width=pct+'%';bar.style.background=total<=40?'var(--toxic)':total<=120?'var(--amber)':'var(--red)';
+  document.querySelectorAll('.btn-req').forEach(b=>{const on=manifest.includes(b.dataset.id);b.classList.toggle('added',on);b.textContent=on?'✓ EN MANIFIESTO':'＋ REQUISAR';});
+  localStorage.setItem('lumen-manifest2',JSON.stringify(manifest));
+}
+document.addEventListener('click',e=>{
+  const req=e.target.closest('.btn-req');
+  if(req){const id=req.dataset.id;const i=manifest.indexOf(id);if(i>=0)manifest.splice(i,1);else manifest.push(id);renderManifest();return;}
+  const x=e.target.closest('.manifest .x');
+  if(x){const id=x.dataset.id;const i=manifest.indexOf(id);if(i>=0)manifest.splice(i,1);renderManifest();}
+  const t=e.target.closest('.btn-test');
+  if(t){setModel(t.dataset.test);document.getElementById('banco').scrollIntoView({behavior:'smooth'});}
+});
+document.getElementById('mClear').addEventListener('click',()=>{manifest.length=0;renderManifest();});
+document.getElementById('mHead').addEventListener('click',()=>manifestEl.classList.toggle('open'));
+document.getElementById('mToggle').addEventListener('click',()=>manifestEl.classList.toggle('open'));
+renderManifest();
+
+/* ============================================================ TICKER ============================================================ */
+const tickerTxt='▚ <b>AMPLIACIÓN 42-C/2</b> — HOTLINKS CDN ACTIVOS — MODELOS EN VÍA RÁPIDA — <i>TEXTURAS 8K CC0</i> — MOCAP DE ESTUDIO GRATIS — <i>ZOMBI CDN VERIFICADO</i> — POLY PIZZA 10.600+ CC0 — +0 BYTES A LA RED P2P — <b>TODO A 0 €</b> — ';
+document.getElementById('track').innerHTML='<span>'+tickerTxt.repeat(2)+'</span><span>'+tickerTxt.repeat(2)+'</span>';
+
+/* ============================================================ REVEAL + COUNTERS ============================================================ */
+const io=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}});},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+const cio=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){animateCount(en.target);cio.unobserve(en.target);}});},{threshold:.5});
+document.querySelectorAll('[data-count]').forEach(el=>cio.observe(el));
+function animateCount(el){const target=+el.dataset.count;const dur=900;const t0=performance.now();
+  function step(t){const p=Math.min(1,(t-t0)/dur);el.textContent=Math.round(target*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(step);}requestAnimationFrame(step);}
+
+/* ============================================================ DUST ============================================================ */
+(function(){
+  const c=document.getElementById('dust'),x=c.getContext('2d');let w,h,parts=[];
+  const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  function resize(){w=c.width=innerWidth;h=c.height=innerHeight;const n=reduce?0:Math.min(70,Math.round(w/22));parts=[];for(let i=0;i<n;i++)parts.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.6+.3,s:Math.random()*.25+.05,a:Math.random()*.4+.1,g:Math.random()<.4});}
+  resize();addEventListener('resize',resize);
+  function loop(){x.clearRect(0,0,w,h);for(const p of parts){p.y-=p.s;p.x+=Math.sin(p.y*.01)*.2;if(p.y<-4){p.y=h+4;p.x=Math.random()*w;}x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fillStyle=p.g?`rgba(70,214,255,${p.a})`:`rgba(255,180,84,${p.a*.7})`;x.fill();}requestAnimationFrame(loop);}
+  loop();
+})();
+
+/* ============================================================ LIVE CDN VIEWER ============================================================ */
+(function(){
+  const stage=document.getElementById('vstage'),canvas=document.getElementById('vc');
+  const hud=document.getElementById('vhud'),logEl=document.getElementById('vlog'),clipsEl=document.getElementById('clips');
+  const prog=document.getElementById('vprog'),progBar=document.getElementById('vprogBar'),srcEl=document.getElementById('vsrc');
+  if(!window.THREE){hud.innerHTML='three.js no cargó.';return;}
+  if(!THREE.GLTFLoader){hud.innerHTML='GLTFLoader no disponible (CDN examples/js).';return;}
+
+  let renderer,scene,camera,clock;
+  let root=null,mixer=null,actions={},current=null,token=0;
+  let dragging=false,lastX=0,autoYaw=0,lastInteract=0;
+  let curLabel='—',curLic='—',curClips=0,triCount=0;
+  // local-only refs
+  let skinMat,clothMat,darkMat,torso,LOCAL_CLIPS=null;
+
+  function log(msg,cls){const d=document.createElement('div');if(cls)d.className=cls;d.textContent='› '+msg;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;while(logEl.children.length>50)logEl.removeChild(logEl.firstChild);}
+  function showProg(on,pct){prog.classList.toggle('on',on);if(on)progBar.style.width=Math.round((pct||0)*100)+'%';}
+
+  function init(){
+    renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    renderer.outputEncoding=THREE.sRGBEncoding;
+    scene=new THREE.Scene();scene.background=new THREE.Color(0x070d11);
+    scene.fog=new THREE.Fog(0x070d11,8,20);
+    camera=new THREE.PerspectiveCamera(40,1,0.1,50);camera.position.set(2.7,1.7,3.5);camera.lookAt(0,1.0,0);
+    scene.add(new THREE.AmbientLight(0x1c2c33,0.9));
+    const key=new THREE.DirectionalLight(0xffb454,1.2);key.position.set(3,4.5,2.5);scene.add(key);
+    const rim=new THREE.DirectionalLight(0x46d6ff,0.55);rim.position.set(-3,2.5,-3);scene.add(rim);
+    const grid=new THREE.GridHelper(16,32,0x23424f,0x122027);scene.add(grid);
+    clock=new THREE.Clock();
+    size();new ResizeObserver(size).observe(stage);
+    bindControls();
+    log('GLTFLoader + DRACO(gstatic) + MESHOPT(jsDelivr) listos','e');
+    animate();
+    setModel('robot');
+  }
+  function size(){const r=stage.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/r.height;camera.updateProjectionMatrix();}
+
+  const MODELS={
+    robot:{label:'ROBOT EXPRESSIVE',lic:'CC0',urls:['https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb','https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb']},
+    soldier:{label:'SOLDADO',lic:'CC0 (demo)',urls:['https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb','https://threejs.org/examples/models/gltf/Soldier.glb']},
+    fox:{label:'FOX',lic:'CC0',urls:['https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Fox.glb','https://threejs.org/examples/models/gltf/Fox.glb']},
+    cesium:{label:'CESIUM MAN',lic:'CC-BY',urls:['https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/CesiumMan/glTF-Binary/CesiumMan.glb']},
+    zombie:{label:'ZOMBI CDN',lic:'MIXAMO (espejo)',urls:['https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/zombie/model.gltf','https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/character-13/model.gltf']},
+    local:{label:'ESPÉCIMEN LOCAL',lic:'PROCEDURAL',local:true}
+  };
+
+  const draco=new THREE.DRACOLoader();draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+  const loader=new THREE.GLTFLoader();loader.setDRACOLoader(draco);
+  if(window.MeshoptDecoder)loader.setMeshoptDecoder(window.MeshoptDecoder);
+
+  function disposeRoot(){
+    if(!root)return;
+    scene.remove(root);
+    root.traverse(o=>{if(!o.isMesh)return;o.geometry&&o.geometry.dispose();
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{for(const k in m)if(m[k]&&m[k].isTexture)m[k].dispose();m.dispose();});});
+    if(mixer){mixer.stopAllAction();try{mixer.uncacheRoot(root);}catch(e){}}
+    root=null;mixer=null;actions={};current=null;
+  }
+
+  function normalize(r,h){
+    const box=new THREE.Box3().setFromObject(r);const size=box.getSize(new THREE.Vector3());
+    r.scale.setScalar(h/Math.max(size.y,1e-4));
+    box.setFromObject(r);
+    r.position.x-=(box.min.x+box.max.x)/2;r.position.z-=(box.min.z+box.max.z)/2;r.position.y-=box.min.y;
+    triCount=0;r.traverse(o=>{if(o.isMesh){const g=o.geometry;triCount+=g.index?g.index.count/3:g.attributes.position.count/3;o.castShadow=true;o.frustumCulled=false;if(o.material&&o.material.map)o.material.map.encoding=THREE.sRGBEncoding;}});
+    return r;
+  }
+
+  function attachModel(r,anims,label,lic){
+    root=r;scene.add(root);curLabel=label;curLic=lic;
+    mixer=(anims&&anims.length)?new THREE.AnimationMixer(root):null;
+    actions={};clipsEl.innerHTML='';curClips=anims?anims.length:0;
+    if(mixer){
+      anims.forEach((c,i)=>{
+        const a=mixer.clipAction(c);const nm=c.name||('clip'+i);
+        if(/death|jump|punch|no$|yes$|wave|thumbs|sitting|standing|attack/i.test(nm)){a.setLoop(THREE.LoopOnce);a.clampWhenFinished=true;}
+        actions[nm]=a;
+        const b=document.createElement('button');b.className='vb';b.textContent=nm.toUpperCase();b.title=nm;
+        b.onclick=()=>playClip(b,a);clipsEl.appendChild(b);
+      });
+      const pref=Object.keys(actions).find(k=>/idle/i.test(k))||Object.keys(actions).find(k=>/walk/i.test(k))||Object.keys(actions).find(k=>/run/i.test(k))||Object.keys(actions)[0];
+      if(pref){const btn=[...clipsEl.children].find(x=>x.textContent===pref.toUpperCase());playClip(btn,actions[pref]);}
+    }else{clipsEl.innerHTML='<span style="font-family:var(--mono);font-size:10.5px;color:var(--dim2)">sin clips — modelo estático</span>';}
+  }
+  function playClip(btn,a){if(!a||current===a)return;document.querySelectorAll('#clips .vb').forEach(x=>x.classList.remove('on'));btn&&btn.classList.add('on');if(current)current.fadeOut(0.25);a.reset().fadeIn(0.25).play();current=a;log('clip "'+a.getClip().name+'" → crossfade 0.25s','e');}
+
+  async function setModel(key){
+    const spec=MODELS[key];if(!spec)return;
+    const my=++token;
+    document.querySelectorAll('#modelRow .vb').forEach(x=>x.classList.toggle('on',x.dataset.m===key));
+    disposeRoot();clipsEl.innerHTML='';curClips=0;showProg(true,0);srcEl.textContent='→ '+spec.label;
+    log('requisando '+spec.label+' …','c');
+    if(spec.local){const r=buildLocal();normalize(r,1.8);if(!LOCAL_CLIPS)LOCAL_CLIPS=makeLocalClips();attachModel(r,LOCAL_CLIPS,'ESPÉCIMEN LOCAL','PROCEDURAL');showProg(false);srcEl.textContent='✓ procedural (offline)';log('espécimen procedural listo (offline)','e');return;}
+    for(const u of spec.urls){
+      if(my!==token)return;
+      try{
+        const gltf=await new Promise((ok,ko)=>loader.load(u,ok,ev=>{if(ev.total&&my===token)showProg(true,ev.loaded/ev.total);},ko));
+        if(my!==token)return;
+        normalize(gltf.scene,1.8);attachModel(gltf.scene,gltf.animations,spec.label,spec.lic);
+        showProg(false);srcEl.textContent='✓ '+u;log('OK · '+gltf.animations.length+' clips · '+u,'e');return;
+      }catch(err){log('fallo '+u+' → siguiente','w');}
+    }
+    showProg(false);log('toda la cadena falló → espécimen local','w');setModel('local');
+  }
+
+  /* ---- procedural local specimen (offline fallback) ---- */
+  function B(w,h,d,mat){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);}
+  function buildLocal(){
+    skinMat=new THREE.MeshStandardMaterial({color:0x8fae5a,roughness:.85});
+    clothMat=new THREE.MeshStandardMaterial({color:0x2a3324,roughness:.95});
+    darkMat=new THREE.MeshStandardMaterial({color:0x161b12,roughness:.9});
+    const r=new THREE.Group();r.name='ZombieRoot';
+    const hips=new THREE.Group();hips.name='Hips';hips.position.y=0.92;r.add(hips);hips.add(B(0.36,0.22,0.22,clothMat));
+    torso=new THREE.Group();torso.name='Torso';torso.position.y=0.14;hips.add(torso);
+    const tm=B(0.44,0.52,0.26,clothMat);tm.position.y=0.3;torso.add(tm);
+    const head=new THREE.Group();head.name='Head';head.position.y=0.66;torso.add(head);
+    const hm=B(0.26,0.3,0.26,skinMat);hm.position.y=0.15;head.add(hm);
+    const eyeM=new THREE.MeshStandardMaterial({color:0xffb454,emissive:0xffb454,emissiveIntensity:1.4});
+    const eL=B(0.05,0.05,0.02,eyeM);eL.position.set(0.07,0.18,0.13);head.add(eL);const eR=eL.clone();eR.position.x=-0.07;head.add(eR);
+    const armL=new THREE.Group();armL.name='ArmL';armL.position.set(0.29,0.56,0);torso.add(armL);const alm=B(0.12,0.56,0.12,skinMat);alm.position.y=-0.26;armL.add(alm);armL.rotation.x=-1.15;
+    const armR=new THREE.Group();armR.name='ArmR';armR.position.set(-0.29,0.56,0);torso.add(armR);const arm=B(0.12,0.56,0.12,skinMat);arm.position.y=-0.26;armR.add(arm);armR.rotation.x=-1.15;
+    const legL=new THREE.Group();legL.name='LegL';legL.position.set(0.11,-0.06,0);hips.add(legL);const ll=B(0.15,0.8,0.15,darkMat);ll.position.y=-0.4;legL.add(ll);
+    const legR=new THREE.Group();legR.name='LegR';legR.position.set(-0.11,-0.06,0);hips.add(legR);const lr=B(0.15,0.8,0.15,darkMat);lr.position.y=-0.4;legR.add(lr);
+    return r;
+  }
+  function series(dur,n,fn){const t=[],v=[];for(let i=0;i<n;i++){const tt=dur*i/(n-1);t.push(+tt.toFixed(3));v.push(+fn(tt).toFixed(4));}return[t,v];}
+  const TK=(name,t,v)=>new THREE.NumberKeyframeTrack(name,t,v);
+  function makeLocalClips(){
+    const D=2.6,N=13;
+    const idle=[TK('ArmL.rotation[x]',...series(D,N,t=>-1.15+0.07*Math.sin(t*2.4))),TK('ArmR.rotation[x]',...series(D,N,t=>-1.15+0.07*Math.sin(t*2.4+1.7))),TK('Head.rotation[z]',...series(D,N,t=>0.14*Math.sin(t*1.3))),TK('Hips.position[y]',...series(D,N,t=>0.92+0.02*Math.sin(t*2.2)))];
+    const W=0.8,M=9;
+    const walk=[TK('LegL.rotation[x]',...series(W,M,t=>0.65*Math.sin(t/W*2*Math.PI))),TK('LegR.rotation[x]',...series(W,M,t=>-0.65*Math.sin(t/W*2*Math.PI))),TK('ArmL.rotation[x]',...series(W,M,t=>-1.15-0.18*Math.sin(t/W*2*Math.PI))),TK('ArmR.rotation[x]',...series(W,M,t=>-1.15+0.18*Math.sin(t/W*2*Math.PI))),TK('Hips.position[y]',...series(W,M,t=>0.92+0.035*Math.abs(Math.sin(t/W*4*Math.PI))))];
+    const at=[0,.3,.5,.72,.9];
+    const attack=[TK('ArmR.rotation[x]',at,[-1.15,-2.75,-2.6,-0.35,-1.15]),TK('Torso.rotation[x]',at,[0.05,-0.18,-0.1,0.4,0.05]),TK('ZombieRoot.position[z]',at,[0,0.02,0.1,0.5,0.12])];
+    return[new THREE.AnimationClip('idle',D,idle),new THREE.AnimationClip('walk',W,walk),new THREE.AnimationClip('attack',.9,attack)];
+  }
+
+  /* ---- poly pizza search ---- */
+  async function pizzaSearch(){
+    const kw=(document.getElementById('pizza').value.trim()||'zombie');
+    log('poly.pizza → "'+kw+'" …','c');
+    try{
+      const json=await (await fetch('https://api.poly.pizza/v1.1/search?Keyword='+encodeURIComponent(kw)+'&Limit=5')).json();
+      const list=json.Models||json.models||[];
+      if(!list.length){log('poly.pizza: 0 resultados para "'+kw+'"','w');return;}
+      for(const m of list){
+        const glb=m.glb||m.Glb||(m.Hash&&m.Slug?'https://models.poly.pizza/'+m.Hash+'/'+m.Slug+'/glb':null);
+        if(!glb)continue;
+        const my=++token;disposeRoot();showProg(true,0);
+        try{
+          const gltf=await new Promise((ok,ko)=>loader.load(glb,ok,ev=>{if(ev.total&&my===token)showProg(true,ev.loaded/ev.total);},ko));
+          if(my!==token)return;
+          normalize(gltf.scene,1.8);attachModel(gltf.scene,gltf.animations,(m.Name||m.Slug).toUpperCase(),'CC0 (poly.pizza)');
+          showProg(false);srcEl.textContent='✓ poly.pizza · '+(m.Name||m.Slug);
+          log('spawn CC0 · '+(m.Name||m.Slug)+' · '+gltf.animations.length+' clips','e');return;
+        }catch(e){log('candidato poly.pizza falló → siguiente','w');}
+      }
+      log('poly.pizza: ningún GLB usable para "'+kw+'"','w');
+    }catch(e){log('poly.pizza inaccesible (CORS/red) — descarga y sirve local','w');}
+  }
+
+  /* ---- controls ---- */
+  function bindControls(){
+    document.getElementById('modelRow').addEventListener('click',e=>{const b=e.target.closest('.vb');if(b)setModel(b.dataset.m);});
+    document.getElementById('pizzaBtn').addEventListener('click',pizzaSearch);
+    document.getElementById('pizza').addEventListener('keydown',e=>{if(e.key==='Enter')pizzaSearch();});
+    const ts=document.getElementById('tscale'),tsV=document.getElementById('tscaleV');
+    ts.addEventListener('input',()=>{const v=parseFloat(ts.value);tsV.textContent=v.toFixed(2);if(mixer)mixer.timeScale=v;});
+    stage.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastInteract=performance.now();stage.setPointerCapture(e.pointerId);});
+    stage.addEventListener('pointermove',e=>{if(!dragging)return;autoYaw+=(e.clientX-lastX)*0.01;lastX=e.clientX;lastInteract=performance.now();});
+    stage.addEventListener('pointerup',()=>{dragging=false;});
+    stage.addEventListener('pointercancel',()=>{dragging=false;});
+  }
+
+  let hudT=0,fpsT=0,frames=0,fps=0;
+  function animate(){
+    requestAnimationFrame(animate);
+    const dt=Math.min(clock.getDelta(),0.05);
+    if(mixer)mixer.update(dt);
+    if(!dragging&&performance.now()-lastInteract>2200)autoYaw+=dt*0.22;
+    if(root)root.rotation.y=autoYaw;
+    renderer.render(scene,camera);
+    hudT+=dt;frames++;fpsT+=dt;if(fpsT>=0.5){fps=Math.round(frames/fpsT);frames=0;fpsT=0;}
+    if(hudT>0.12){hudT=0;hud.innerHTML='MODELO: <b>'+curLabel+'</b><br>licencia: '+curLic+' · clips: '+curClips+'<br>tris: '+triCount+' · draws: '+renderer.info.render.calls+' · '+fps+' fps';}
+  }
+  init();
+})();
+</script>
+</body>
+</html>
