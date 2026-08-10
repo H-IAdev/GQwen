@@ -1745,20 +1745,27 @@ function initGameEngine() {
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
     bots=[];
+    const roles = [
+      { role: 'scout', name: 'VEGA', leadOffset: 0.14, latOffset: -2.2, speed: 6.2 },
+      { role: 'anchor', name: 'RUIZ', leadOffset: -0.14, latOffset: 2.2, speed: 5.4 },
+      { role: 'flanker', name: 'KIDO', leadOffset: 0.02, latOffset: 0.0, speed: 5.8 }
+    ];
     for(let i=0;i<3;i++){
       const m=buildPlayerMesh(i+1);
-      m.group.position.copy(camera.position).add(new THREE.Vector3(R(-2,2),0,R(-2,2)));
+      m.group.position.copy(camera.position).add(new THREE.Vector3(R(-2.5,2.5),0,R(-2.5,2.5)));
       scene.add(m.group);
-      bots.push({...m,id:i+1,name:BOT_NAMES[i],hp:100,maxHp:100,
+      bots.push({...m,id:i+1,name:roles[i].name,hp:100,maxHp:100,
+        role: roles[i].role, leadOffset: roles[i].leadOffset, latOffset: roles[i].latOffset, baseSpeed: roles[i].speed,
+        scanTimer: R(2, 6), restTimer: 0, patrolProgress: Math.random(),
         downed:false,downT:0,dead:false,
-        fireCd:R(.8,1.5),
+        fireCd:R(.6,1.2),
         vel:new THREE.Vector3(),
         revivingPlayer:false,
         mixer:null,actions:{},activeAction:null
       });
     }
     botsEnabled=true;
-    logDiag('Escuadrón IA desplegado: '+BOT_NAMES.join(', '),'ok');
+    logDiag('Escuadrón IA táctico desplegado: '+BOT_NAMES.join(', '),'ok');
     loadRobotGLTFForBots();
   }
 
@@ -1789,11 +1796,11 @@ function initGameEngine() {
     p.z = clamp(p.z, -29.2 + BOT_RADIUS, 14.2 - BOT_RADIUS);
   }
 
-  // Algoritmo de Separación Inter-Entidad (Boids / Personal Space: 1.4m entre bots y jugador)
+  // Algoritmo de Separación Inter-Entidad (Boids Ampliado / Personal Space: 2.2m entre bots y jugador)
   function applyBotSeparation(b, dt){
     if(!b.group || b.downed || b.dead) return;
     const pos = b.group.position;
-    const MIN_SEP = 1.4;
+    const MIN_SEP = 2.2; // Ampliado a 2.2m para evitar aglomeraciones
     let sepX = 0, sepZ = 0;
 
     // Repulsión respecto a otros bots de escuadrón
@@ -1805,20 +1812,20 @@ function initGameEngine() {
       const d = Math.hypot(dx, dz);
       if(d > 0.001 && d < MIN_SEP){
         const force = (MIN_SEP - d) / MIN_SEP;
-        sepX += (dx / d) * force * 3.5 * dt;
-        sepZ += (dz / d) * force * 3.5 * dt;
+        sepX += (dx / d) * force * 4.5 * dt;
+        sepZ += (dz / d) * force * 4.5 * dt;
       }
     }
 
-    // Repulsión respecto a la posición de la cámara del jugador
+    // Repulsión respecto a la posición del jugador
     if(camera){
       const dx = pos.x - camera.position.x;
       const dz = pos.z - camera.position.z;
       const d = Math.hypot(dx, dz);
       if(d > 0.001 && d < MIN_SEP){
         const force = (MIN_SEP - d) / MIN_SEP;
-        sepX += (dx / d) * force * 4.0 * dt;
-        sepZ += (dz / d) * force * 4.0 * dt;
+        sepX += (dx / d) * force * 5.0 * dt;
+        sepZ += (dz / d) * force * 5.0 * dt;
       }
     }
 
@@ -1841,7 +1848,7 @@ function initGameEngine() {
     g.position.z += (dz / dist) * speed * dt;
     navBotClamp(g.position);
 
-    // Aplicar repulsión personal entre entidades (Boids)
+    // Aplicar repulsión personal entre entidades (Boids 2.2m)
     applyBotSeparation(b, dt);
 
     // Si colisionó y fue empujado por la pared, deslizar a lo largo de la tangente
@@ -1853,19 +1860,20 @@ function initGameEngine() {
       b.patrolPos = null;
     }
 
-    g.position.y=getFloorY(g.position.x,g.position.z);
+    // Alineación natural con la altura exacta del suelo/escalera
+    const targetY = getFloorY(g.position.x, g.position.z);
+    g.position.y = lerp(g.position.y, targetY, dt * 14);
 
     if(dist > 0.05 && !b.aimingTgt){
       const moveAng = Math.atan2(dx, dz);
       g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
     }
 
-
     if(!b.downed){
       b.walk+=dt*speed*2.4;
       if(b.mixer){
         b.mixer.update(dt);
-        const targetAction = speed > 4.8 ? 'Running' : 'Walking';
+        const targetAction = speed > 4.5 ? 'Running' : 'Walking';
         if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
           b.actions[targetAction].reset().fadeIn(0.18).play();
@@ -1878,6 +1886,7 @@ function initGameEngine() {
       }
     }
   }
+
 
   function updateBots(dt){
     if(!botsEnabled||!playing)return;
@@ -2006,19 +2015,19 @@ function initGameEngine() {
         }
       } else {
         b.aimingTgt = false;
-        const hasZombiesOnMap = zombies.some(z => !z.dead);
+        b.scanTimer = (b.scanTimer || 0) - dt;
+        b.restTimer = (b.restTimer || 0) - dt;
 
-        if(isSquadRegrouping || !hasZombiesOnMap){
-          // --- REUNIÓN PERIÓDICA O PAUSA PAZ (DESCANSO Y ENSAMBLE DE ESCUADRÓN) ---
+        if(isSquadRegrouping){
+          // --- REUNIÓN PERIÓDICA O DESCANSO DE ESCUADRÓN ---
           const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
           const regroupPos = camera.position.clone().add(bOff);
           const distToPlayer = g.position.distanceTo(regroupPos);
 
-          if(distToPlayer > 2.0){
-            moveBotTo(b, regroupPos, 5.2, dt);
+          if(distToPlayer > 2.2){
+            moveBotTo(b, regroupPos, b.baseSpeed || 5.5, dt);
           } else {
             g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 5);
-
             let restAction = 'Idle';
             if(b.id === 1 && b.actions['Sitting']) restAction = 'Sitting';
             else if(b.id === 3 && b.actions['Dance']) restAction = 'Dance';
@@ -2029,16 +2038,44 @@ function initGameEngine() {
               b.activeAction = restAction;
             }
           }
-        } else {
-          // --- EXPLORACIÓN LIBRE Y PATRULLAJE POR TODO EL MAPA (MÁXIMA INDEPENDENCIA) ---
-          if(!b.roamTarget || g.position.distanceTo(b.roamTarget) < 2.0){
-            const curT = closestT(g.position.x, g.position.z);
-            const nextT = (curT + R(0.08, 0.25)) % 1;
-            b.roamTarget = trackPos(nextT);
+        } else if(b.scanTimer > 0 && b.restTimer > 0){
+          // --- PAUSA DE ESCANEO / DESCANSO INDEPENDIENTE (INSPECCIÓN VISUAL) ---
+          let gestAction = 'Idle';
+          if(b.id === 1 && b.actions['Wave']) gestAction = 'Wave';
+          else if(b.id === 2 && b.actions['Sitting']) gestAction = 'Sitting';
+          else if(b.id === 3 && b.actions['Dance']) gestAction = 'Dance';
+
+          if(b.actions[gestAction] && b.activeAction !== gestAction){
+            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.25);
+            b.actions[gestAction].reset().fadeIn(0.25).play();
+            b.activeAction = gestAction;
           }
-          if(g.position.distanceTo(b.roamTarget) > 1.8){
-            moveBotTo(b, b.roamTarget, 4.5, dt);
+        } else {
+          // --- PATRULLAJE INDEPENDIENTE RECORRIENDO EL LOOP COMPLETO DEL MAPA (TRACK t ∈ [0, 1]) ---
+          // Asignar punto objetivo a lo largo del circuito según la personalidad del bot y la posición del jugador
+          let targetTrackT = (playerT + (b.leadOffset || 0)) % 1;
+          if(targetTrackT < 0) targetTrackT += 1;
+
+          const trackP = trackPos(targetTrackT);
+          const trackN = outN(targetTrackT);
+          const patrolDest = new THREE.Vector3(
+            trackP.x + trackN.x * (b.latOffset || 2.0),
+            getFloorY(trackP.x, trackP.z),
+            trackP.z + trackN.z * (b.latOffset || 2.0)
+          );
+
+          const distToPatrol = g.position.distanceTo(patrolDest);
+          if(distToPatrol > 2.0){
+            const patrolSpeed = (distToPatrol > 15.0) ? (b.baseSpeed + 2.0) : (b.baseSpeed || 5.5);
+            moveBotTo(b, patrolDest, patrolSpeed, dt);
           } else {
+            // Llegó al sector objetivo — activar temporizador corto de descanso o escaneo antes del siguiente avance
+            if(Math.random() < 0.35){
+              b.scanTimer = R(2.0, 4.5);
+              b.restTimer = R(2.0, 4.0);
+            } else {
+              b.leadOffset = (b.leadOffset + R(0.05, 0.15)) % 1;
+            }
             if(b.actions['Idle'] && b.activeAction !== 'Idle'){
               if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
               b.actions['Idle'].reset().fadeIn(0.2).play();
@@ -2047,6 +2084,7 @@ function initGameEngine() {
           }
         }
       }
+
 
       // Desvanecimiento de destello de arma
       if(b.flash && b.flash.visible){
