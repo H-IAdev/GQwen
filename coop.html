@@ -1663,16 +1663,19 @@ function initGameEngine() {
         isZombieGLTFLoading = false;
         logDiag('✓ Modelo GLTF CDN cargado exitosamente: ' + urlList[idx].split('/').pop(), 'ok');
         
-        // Asignar mallas GLTF optimizadas a los slots del pool de zombis
+        // Asignar mallas GLTF optimizadas al punto de anclaje de cada slot (mountAnchor)
         for(const slot of ZOMBIE_POOL){
           if(slot && slot.detailG){
             try {
-              if(slot.gltfMesh) slot.detailG.remove(slot.gltfMesh);
+              if(slot.mountAnchor){
+                while(slot.mountAnchor.children.length > 0) slot.mountAnchor.remove(slot.mountAnchor.children[0]);
+              }
               const zClone = gltf.scene.clone(true);
               normalizeModel(zClone, 1.8);
               slot.gltfMesh = zClone;
               zClone.visible = false;
-              slot.detailG.add(zClone);
+              if(slot.mountAnchor) slot.mountAnchor.add(zClone);
+              else slot.detailG.add(zClone);
               // Registrar sub-meshes en hitboxes para disparos y raycast
               zClone.traverse(c => {
                 if(c.isMesh){ c.userData.part = 'body'; c.userData.z = slot; }
@@ -1680,6 +1683,7 @@ function initGameEngine() {
             } catch(e){}
           }
         }
+
       }, undefined, (err) => {
         console.warn('[CDN Zombie] Error al cargar:', urlList[idx], err);
         attempt(idx + 1);
@@ -2192,25 +2196,25 @@ function initGameEngine() {
 
   // ZDEF y _cfg inicializados en la cabecera del script.
 
-  /* Fase 6A — Pool de geometrías reutilizables para zombies (evita allocaciones por spawn) */
+  /* Fase 6A — Pool de geometrías ultra-ligeras reutilizables para zombies */
   const GEO_POOL={
-    head:  new THREE.SphereGeometry(.13,8,6),
-    jaw:   new THREE.SphereGeometry(.08,6,4),
-    eye:   new THREE.SphereGeometry(.024,6,6),
-    eyeB:  new THREE.SphereGeometry(.045,6,6),
-    loBody:new THREE.CylinderGeometry(.28,.28,.9,6),
-    loHead:new THREE.SphereGeometry(.16,6,4),
+    head:  new THREE.SphereGeometry(.13,6,4),
+    jaw:   new THREE.SphereGeometry(.08,4,3),
+    eye:   new THREE.SphereGeometry(.024,4,4),
+    eyeB:  new THREE.SphereGeometry(.045,4,4),
+    loBody:new THREE.CylinderGeometry(.28,.24,1.0,5),
+    loHead:new THREE.SphereGeometry(.16,5,4),
     torso: new THREE.BoxGeometry(.44,.6,.25),
     torJug:new THREE.BoxGeometry(.6,.6,.25),
     core:  new THREE.BoxGeometry(.25,.3,.15),
     foot:  new THREE.BoxGeometry(.1,.06,.18),
-    // Extremidades (cápsula simulada)
-    armCyl: new THREE.CylinderGeometry(.06,.06,.34,6),
-    armCap: new THREE.SphereGeometry(.06,6,4),
-    faCyl:  new THREE.CylinderGeometry(.048,.048,.3,6),
-    faCap:  new THREE.SphereGeometry(.048,6,4),
-    legCyl: new THREE.CylinderGeometry(.072,.072,.38,6),
-    legCap: new THREE.SphereGeometry(.072,6,4),
+    // Extremidades optimizadas (4 segmentos radiales)
+    armCyl: new THREE.CylinderGeometry(.06,.06,.34,4),
+    armCap: new THREE.SphereGeometry(.06,4,3),
+    faCyl:  new THREE.CylinderGeometry(.048,.048,.3,4),
+    faCap:  new THREE.SphereGeometry(.048,4,3),
+    legCyl: new THREE.CylinderGeometry(.072,.072,.38,4),
+    legCap: new THREE.SphereGeometry(.072,4,3),
     // Remotos (BoxGeometry)
     rHead:  new THREE.BoxGeometry(.24,.26,.24),
     rTorso: new THREE.BoxGeometry(.44,.6,.25),
@@ -2224,12 +2228,16 @@ function initGameEngine() {
     g.add(cyl);
     return g;
   }
-  /* Fase 6B+ — Pool de 60 slots con LODs pre-creados (cero allocaciones por spawn) */
+  /* Fase 6B+ — Pool de 60 slots con LODs pre-creados y anclaje CDN dedicado (mountAnchor) */
   const POOL_SIZE=60;
   const ZOMBIE_POOL=[];
   /* Materiales default para la estructura pre-construida (se intercambian al spawnear) */
   function buildPrebuiltLODForSlot(slot){
     const g=new THREE.Group();
+    const mountAnchor=new THREE.Group();
+    mountAnchor.name='CDN_MountAnchor';
+    g.add(mountAnchor);
+
     const defSkin=std({color:0x7d9070,roughness:.8},.1);
     const defCloth=std({color:0x3a3f46,roughness:.95},.08).clone();
     const defDark=std({color:0x111317,roughness:.9},.08);
@@ -2276,13 +2284,15 @@ function initGameEngine() {
     g.traverse(c=>{if(c.isMesh){c.userData.part='body';c.userData.z=null;}});
     head.userData.part='head';jaw.userData.part='head';
     // Guardar TODAS las referencias en el slot
-    slot.g=lod;slot.detailG=g;slot.torso=torso;slot.torJugMesh=torJug;slot.coreMesh=coreJug;
+    slot.g=lod;slot.detailG=g;slot.mountAnchor=mountAnchor;
+    slot.torso=torso;slot.torJugMesh=torJug;slot.coreMesh=coreJug;
     slot.head=head;slot.jaw=jaw;slot.eyes=eyes;slot.eyeB=eyeB;
     slot.aL=aL;slot.aR=aR;slot.lL=lL;slot.lR=lR;
     slot.loBody=loBody;slot.loHead=loHead;slot.aura=aura;
     slot.skin=defSkin;slot.clothM=defCloth;slot.dark=defDark;
     scene.add(lod);lod.visible=false;
   }
+
   /* Inicializar pool: pre-construir 60 LODs */
   window.zombieHitboxes=[];
   for(let _pi=0;_pi<POOL_SIZE;_pi++){
