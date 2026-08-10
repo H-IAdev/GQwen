@@ -402,9 +402,21 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
         <div class="joinRow"><input id="joinInput" maxlength="5" placeholder="CODE" spellcheck="false">
         <button class="go sm" id="joinBtn">JOIN</button></div></div>
     </div>
+
+    <!-- DIRECTORIO DE SALAS ABIERTAS P2P -->
+    <div class="openRoomsP" id="openRoomsBox" style="margin:14px 0;padding:12px;border:1px solid var(--line);background:#0d1116;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="font-family:var(--disp);font-size:11px;color:var(--amber2);margin:0;letter-spacing:.12em;">📡 SALAS ABIERTAS DISPONIBLES (P2P DIRECTORY)</h3>
+        <button class="go sm" id="refreshRoomsBtn" style="font-size:9px;padding:3px 8px;">REFRESCAR ↻</button>
+      </div>
+      <div id="openRoomsList" style="display:flex;flex-direction:column;gap:6px;max-height:130px;overflow-y:auto;padding-right:4px;">
+        <div style="font-size:10px;color:var(--dim);">ESCANEANDO SALAS P2P EN LÍNEA...</div>
+      </div>
+    </div>
     
     <div class="playerList" id="playerList"></div>
     <div class="lobbyStatus" id="lobbyStatus">INITIALIZING ENGINE...</div>
+
     <div id="diagLog"></div>
     <button class="go" id="startBtn" style="display:none;margin-top:12px">START MISSION →</button>
     
@@ -622,12 +634,21 @@ function initGameEngine() {
   let renderer, scene, camera;
   try {
     renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-    renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if(isMobileDevice){
+      document.body.classList.add('is-touch');
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.BasicShadowMap;
+    } else {
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
     renderer.setSize(innerWidth,innerHeight);
     if(THREE.SRGBColorSpace) renderer.outputColorSpace=THREE.SRGBColorSpace;
     else if(THREE.sRGBEncoding) renderer.outputEncoding=THREE.sRGBEncoding;
-    renderer.shadowMap.enabled=true;
-    renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
     /* GQW-VIS-5.0: ACES Filmic Tone Mapping para look cinematográfico */
     if(THREE.ACESFilmicToneMapping) renderer.toneMapping=THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure=0.98;
@@ -1647,15 +1668,17 @@ function initGameEngine() {
     loadRobotGLTFForBots();
   }
 
+  const BOT_RADIUS = 0.55; // Radio del cilindro de colisión del bot (0.55m)
+
   function navBotClamp(p){
     const t = closestT(p.x, p.z);
     const P = trackPos(t), N = outN(t);
     const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
     const st = stationness(t);
     
-    // Clampear estrictamente dentro de las paredes laterales del túnel y andén
-    const minLat = lerp(-3.8, -2.6, st);
-    const maxLat = lerp(6.8, 3.6, st);
+    // Clampear estrictamente dentro de las paredes laterales del túnel y andén considerando el radio del bot
+    const minLat = lerp(-3.8, -2.6, st) + BOT_RADIUS;
+    const maxLat = lerp(6.8, 3.6, st) - BOT_RADIUS;
     
     if(lat < minLat){
       const push = minLat - lat;
@@ -1668,8 +1691,48 @@ function initGameEngine() {
     }
 
     // Paredes físicas perimetrales de la estación
-    p.x = clamp(p.x, -4.2, 9.2);
-    p.z = clamp(p.z, -29.2, 14.2);
+    p.x = clamp(p.x, -4.2 + BOT_RADIUS, 9.2 - BOT_RADIUS);
+    p.z = clamp(p.z, -29.2 + BOT_RADIUS, 14.2 - BOT_RADIUS);
+  }
+
+  // Algoritmo de Separación Inter-Entidad (Boids / Personal Space: 1.4m entre bots y jugador)
+  function applyBotSeparation(b, dt){
+    if(!b.group || b.downed || b.dead) return;
+    const pos = b.group.position;
+    const MIN_SEP = 1.4;
+    let sepX = 0, sepZ = 0;
+
+    // Repulsión respecto a otros bots de escuadrón
+    for(const ob of bots){
+      if(ob === b || !ob.group || ob.dead) continue;
+      const opos = ob.group.position;
+      const dx = pos.x - opos.x;
+      const dz = pos.z - opos.z;
+      const d = Math.hypot(dx, dz);
+      if(d > 0.001 && d < MIN_SEP){
+        const force = (MIN_SEP - d) / MIN_SEP;
+        sepX += (dx / d) * force * 3.5 * dt;
+        sepZ += (dz / d) * force * 3.5 * dt;
+      }
+    }
+
+    // Repulsión respecto a la posición de la cámara del jugador
+    if(camera){
+      const dx = pos.x - camera.position.x;
+      const dz = pos.z - camera.position.z;
+      const d = Math.hypot(dx, dz);
+      if(d > 0.001 && d < MIN_SEP){
+        const force = (MIN_SEP - d) / MIN_SEP;
+        sepX += (dx / d) * force * 4.0 * dt;
+        sepZ += (dz / d) * force * 4.0 * dt;
+      }
+    }
+
+    if(Math.abs(sepX) > 0.0001 || Math.abs(sepZ) > 0.0001){
+      pos.x += sepX;
+      pos.z += sepZ;
+      navBotClamp(pos);
+    }
   }
 
   function moveBotTo(b,dest,speed,dt){
@@ -1683,6 +1746,9 @@ function initGameEngine() {
     g.position.x += (dx / dist) * speed * dt;
     g.position.z += (dz / dist) * speed * dt;
     navBotClamp(g.position);
+
+    // Aplicar repulsión personal entre entidades (Boids)
+    applyBotSeparation(b, dt);
 
     // Si colisionó y fue empujado por la pared, deslizar a lo largo de la tangente
     const actualDx = g.position.x - oldX;
@@ -1699,6 +1765,7 @@ function initGameEngine() {
       const moveAng = Math.atan2(dx, dz);
       g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
     }
+
 
     if(!b.downed){
       b.walk+=dt*speed*2.4;
@@ -3696,9 +3763,69 @@ function initGameEngine() {
     }
   }
 
-  function setNetStatus(txt,cls=''){$('#netStatus').textContent=txt;$('#netStatus').className=cls;}
+  /* ===== DIRECTORIO DE SALAS ABIERTAS P2P ===== */
+  const OPEN_ROOMS_KEY = 'gqwen_open_p2p_rooms_v46';
+  let _roomAnnounceTimer = null;
+
+  function announceRoomPresence(code, numP = 1){
+    try {
+      let rooms = JSON.parse(localStorage.getItem(OPEN_ROOMS_KEY) || '{}');
+      const now = Date.now();
+      for(const k in rooms){
+        if(now - rooms[k].ts > 12000) delete rooms[k];
+      }
+      rooms[code] = {
+        code: code,
+        host: 'HOST-' + code.slice(-3),
+        players: numP + '/4',
+        ts: now
+      };
+      localStorage.setItem(OPEN_ROOMS_KEY, JSON.stringify(rooms));
+    } catch(e){}
+  }
+
+  function renderOpenRooms(){
+    const listEl = $('#openRoomsList');
+    if(!listEl) return;
+    try {
+      let rooms = JSON.parse(localStorage.getItem(OPEN_ROOMS_KEY) || '{}');
+      const now = Date.now();
+      const activeList = [];
+      for(const k in rooms){
+        if(now - rooms[k].ts <= 12000){
+          activeList.push(rooms[k]);
+        }
+      }
+      if(activeList.length === 0){
+        listEl.innerHTML = '<div style="font-size:10px;color:var(--dim);padding:4px 0;">NO HAY SALAS P2P ABIERTAS EN ESTE MOMENTO. ¡CREA UNA NUEVA!</div>';
+        return;
+      }
+      listEl.innerHTML = '';
+      activeList.forEach(r => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#141a22;border-left:3px solid var(--amber);border-radius:2px;font-size:11px;';
+        item.innerHTML = `<div><b style="color:var(--amber2)">SALA ${r.code}</b> <span style="font-size:9px;color:var(--dim);margin-left:6px;">${r.host} · JUGADORES: ${r.players}</span></div>`;
+        const joinB = document.createElement('button');
+        joinB.className = 'go sm';
+        joinB.style.cssText = 'font-size:9px;padding:3px 10px;';
+        joinB.textContent = 'UNIRSE →';
+        joinB.onclick = () => {
+          $('#joinInput').value = r.code;
+          initClient(r.code);
+        };
+        item.appendChild(joinB);
+        listEl.appendChild(item);
+      });
+    } catch(e){
+      listEl.innerHTML = '<div style="font-size:10px;color:var(--dim);">ESCANEANDO SALAS EN LÍNEA...</div>';
+    }
+  }
+
+  setInterval(renderOpenRooms, 3000);
+  setTimeout(renderOpenRooms, 600);
 
   function resetPeer(){
+    if(_roomAnnounceTimer){ clearInterval(_roomAnnounceTimer); _roomAnnounceTimer = null; }
     if(peer){try{peer.destroy();}catch(e){}}
     peer=null;hostConn=null;_iceRoute='—';
     for(const k in remotePlayers)delete remotePlayers[k];
@@ -3740,6 +3867,13 @@ function initGameEngine() {
     isHost=true;myColor=PCOLORS[0];
     setNetStatus('HOST · '+code,'ok');
     $('#lobbyStatus').textContent='CONNECTING TO PEER SERVER...';
+
+    if(_roomAnnounceTimer) clearInterval(_roomAnnounceTimer);
+    _roomAnnounceTimer = setInterval(()=>{
+      if(isHost && peer && peer.id) announceRoomPresence(code, 1 + Object.keys(remotePlayers).length);
+    }, 4000);
+    announceRoomPresence(code, 1);
+
 
     try{
       peer=new Peer('lumen-'+code,peerConfig());
@@ -4640,13 +4774,14 @@ function initGameEngine() {
     touchLookZone.addEventListener('touchcancel', resetLook);
   }
 
-  // Botones táctiles de Disparo, Salto, Recarga y Revivir
+  // Botones táctiles de Disparo, Salto, Recarga, Revivir y Linterna Táctica (con Respuesta Háptica Vibración)
   const bindTouchBtn = (id, onDown, onUp) => {
     const btn = $(id);
     if(!btn) return;
     btn.addEventListener('touchstart', e => {
       e.preventDefault();
       btn.classList.add('active');
+      if(navigator.vibrate) { try { navigator.vibrate(18); } catch(ex){} }
       if(onDown) onDown();
     }, {passive:false});
     const handleUp = e => {
@@ -4668,6 +4803,15 @@ function initGameEngine() {
   bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });
   bindTouchBtn('#tBtnPtt', () => { setPTTState(true); }, () => { setPTTState(false); });
 
+  // Botón de refresco manual de salas abiertas
+  const refreshRoomsBtn = $('#refreshRoomsBtn');
+  if(refreshRoomsBtn){
+    refreshRoomsBtn.addEventListener('click', e => {
+      e.preventDefault();
+      if(typeof renderOpenRooms === 'function') renderOpenRooms();
+    });
+  }
+
   // Desbloqueo automático de AudioContext en primer toque móvil (iOS Safari & Android Chrome)
   window.addEventListener('touchstart', () => {
     if(typeof THREE !== 'undefined' && THREE.AudioContext && THREE.AudioContext.getContext().state === 'suspended'){
@@ -4677,11 +4821,13 @@ function initGameEngine() {
   const pauseBtn = $('#tBtnPause');
   if(pauseBtn){
     pauseBtn.addEventListener('touchstart', e => { e.preventDefault(); pauseBtn.classList.add('active');
+      if(navigator.vibrate) { try { navigator.vibrate(18); } catch(ex){} }
       if(isChatting){ toggleChat(false); } else if(locked){ try{document.exitPointerLock();}catch(ex){} } else { requestLock(); }
     }, {passive:false});
     pauseBtn.addEventListener('touchend', e => { e.preventDefault(); pauseBtn.classList.remove('active'); }, {passive:false});
     pauseBtn.addEventListener('touchcancel', e => { pauseBtn.classList.remove('active'); });
   }
+
 
 
   addEventListener('resize',()=>{
