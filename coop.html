@@ -1635,34 +1635,39 @@ function initGameEngine() {
     return root;
   }
 
+  /* ===== CANALIZACIÓN CDN PARA MODELOS DE ZOMBI Y ENTRADA EXTERNA ===== */
+
+
   const CDN_ZOMBIE_URLS = [
     'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/zombie/model.gltf',
     'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/character-13/model.gltf'
   ];
   let cachedZombieGLTF = null, isZombieGLTFLoading = false;
 
-  function loadZombieGLTFAssets(){
-    if(cachedZombieGLTF || isZombieGLTFLoading) return;
+  function loadZombieGLTFAssets(customUrl = null){
     const loader = getCDNLoader();
     if(!loader) return;
+    const urlList = customUrl ? [customUrl, ...CDN_ZOMBIE_URLS] : CDN_ZOMBIE_URLS;
+    if(cachedZombieGLTF && !customUrl) return;
     isZombieGLTFLoading = true;
-    logDiag('Cargando infectados GLTF comprimidos desde CDN (DRACO+Meshopt)...', 'info');
+    logDiag('Cargando mallas GLTF comprimidas desde CDN (DRACO+Meshopt)...', 'info');
 
     (function attempt(idx){
-      if(idx >= CDN_ZOMBIE_URLS.length){
+      if(idx >= urlList.length){
         isZombieGLTFLoading = false;
-        logDiag('Aviso: CDN Zombie GLTF no disponible (usando fallback procedural resiliente).', 'info');
+        logDiag('Aviso: Malla CDN externa no disponible (usando motor ligero procedural resiliente).', 'info');
         return;
       }
-      loader.load(CDN_ZOMBIE_URLS[idx], (gltf) => {
+      loader.load(urlList[idx], (gltf) => {
         cachedZombieGLTF = gltf;
         isZombieGLTFLoading = false;
-        logDiag('✓ Infectado GLTF comprimido cargado desde CDN (' + CDN_ZOMBIE_URLS[idx].split('/').pop() + ')', 'ok');
+        logDiag('✓ Modelo GLTF CDN cargado exitosamente: ' + urlList[idx].split('/').pop(), 'ok');
         
         // Asignar mallas GLTF optimizadas a los slots del pool de zombis
         for(const slot of ZOMBIE_POOL){
-          if(slot && slot.detailG && !slot.gltfMesh){
+          if(slot && slot.detailG){
             try {
+              if(slot.gltfMesh) slot.detailG.remove(slot.gltfMesh);
               const zClone = gltf.scene.clone(true);
               normalizeModel(zClone, 1.8);
               slot.gltfMesh = zClone;
@@ -1676,18 +1681,44 @@ function initGameEngine() {
           }
         }
       }, undefined, (err) => {
-        console.warn('[CDN Zombie] Error', CDN_ZOMBIE_URLS[idx], err);
+        console.warn('[CDN Zombie] Error al cargar:', urlList[idx], err);
         attempt(idx + 1);
       });
     })(0);
   }
 
+  // API pública para inyectar cualquier CDN externa o buscar en Poly Pizza
+  window.loadCustomZombieCDNModel = function(url){ loadZombieGLTFAssets(url); };
+
+  window.spawnFromPolyPizza = async function(keyword, pos){
+    try {
+      const api = 'https://api.poly.pizza/v1.1/search?Keyword=' + encodeURIComponent(keyword) + '&Limit=5';
+      const json = await (await fetch(api)).json();
+      const list = json.Models || json.models || [];
+      for (const m of list){
+        const glb = m.glb || m.Glb || (m.Hash && m.Slug ? 'https://models.poly.pizza/' + m.Hash + '/' + m.Slug + '/glb' : null);
+        if (!glb) continue;
+        const loader = getCDNLoader();
+        if(!loader) break;
+        const gltf = await new Promise((ok, ko) => loader.load(glb, ok, undefined, ko));
+        const root = normalizeModel(gltf.scene, 1.8);
+        root.position.copy(pos);
+        scene.add(root);
+        logDiag('✓ Modelo Poly Pizza inyectado: ' + (m.Name || keyword), 'ok');
+        return root;
+      }
+    } catch(e){
+      logDiag('Aviso Poly Pizza: ' + e.message, 'info');
+    }
+    return null;
+  };
+
   /* ═══════════════════════════════════════════════════════════════════
      GQW-VIS-5.0 ETAPA 3: SISTEMA DE BOTS IA COOPERATIVOS (ESCORT SQUAD)
-     3 compañeros IA: NOAH, ELENA, MARCUS — disparan, reaniman, cubren flancos
+     3 compañeros IA: VEGA, RUIZ, KIDO — formación táctica cercana de 3 hombres
      ═══════════════════════════════════════════════════════════════════ */
   const BOT_NAMES=['VEGA','RUIZ','KIDO'];
-  const BOT_OFFSETS=[new THREE.Vector3(-3.5,0,2.5),new THREE.Vector3(3.5,0,2.5),new THREE.Vector3(0,0,4.2)];
+  const BOT_OFFSETS=[new THREE.Vector3(-1.8,0,1.8),new THREE.Vector3(1.8,0,-1.8),new THREE.Vector3(-0.8,0,0.5)];
   let bots=[],botReviveT=0,botsEnabled=false;
   let squadRegroupTimer = 40.0, isSquadRegrouping = false, squadRegroupDur = 0;
 
@@ -1741,18 +1772,17 @@ function initGameEngine() {
     });
   }
 
-
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
     bots=[];
     const roles = [
-      { role: 'scout', name: 'VEGA', leadOffset: 0.14, latOffset: -2.2, speed: 6.2 },
-      { role: 'anchor', name: 'RUIZ', leadOffset: -0.14, latOffset: 2.2, speed: 5.4 },
-      { role: 'flanker', name: 'KIDO', leadOffset: 0.02, latOffset: 0.0, speed: 5.8 }
+      { role: 'scout', name: 'VEGA', leadOffset: 0.035, latOffset: -1.8, speed: 6.2 },
+      { role: 'anchor', name: 'RUIZ', leadOffset: -0.035, latOffset: 1.8, speed: 5.6 },
+      { role: 'flanker', name: 'KIDO', leadOffset: 0.005, latOffset: -0.6, speed: 5.8 }
     ];
     for(let i=0;i<3;i++){
       const m=buildPlayerMesh(i+1);
-      m.group.position.copy(camera.position).add(new THREE.Vector3(R(-2.5,2.5),0,R(-2.5,2.5)));
+      m.group.position.copy(camera.position).add(BOT_OFFSETS[i] || new THREE.Vector3());
       scene.add(m.group);
       bots.push({...m,id:i+1,name:roles[i].name,hp:100,maxHp:100,
         role: roles[i].role, leadOffset: roles[i].leadOffset, latOffset: roles[i].latOffset, baseSpeed: roles[i].speed,
@@ -1763,14 +1793,13 @@ function initGameEngine() {
         revivingPlayer:false,
         mixer:null,actions:{},activeAction:null
       });
-
     }
     botsEnabled=true;
-    logDiag('Escuadrón IA táctico desplegado: '+BOT_NAMES.join(', '),'ok');
-    loadRobotGLTFForBots();
+    logDiag('Escuadrón de 3 bots en formación conjunta desplegado: '+BOT_NAMES.join(', '),'ok');
   }
 
   const BOT_RADIUS = 0.55; // Radio del cilindro de colisión del bot (0.55m)
+
 
   function navBotClamp(p){
     const t = closestT(p.x, p.z);
@@ -1794,12 +1823,13 @@ function initGameEngine() {
   }
 
 
-  // Algoritmo de Separación Inter-Entidad (Boids Ampliado / Personal Space: 2.2m entre bots y jugador)
+  // Algoritmo de Separación Inter-Entidad (Formación Táctica de Escuadrón de 3 hombres: 1.8m espacio personal)
   function applyBotSeparation(b, dt){
     if(!b.group || b.downed || b.dead) return;
     const pos = b.group.position;
-    const MIN_SEP = 2.2; // Ampliado a 2.2m para evitar aglomeraciones
+    const MIN_SEP = 1.8; // 1.8m para mantener al escuadrón unido sin encimarse
     let sepX = 0, sepZ = 0;
+
 
     // Repulsión respecto a otros bots de escuadrón
     for(const ob of bots){
@@ -2067,11 +2097,9 @@ function initGameEngine() {
           if(distToPatrol > 2.0){
             const patrolSpeed = (distToPatrol > 15.0) ? (b.baseSpeed + 2.0) : (b.baseSpeed || 5.5);
             moveBotTo(b, patrolDest, patrolSpeed, dt);
-          } else {
-            // Llegó al sector objetivo — avanzar al siguiente sector del loop del túnel
-            b.leadOffset = (b.leadOffset + R(0.08, 0.20)) % 1;
-            if(Math.random() < 0.25){
-              b.scanTimer = R(1.5, 3.0);
+            // Formación táctica mantenida: sincronizar ritmo con el avance del jugador por la pista
+            if(Math.random() < 0.15){
+              b.scanTimer = R(1.0, 2.5);
             }
             if(b.actions['Idle'] && b.activeAction !== 'Idle'){
               if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
@@ -2080,6 +2108,7 @@ function initGameEngine() {
             }
           }
         }
+
 
       }
 
