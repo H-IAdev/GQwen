@@ -1778,7 +1778,7 @@ function initGameEngine() {
     const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
     const st = stationness(t);
     
-    // Clampear estrictamente dentro de las paredes laterales del túnel y andén considerando el radio del bot
+    // Clampear estrictamente dentro de las paredes laterales del túnel y andén a lo largo de todo el mapa
     const minLat = lerp(-3.8, -2.6, st) + BOT_RADIUS;
     const maxLat = lerp(6.8, 3.6, st) - BOT_RADIUS;
     
@@ -1791,13 +1791,8 @@ function initGameEngine() {
       p.x += N.x * push;
       p.z += N.z * push;
     }
-
-    // Paredes físicas perimetrales únicamente en el área del andén de la estación (st > 0.5)
-    if(st > 0.5){
-      p.x = clamp(p.x, -4.2 + BOT_RADIUS, 9.2 - BOT_RADIUS);
-      p.z = clamp(p.z, -29.2 + BOT_RADIUS, 14.2 - BOT_RADIUS);
-    }
   }
+
 
   // Algoritmo de Separación Inter-Entidad (Boids Ampliado / Personal Space: 2.2m entre bots y jugador)
   function applyBotSeparation(b, dt){
