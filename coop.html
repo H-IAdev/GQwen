@@ -450,6 +450,9 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js"></script>
+
 <script>
 if (typeof THREE === 'undefined') {
   document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"><\/script>');
@@ -519,6 +522,8 @@ function initGameEngine() {
 
   logDiag('Three.js cargado exitosamente.', 'ok');
   if (statusEl) { statusEl.textContent = 'MOTOR 3D LISTO — SELECCIONA MODO DE JUEGO'; statusEl.className = 'lobbyStatus ok'; }
+  try { loadZombieGLTFAssets(); } catch(e){}
+
 
   if (typeof Peer === 'undefined') {
     logDiag('Aviso: PeerJS offline. Modo solo 100% activo.', 'info');
@@ -1592,6 +1597,92 @@ function initGameEngine() {
 
 
   /* ═══════════════════════════════════════════════════════════════════
+     CANALIZACIÓN CDN GLTF + DRACO + MESHOPT (r128)
+     Cargador unificado con decodificadores optimizados y fallback resiliente
+     ═══════════════════════════════════════════════════════════════════ */
+  let _dracoLoader = null, _cdnLoader = null;
+  function getCDNLoader(){
+    if(!_cdnLoader && typeof THREE.GLTFLoader !== 'undefined'){
+      _cdnLoader = new THREE.GLTFLoader();
+      if(typeof THREE.DRACOLoader !== 'undefined'){
+        _dracoLoader = new THREE.DRACOLoader();
+        _dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+        _cdnLoader.setDRACOLoader(_dracoLoader);
+      }
+      if(window.MeshoptDecoder){
+        _cdnLoader.setMeshoptDecoder(window.MeshoptDecoder);
+      }
+    }
+    return _cdnLoader;
+  }
+
+  function normalizeModel(root, targetH = 1.8){
+    const box = new THREE.Box3().setFromObject(root);
+    const size = box.getSize(new THREE.Vector3());
+    root.scale.setScalar(targetH / Math.max(size.y, 1e-4));
+    box.setFromObject(root);
+    root.position.x -= (box.min.x + box.max.x) / 2;
+    root.position.z -= (box.min.z + box.max.z) / 2;
+    root.position.y -= box.min.y;
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.frustumCulled = false;
+      if (o.material && o.material.map) {
+        if(THREE.SRGBColorSpace) o.material.map.colorSpace = THREE.SRGBColorSpace;
+        else if(THREE.sRGBEncoding) o.material.map.encoding = THREE.sRGBEncoding;
+      }
+    });
+    return root;
+  }
+
+  const CDN_ZOMBIE_URLS = [
+    'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/zombie/model.gltf',
+    'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/character-13/model.gltf'
+  ];
+  let cachedZombieGLTF = null, isZombieGLTFLoading = false;
+
+  function loadZombieGLTFAssets(){
+    if(cachedZombieGLTF || isZombieGLTFLoading) return;
+    const loader = getCDNLoader();
+    if(!loader) return;
+    isZombieGLTFLoading = true;
+    logDiag('Cargando infectados GLTF comprimidos desde CDN (DRACO+Meshopt)...', 'info');
+
+    (function attempt(idx){
+      if(idx >= CDN_ZOMBIE_URLS.length){
+        isZombieGLTFLoading = false;
+        logDiag('Aviso: CDN Zombie GLTF no disponible (usando fallback procedural resiliente).', 'info');
+        return;
+      }
+      loader.load(CDN_ZOMBIE_URLS[idx], (gltf) => {
+        cachedZombieGLTF = gltf;
+        isZombieGLTFLoading = false;
+        logDiag('✓ Infectado GLTF comprimido cargado desde CDN (' + CDN_ZOMBIE_URLS[idx].split('/').pop() + ')', 'ok');
+        
+        // Asignar mallas GLTF optimizadas a los slots del pool de zombis
+        for(const slot of ZOMBIE_POOL){
+          if(slot && slot.detailG && !slot.gltfMesh){
+            try {
+              const zClone = gltf.scene.clone(true);
+              normalizeModel(zClone, 1.8);
+              slot.gltfMesh = zClone;
+              zClone.visible = false;
+              slot.detailG.add(zClone);
+              // Registrar sub-meshes en hitboxes para disparos y raycast
+              zClone.traverse(c => {
+                if(c.isMesh){ c.userData.part = 'body'; c.userData.z = slot; }
+              });
+            } catch(e){}
+          }
+        }
+      }, undefined, (err) => {
+        console.warn('[CDN Zombie] Error', CDN_ZOMBIE_URLS[idx], err);
+        attempt(idx + 1);
+      });
+    })(0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
      GQW-VIS-5.0 ETAPA 3: SISTEMA DE BOTS IA COOPERATIVOS (ESCORT SQUAD)
      3 compañeros IA: NOAH, ELENA, MARCUS — disparan, reaniman, cubren flancos
      ═══════════════════════════════════════════════════════════════════ */
@@ -1604,10 +1695,11 @@ function initGameEngine() {
   let cachedRobotGLTF = null, isRobotLoading = false;
 
   function loadRobotGLTFForBots(){
-    if(cachedRobotGLTF || isRobotLoading || typeof THREE.GLTFLoader === 'undefined') return;
+    if(cachedRobotGLTF || isRobotLoading) return;
+    const loader = getCDNLoader();
+    if(!loader) return;
     isRobotLoading = true;
     logDiag('Cargando RobotExpressive.glb desde CDN...','info');
-    const loader = new THREE.GLTFLoader();
     loader.load(ROBOT_GLB_URL, (gltf) => {
       cachedRobotGLTF = gltf;
       isRobotLoading = false;
@@ -1617,6 +1709,7 @@ function initGameEngine() {
         if(!b.group) return;
         try {
           const robotClone = gltf.scene.clone(true);
+          normalizeModel(robotClone, 1.8);
           robotClone.scale.setScalar(0.35);
           robotClone.position.set(0, 0, 0);
           robotClone.rotation.y = 0; // Mirar hacia el frente del vector de movimiento
@@ -1647,6 +1740,7 @@ function initGameEngine() {
       logDiag('Error al cargar RobotExpressive.glb (usando fallback procedimental): ' + err.message, 'err');
     });
   }
+
 
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
@@ -2175,17 +2269,33 @@ function initGameEngine() {
     // LOD simplificado
     slot.loBody.material=newCloth;
     slot.loHead.material=newSkin;
-    // Visibilidad por tipo
-    slot.torso.visible=!isJuggernaut;
+    // Visibilidad por tipo y optimización GLTF CDN
+    const isBoss = isJuggernaut || isStalker || isRockHurler;
+    const hasGLTF = !!slot.gltfMesh;
+    const useGLTF = hasGLTF && !isBoss;
+
+    if(slot.gltfMesh){
+      slot.gltfMesh.visible = useGLTF;
+    }
+    // Si se usa malla GLTF unificada, ocultar extremidades procedurales complejas para ahorrar Draw Calls
+    slot.torso.visible = !isJuggernaut && !useGLTF;
+    slot.head.visible = !useGLTF;
+    if(slot.jaw) slot.jaw.visible = !useGLTF;
+    if(slot.aL && slot.aL.p) slot.aL.p.visible = !useGLTF;
+    if(slot.aR && slot.aR.p) slot.aR.p.visible = !useGLTF;
+    if(slot.lL && slot.lL.p) slot.lL.p.visible = !useGLTF;
+    if(slot.lR && slot.lR.p) slot.lR.p.visible = !useGLTF;
+
     slot.torJugMesh.visible=isJuggernaut;
     slot.coreMesh.visible=isJuggernaut;
     const useBossEyes=isJuggernaut||isStalker;
     const eyeMat=isJuggernaut?EYE_BOSS_GREEN:isStalker?EYE_BOSS_PURPLE:EYE_M;
-    slot.eyes.forEach(e=>{e.visible=!useBossEyes;e.material=eyeMat;});
+    slot.eyes.forEach(e=>{e.visible=!useBossEyes && !useGLTF;e.material=eyeMat;});
     slot.eyeB.forEach(e=>{e.visible=useBossEyes;e.material=eyeMat;});
     slot.aura.visible=isStalker;
     // Actualizar referencias de materiales en el slot
     slot.skin=newSkin;slot.clothM=newCloth;slot.dark=newDark;
+
     slot.type=type;
   }
   function spawnZombie(type,hpMul,spMul){
