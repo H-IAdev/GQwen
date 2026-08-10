@@ -3763,7 +3763,13 @@ function initGameEngine() {
     }
   }
 
+  function setNetStatus(txt,cls=''){
+    const el = $('#netStatus');
+    if(el){ el.textContent = txt; el.className = cls; }
+  }
+
   /* ===== DIRECTORIO DE SALAS ABIERTAS P2P ===== */
+
   const OPEN_ROOMS_KEY = 'gqwen_open_p2p_rooms_v46';
   let _roomAnnounceTimer = null;
 
