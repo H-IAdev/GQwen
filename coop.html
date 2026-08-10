@@ -1756,13 +1756,14 @@ function initGameEngine() {
       scene.add(m.group);
       bots.push({...m,id:i+1,name:roles[i].name,hp:100,maxHp:100,
         role: roles[i].role, leadOffset: roles[i].leadOffset, latOffset: roles[i].latOffset, baseSpeed: roles[i].speed,
-        scanTimer: R(2, 6), restTimer: 0, patrolProgress: Math.random(),
+        scanTimer: 0, restTimer: 0, patrolProgress: Math.random(),
         downed:false,downT:0,dead:false,
         fireCd:R(.6,1.2),
         vel:new THREE.Vector3(),
         revivingPlayer:false,
         mixer:null,actions:{},activeAction:null
       });
+
     }
     botsEnabled=true;
     logDiag('Escuadrón IA táctico desplegado: '+BOT_NAMES.join(', '),'ok');
@@ -1791,9 +1792,11 @@ function initGameEngine() {
       p.z += N.z * push;
     }
 
-    // Paredes físicas perimetrales de la estación
-    p.x = clamp(p.x, -4.2 + BOT_RADIUS, 9.2 - BOT_RADIUS);
-    p.z = clamp(p.z, -29.2 + BOT_RADIUS, 14.2 - BOT_RADIUS);
+    // Paredes físicas perimetrales únicamente en el área del andén de la estación (st > 0.5)
+    if(st > 0.5){
+      p.x = clamp(p.x, -4.2 + BOT_RADIUS, 9.2 - BOT_RADIUS);
+      p.z = clamp(p.z, -29.2 + BOT_RADIUS, 14.2 - BOT_RADIUS);
+    }
   }
 
   // Algoritmo de Separación Inter-Entidad (Boids Ampliado / Personal Space: 2.2m entre bots y jugador)
@@ -1872,7 +1875,7 @@ function initGameEngine() {
     if(!b.downed){
       b.walk+=dt*speed*2.4;
       if(b.mixer){
-        b.mixer.update(dt);
+        // mixer.update(dt) es llamado globalmente 1 vez por frame en updateBots()
         const targetAction = speed > 4.5 ? 'Running' : 'Walking';
         if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
@@ -1886,6 +1889,7 @@ function initGameEngine() {
       }
     }
   }
+
 
 
   function updateBots(dt){
@@ -2038,7 +2042,7 @@ function initGameEngine() {
               b.activeAction = restAction;
             }
           }
-        } else if(b.scanTimer > 0 && b.restTimer > 0){
+        } else if(b.scanTimer > 0){
           // --- PAUSA DE ESCANEO / DESCANSO INDEPENDIENTE (INSPECCIÓN VISUAL) ---
           let gestAction = 'Idle';
           if(b.id === 1 && b.actions['Wave']) gestAction = 'Wave';
@@ -2069,12 +2073,10 @@ function initGameEngine() {
             const patrolSpeed = (distToPatrol > 15.0) ? (b.baseSpeed + 2.0) : (b.baseSpeed || 5.5);
             moveBotTo(b, patrolDest, patrolSpeed, dt);
           } else {
-            // Llegó al sector objetivo — activar temporizador corto de descanso o escaneo antes del siguiente avance
-            if(Math.random() < 0.35){
-              b.scanTimer = R(2.0, 4.5);
-              b.restTimer = R(2.0, 4.0);
-            } else {
-              b.leadOffset = (b.leadOffset + R(0.05, 0.15)) % 1;
+            // Llegó al sector objetivo — avanzar al siguiente sector del loop del túnel
+            b.leadOffset = (b.leadOffset + R(0.08, 0.20)) % 1;
+            if(Math.random() < 0.25){
+              b.scanTimer = R(1.5, 3.0);
             }
             if(b.actions['Idle'] && b.activeAction !== 'Idle'){
               if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
@@ -2083,6 +2085,7 @@ function initGameEngine() {
             }
           }
         }
+
       }
 
 
