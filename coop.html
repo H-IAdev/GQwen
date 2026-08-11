@@ -1882,13 +1882,16 @@ function initGameEngine() {
   const SOLDIER_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb';
   let cachedSoldierGLTF = null, isSoldierLoading = false;
   let localPlayerBodyGroup = null;
-  let camMode = 'fps'; // 'fps' | 'tps_back' | 'tps_front'
+  let camMode = 'fps'; // 'fps' | 'fps_body' | 'tps_back' | 'tps_front'
 
   function toggleCamMode(){
-    if(camMode === 'fps') camMode = 'tps_back';
+    if(camMode === 'fps') camMode = 'fps_body';
+    else if(camMode === 'fps_body') camMode = 'tps_back';
     else if(camMode === 'tps_back') camMode = 'tps_front';
     else camMode = 'fps';
-    const label = camMode === 'tps_back' ? '3ª PERSONA (POSTERIOR)' : camMode === 'tps_front' ? '3ª PERSONA (FRONTAL)' : '1ª PERSONA (FPS)';
+    const label = camMode === 'fps_body' ? '1ª PERSONA INMERSIVA (FULL BODY 3D)' :
+                  camMode === 'tps_back' ? '3ª PERSONA (POSTERIOR)' :
+                  camMode === 'tps_front' ? '3ª PERSONA (FRONTAL)' : '1ª PERSONA (FPS CLÁSICO)';
     feed('CÁMARA: ' + label, 'h');
     banner('CÁMARA', label, false, 1500);
   }
@@ -1907,6 +1910,51 @@ function initGameEngine() {
       }
       targetGroup.add(soldierClone);
 
+      let rightHandBone = null, headBone = null;
+      soldierClone.traverse(child => {
+        if(child.isBone || child.isObject3D){
+          const n = (child.name || '').toLowerCase();
+          if(!rightHandBone && (n.includes('righthand') || n.includes('handr') || n.includes('hand_r') || n.includes('rightarm'))){
+            rightHandBone = child;
+          }
+          if(!headBone && (n.includes('head') || n.includes('cabeza'))){
+            headBone = child;
+          }
+        }
+      });
+
+      // Crear grupo de props de armas en mano derecha
+      const weaponPropGroup = new THREE.Group();
+      weaponPropGroup.name = 'soldierWeaponProps';
+      
+      const gm = std({color:0x3a3f47,roughness:0.4,metalness:0.8});
+      const gm2 = std({color:0x1a1d22,roughness:0.6,metalness:0.9});
+      
+      // Fusil de Asalto 3D
+      const wGun = new THREE.Group(); wGun.name = 'prop_gun';
+      const bGun1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.35), gm);
+      const bGun2 = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, 0.38), gm2); bGun2.position.set(0, 0.02, -0.2);
+      wGun.add(bGun1); wGun.add(bGun2);
+      wGun.position.set(0, 0, -0.15); wGun.rotation.set(Math.PI * 0.5, 0, 0);
+
+      // Escopeta Táctica 3D
+      const wShotgun = new THREE.Group(); wShotgun.name = 'prop_shotgun';
+      const bSg1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.42), gm);
+      const bSg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.45, 8), gm2); bSg2.rotation.x = Math.PI * 0.5; bSg2.position.set(0, 0.02, -0.22);
+      wShotgun.add(bSg1); wShotgun.add(bSg2);
+      wShotgun.position.set(0, 0, -0.15); wShotgun.rotation.set(Math.PI * 0.5, 0, 0);
+      wShotgun.visible = false;
+
+      weaponPropGroup.add(wGun);
+      weaponPropGroup.add(wShotgun);
+
+      if(rightHandBone){
+        rightHandBone.add(weaponPropGroup);
+      } else {
+        soldierClone.add(weaponPropGroup);
+        weaponPropGroup.position.set(0.3, 1.0, 0.3);
+      }
+
       let mixer = null, actions = {};
       if(cachedSoldierGLTF.animations && cachedSoldierGLTF.animations.length > 0){
         mixer = new THREE.AnimationMixer(soldierClone);
@@ -1915,21 +1963,22 @@ function initGameEngine() {
         });
         if(actions['Idle']) actions['Idle'].play();
       }
-      return { mixer, actions, activeAction: 'Idle' };
+      return {
+        mixer,
+        actions,
+        activeAction: 'Idle',
+        soldierClone,
+        rightHandBone,
+        headBone,
+        weaponPropGroup,
+        wGun,
+        wShotgun,
+        recoilT: 0,
+        punchT: 0
+      };
     } catch(e) {
       logDiag('Aviso al aplicar Soldier GLTF: ' + e.message, 'err');
       return null;
-    }
-  }
-
-  function applySoldierToBot(b){
-    if(!b || !b.group || !cachedSoldierGLTF) return;
-    const res = applySoldierGLTFToMesh(b.group);
-    if(res){
-      b.mixer = res.mixer;
-      b.actions = res.actions;
-      b.activeAction = res.activeAction;
-      logDiag('Bot ' + b.name + ' actualizado a Soldado 3D CDN animado', 'ok');
     }
   }
 
@@ -1940,9 +1989,17 @@ function initGameEngine() {
       group.userData.mixer = res.mixer;
       group.userData.actions = res.actions;
       group.userData.activeAction = res.activeAction;
+      group.userData.rightHandBone = res.rightHandBone;
+      group.userData.headBone = res.headBone;
+      group.userData.weaponPropGroup = res.weaponPropGroup;
+      group.userData.wGun = res.wGun;
+      group.userData.wShotgun = res.wShotgun;
+      group.userData.recoilT = 0;
+      group.userData.punchT = 0;
     }
     return res;
   }
+
 
   function loadSoldierGLTFForPlayers(){
     if(cachedSoldierGLTF){
@@ -3551,6 +3608,7 @@ function initGameEngine() {
     $('#relBar').classList.add('on');$('#relTxt').textContent='RELOADING';}
   function punch(){
     fireCd=.20;punchCd=.20;punchT=1;punchSide=1-punchSide;
+    if(localPlayerBodyGroup && localPlayerBodyGroup.userData){ localPlayerBodyGroup.userData.punchT = 0.25; }
     shake=Math.max(shake,.015);sfx.flesh();netSend({type:'pfx',sound:'punch',pId:peer?.id});
     _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
     ray.camera = camera;
@@ -3598,6 +3656,7 @@ function initGameEngine() {
 
   function shoot(){
     if(activeWeapon==='fists'){punch();return;}
+    if(localPlayerBodyGroup && localPlayerBodyGroup.userData){ localPlayerBodyGroup.userData.recoilT = 0.15; }
     if(activeWeapon==='gun'){
       if(ammoGun<=0){
         if(reserveGun>0)startReload();
@@ -3610,6 +3669,7 @@ function initGameEngine() {
       shake=Math.max(shake,REDUCED?.003:.01);
       flashT=.045;flashSpr.visible=true;flashSpr.material.rotation=R(0,6.28);
       flashSpr.scale.setScalar(R(.14,.24));flashLight.intensity=22;sfx.shot();
+
       
       const spread=.006+(vel.length()>1.2?.01:0)+(jumpY>.02?.018:0);
       _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
@@ -4958,19 +5018,53 @@ function initGameEngine() {
           localPlayerBodyGroup.rotation.y = yaw;
           localPlayerBodyGroup.visible = (camMode !== 'fps' && playing && playerState === 'alive');
 
-          if(localPlayerBodyGroup.userData.mixer){
-            localPlayerBodyGroup.userData.mixer.update(dt);
+          const userData = localPlayerBodyGroup.userData;
+
+          // Visibilidad de armas en la mano del soldado según el arma activa
+          if(userData.wGun && userData.wShotgun){
+            userData.wGun.visible = (activeWeapon === 'gun');
+            userData.wShotgun.visible = (activeWeapon === 'shotgun');
+          }
+
+          // Animaciones de retroceso al disparar y puñetazo
+          if(userData.recoilT > 0){
+            userData.recoilT = Math.max(0, userData.recoilT - dt);
+            if(userData.rightHandBone) userData.rightHandBone.rotation.x = -0.35 * (userData.recoilT / 0.15);
+          }
+          if(userData.punchT > 0){
+            userData.punchT = Math.max(0, userData.punchT - dt);
+            if(userData.rightHandBone){
+              userData.rightHandBone.position.z = -0.30 * (userData.punchT / 0.25);
+              userData.rightHandBone.rotation.x = -0.40 * (userData.punchT / 0.25);
+            }
+          } else if(userData.recoilT <= 0 && userData.rightHandBone){
+            userData.rightHandBone.position.z = 0;
+            userData.rightHandBone.rotation.x = 0;
+          }
+
+          // Escala de cabeza en modo 1ª Persona Inmersiva (Full Body)
+          if(userData.headBone){
+            if(camMode === 'fps_body'){
+              userData.headBone.scale.set(0.0001, 0.0001, 0.0001);
+            } else {
+              userData.headBone.scale.set(1, 1, 1);
+            }
+          }
+
+          if(userData.mixer){
+            userData.mixer.update(dt);
             const isMoving = vel.lengthSq() > 0.1;
             const targetAct = isMoving ? (keys['ShiftLeft'] ? 'Run' : 'Walk') : 'Idle';
-            const actions = localPlayerBodyGroup.userData.actions;
-            let activeAct = localPlayerBodyGroup.userData.activeAction;
+            const actions = userData.actions;
+            let activeAct = userData.activeAction;
             if(actions && actions[targetAct] && activeAct !== targetAct){
               if(actions[activeAct]) actions[activeAct].fadeOut(0.18);
               if(actions[targetAct]) actions[targetAct].reset().fadeIn(0.18).play();
-              localPlayerBodyGroup.userData.activeAction = targetAct;
+              userData.activeAction = targetAct;
             }
           }
         }
+
         
         stepAcc += dt * sp;
 

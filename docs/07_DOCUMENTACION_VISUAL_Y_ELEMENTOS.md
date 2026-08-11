@@ -74,17 +74,17 @@ JERARQUÍA DE ILUMINACIÓN — GQwen Co-Op 3D (GQW-VIS-6.0)
 
 ---
 
-## 4. MODELO DE JUGADOR Y BOTS CDN (`Soldier.glb`) Y CÁMARA 3D
+## 4. MODELO DE JUGADOR HUMANO (`Soldier.glb`), ARMAS EN MANO Y CÁMARA 3D
 
-1. **Skin Unificada CDN**:
-   - Modelo: `https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb` (cargado directamente con `GLTFLoader`).
-   - Clado y retargeteado dinámicamente con `THREE.SkeletonUtils.clone()`.
-   - Normalizado a una altura táctica estándar de $1.75\text{m}$.
-   - Animaciones sincronizadas: `Idle`, `Walk`, `Run` y `TPose`.
-   - Asignado a todos los **compañeros IA (`bots`)**, **jugadores remotos P2P (`remotePlayers`)** y al **jugador local (`localPlayerBodyGroup`)**.
+1. **Skin Unificada CDN para Jugadores Humanos**:
+   - Modelo: `https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb`.
+   - Asignado exclusivamente a **jugadores humanos** (local y remotos P2P).
+   - **Armas 3D en Mano (`weaponPropGroup`)**: Props de fusil de asalto (`wGun`) y escopeta táctica (`wShotgun`) adjuntadas al hueso de la mano derecha (`rightHandBone`).
+   - **Animación Dinámica de Ataque y Golpe**: Retroceso de brazo al disparar (`recoilT`) y animación de puñetazo frontal (`punchT`).
 
-2. **Sistema de Vista de Cámara 3D (Alternador 1ª y 3ª Persona)**:
-   - **Tecla `C`** / **Botón Táctil `C / CAM 3D`**: Alterna cíclicamente entre 3 modos de cámara:
-     - `1ª Persona (FPS)`: Modo inmersivo tradicional.
-     - `3ª Persona (Posterior)`: Cámara jalada $2.5\text{m}$ hacia atrás y $+0.45\text{m}$ arriba para observar la skin del soldado en acción.
-     - `3ª Persona (Frontal)`: Cámara ubicada $2.5\text{m}$ enfrente del jugador mirando hacia atrás para inspección frontal.
+2. **Sistema de Vista de Cámara (Tecla `C` / Botón Táctil `C / CAM 3D`)**:
+   - Alterna entre 4 modos de vista:
+     - `1ª Persona (FPS Clásico)`: Vista limpia de HUD tradicional.
+     - `1ª Persona Inmersiva (Full Body 3D)`: La cámara se sitúa en los ojos del soldado y se oculta la cabeza (`scale = 0.0001`), permitiendo mirar hacia abajo y ver tu torso, chaleco táctico, piernas caminando y el arma en tu mano derecha en 3D real.
+     - `3ª Persona (Posterior)`: Cámara jalada $2.5\text{m}$ hacia atrás para ver a tu soldado en tercera persona.
+     - `3ª Persona (Frontal)`: Cámara ubicada $2.5\text{m}$ enfrente para inspeccionar tu equipamiento de cara.
