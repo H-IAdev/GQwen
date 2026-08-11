@@ -1,4 +1,4 @@
-﻿# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: COMBATE, ARMAS Y FÍSICAS DE JUEGO
+# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: COMBATE, ARMAS Y FÍSICAS DE JUEGO
 # Especificaciones de Armamento, Balística, Raycasting, Puños 3D y HUD Adaptativo
 # Auditado directamente desde coop.html — Versión 4.7 UX POLISH
 
@@ -140,9 +140,35 @@ El juego soporta detección transparente de dispositivos táctiles (`body.is-tou
 
 ---
 
-## 6. REGISTRO DE VERIFICACIÓN Y PRUEBAS DE COMBATE
+## 7. SELECTOR DE MODO DE DISPARO Y SISTEMA DE GRANADAS EXPLOSIVAS (AoE)
+
+### 7.1 Selector Táctico de Modo de Disparo (`toggleFireMode()`)
+- **Acceso**: Tecla <kbd>B</kbd> en teclado o botón táctil `#tBtnMode` (`MODE`) en interfaz móvil.
+- **Modos Disponibles**:
+  - `AUTOMATIC`: Disparo continuo al mantener presionado el gatillo.
+  - `SEMI-AUTO`: Disparo tiro a tiro por cada accionamiento del gatillo.
+  - `BURST-3`: Ráfaga controlada de 3 disparos automáticos por pulsación.
+- **VFX / Feedback**: Notificación HUD flotante `FIRE MODE: ...`, respuesta háptica por vibración (`navigator.vibrate(18)`), y actualización en el HUD de munición `#ammoPanel .wn`.
+
+### 7.2 Sistema de Granadas Explosivas 3D (`throwGrenade()`, `explodeGrenade()`)
+- **Acceso y Capacidad**: Tecla <kbd>G</kbd> en teclado o botón táctil `#tBtnGrenade` (`💣 GRANADA`). El jugador porta hasta 3 granadas.
+- **Física y Lanzamiento**:
+  - Proyectil 3D cilíndrico metálico con luz LED titilante.
+  - Impulso inicial parabólico: $\vec{v} = \vec{fwd} \times 19.0 + \vec{up} \times 4.2$.
+  - Espoleta de detonación: **2.2 segundos**.
+  - Rebote físico realista sobre superficies horizontales y muros.
+- **Onda Expansiva y Daño Radial (AoE de $6.5\text{m}$)**:
+  - **Infectados**: Daño regresivo de **180 HP** (epicentro) a **30 HP** (borde de $6.5\text{m}$), desencadenando salpicaduras de fluidos `ichor`.
+  - **Aliados / Bots**: Daño de **85 HP** a **20 HP**.
+  - **Daño Colateral (Self-Damage)**: El jugador local sufre hasta **55 HP** de daño colateral si no toma cobertura fuera del radio de $6.5\text{m}$.
+  - **Efectos de Explosión**: Sonido WebAudio sintético `sfx.explosion()`, sacudida de pantalla `shake = 0.45`, ráfaga de 57 partículas (`spark` + `stone`), destello dinámico de luz `PointLight(0xff6600, 35, 14)` y sincronización P2P red.
+
+---
+
+## 8. REGISTRO DE VERIFICACIÓN Y PRUEBAS DE COMBATE
 
 - **Prueba de Balística**: Headshots verificados con multiplicador $2.0\times$ ($50\text{ HP}$ vs $25\text{ HP}$ cuerpo).
 - **Prueba de Agotamiento de Munición**: Verificado que al llegar a 0 balas el cambio a puños 3D es instantáneo sin perder el flujo de combate.
 - **Prueba de Melee Fallback**: Los puños 3D detectan correctamente zombies a $<3.2\text{m}$ en dispositivos móviles aunque la cámara no apunte directamente al centro del hitbox.
-- **Prueba de Controles Táctiles**: Verificado funcionamiento de los botones `VOZ PTT` y `PAUSE` tras la actualización VER 4.7.
+- **Prueba de Selector de Modo de Disparo**: Alternancia verificada mediante tecla <kbd>B</kbd> y botón `#tBtnMode`.
+- **Prueba de Granadas Explosivas**: Lanzamiento, rebote, detonación a los 2.2s y daño radial verificados en infectados y jugador local.

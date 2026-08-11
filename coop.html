@@ -340,7 +340,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
     <div class="hpR"><span id="hpNum">100</span><small>/100</small><span id="hpRegen">● REGEN</span></div>
     <div class="hpBar"><div id="hpFill"></div></div></div>
   <div id="ammoPanel" class="pnl"><div class="wn">M-42 "TOKEN" · 9MM</div>
-    <div class="amR"><span id="ammoNum">30</span><span>/</span><span id="ammoRes">120</span></div>
+    <div class="amR"><span id="ammoNum">30</span><span>/</span><span id="ammoRes">120</span> <span style="font-size:12px;margin-left:8px;color:#ffb400" id="grenadeHud">💣 x3</span></div>
     <div class="relBar" id="relBar"><div id="relFill"></div></div><div id="relTxt"></div></div>
   
   <!-- CONTROLES TÁCTILES MÓVILES -->
@@ -350,6 +350,8 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
     <div id="touchActions">
       <div class="tRow">
         <div class="tBtn" id="tBtnReload">R<br><small style="font-size:7px">RELOAD</small></div>
+        <div class="tBtn" id="tBtnMode">B<br><small style="font-size:7px">MODE</small></div>
+        <div class="tBtn" id="tBtnGrenade" style="border-color:#ff4b3e;color:#ff4b3e">G<br><small style="font-size:7px">💣 GRANADA</small></div>
         <div class="tBtn" id="tBtnWeapon">TAB<br><small style="font-size:7px">WEAPON</small></div>
         <div class="tBtn" id="tBtnFlashlight">F<br><small style="font-size:7px">LIGHT</small></div>
         <div class="tBtn" id="tBtnPause">PAUSE<br><small style="font-size:7px">⚙️</small></div>
@@ -362,6 +364,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
       </div>
     </div>
   </div>
+
 
   <canvas id="minimap" width="140" height="90"></canvas>
   <div id="ch"><i class="u"></i><i class="d"></i><i class="l"></i><i class="r"></i><b></b></div>
@@ -1434,12 +1437,136 @@ function initGameEngine() {
     pickup(){tH({f0:660,dur:.07,vol:.22});tH({f0:990,dur:.09,vol:.22,at:.08});},
     wave(){tH({type:'square',f0:62,dur:.6,vol:.15});tH({type:'square',f0:93,dur:.6,vol:.12,at:.1});},
     down(){tH({f0:85,f1:28,dur:1,vol:.45});},
-    revive(){tH({f0:440,dur:.1,vol:.2});tH({f0:660,dur:.1,vol:.2,at:.12});tH({f0:880,dur:.15,vol:.2,at:.24});}
+    revive(){tH({f0:440,dur:.1,vol:.2});tH({f0:660,dur:.1,vol:.2,at:.12});tH({f0:880,dur:.15,vol:.2,at:.24});},
+    explosion(){nH({dur:.5,vol:.85,f:2200,f1:120,type:'lowpass'});tH({f0:120,f1:30,dur:.6,vol:.95,type:'sawtooth'});tH({f0:60,f1:20,dur:.8,vol:1.0,type:'sine'});}
   };
+
+  /* ===== SISTEMA DE GRANADAS EXPLOSIVAS 3D (AoE 6.5M) ===== */
+  let grenades = 3, maxGrenades = 3;
+  const activeGrenades = [];
+  const GEO_GRENADE = new THREE.CylinderGeometry(0.045, 0.045, 0.14, 8);
+  const MAT_GRENADE = std({color:0x2b3d29, roughness:0.4, metalness:0.7}, 0.3);
+
+  function hudGrenades(){
+    const el = $('#grenadeHud');
+    if(el) setTxt(el, '💣 x' + Math.max(0, grenades));
+  }
+
+  function throwGrenade(){
+    if(!playing || playerState !== 'alive' || grenades <= 0) return;
+    grenades--;
+    hudGrenades();
+    sfx.dry();
+
+    const gMesh = new THREE.Group();
+    const body = new THREE.Mesh(GEO_GRENADE, MAT_GRENADE);
+    body.castShadow = true;
+    gMesh.add(body);
+
+    const pinLight = new THREE.PointLight(0xff3300, 4, 3);
+    pinLight.position.set(0, 0.08, 0);
+    gMesh.add(pinLight);
+
+    const cPos = camera.position;
+    _vFwd.set(-Math.sin(yaw), Math.sin(pitch), -Math.cos(yaw)).normalize();
+    const spawnPos = cPos.clone().addScaledVector(_vFwd, 0.6).add(new THREE.Vector3(0, -0.2, 0));
+    gMesh.position.copy(spawnPos);
+    scene.add(gMesh);
+
+    const vel = _vFwd.clone().multiplyScalar(19.0).add(new THREE.Vector3(0, 4.2, 0));
+    const gObj = { mesh: gMesh, vel: vel, fuse: 2.2, pinLight: pinLight, rotVel: new THREE.Vector3(R(5,10), R(5,10), R(5,10)) };
+    activeGrenades.push(gObj);
+
+    feed('💣 GRANADA LANZADA — ESPOLETA 2.2S', 'h');
+    netSend({ type: 'grenade_throw', x: spawnPos.x, y: spawnPos.y, z: spawnPos.z, vx: vel.x, vy: vel.y, vz: vel.z });
+  }
+
+  function explodeGrenade(g, isRemote = false){
+    const pos = g.mesh ? g.mesh.position : (g.pos || g);
+    if(!pos) return;
+
+    sfx.explosion();
+    shake = Math.max(shake, 0.45);
+    burst(pos, 'spark', 35, 6.5);
+    burst(pos, 'stone', 22, 4.5);
+
+    // Destello de explosión de luz dinámica
+    const expL = new THREE.PointLight(0xff6600, 35, 14);
+    expL.position.copy(pos);
+    scene.add(expL);
+    setTimeout(() => { scene.remove(expL); }, 320);
+
+    const AOE_RADIUS = 6.5;
+    // 1. Daño a enemigos infectados en área
+    for(const z of zombies){
+      if(z.dead || !z.g) continue;
+      const d = z.g.position.distanceTo(pos);
+      if(d < AOE_RADIUS){
+        const dmg = lerp(180, 30, d / AOE_RADIUS);
+        hurtZombie(z, 'body', z.g.position, dmg);
+        burst(z.g.position, 'ichor', 12, 3.2);
+      }
+    }
+
+    // 2. Daño a bots de escuadrón
+    if(botsEnabled){
+      for(const b of bots){
+        if(b.dead || b.downed || !b.group) continue;
+        const d = b.group.position.distanceTo(pos);
+        if(d < AOE_RADIUS){
+          const dmg = lerp(85, 20, d / AOE_RADIUS);
+          damageBotNearest(b.group.position, dmg);
+        }
+      }
+    }
+
+    // 3. Daño colateral al jugador local si está dentro del radio
+    if(playing && playerState === 'alive' && camera){
+      const pDist = camera.position.distanceTo(pos);
+      if(pDist < AOE_RADIUS){
+        const dmg = lerp(55, 12, pDist / AOE_RADIUS);
+        damagePlayer(dmg);
+        feed('⚠ DAÑO COLATERAL DE GRANADA', 'k');
+      }
+    }
+
+    if(g.mesh) scene.remove(g.mesh);
+    if(!isRemote) netSend({ type: 'grenade_boom', x: pos.x, y: pos.y, z: pos.z });
+  }
+
+  function updateGrenades(dt){
+    for(let i = activeGrenades.length - 1; i >= 0; i--){
+      const g = activeGrenades[i];
+      g.fuse -= dt;
+      if(g.pinLight){
+        g.pinLight.intensity = (g.fuse < 0.8) ? (Math.sin(performance.now() * 0.03) > 0 ? 12 : 1) : 4;
+      }
+      g.vel.y -= 14 * dt;
+      g.mesh.position.addScaledVector(g.vel, dt);
+      g.mesh.rotation.x += g.rotVel.x * dt;
+      g.mesh.rotation.y += g.rotVel.y * dt;
+
+      const floorY = getFloorY(g.mesh.position.x, g.mesh.position.z) + 0.06;
+      if(g.mesh.position.y <= floorY){
+        g.mesh.position.y = floorY;
+        g.vel.y = -g.vel.y * 0.42;
+        g.vel.x *= 0.65;
+        g.vel.z *= 0.65;
+        g.rotVel.multiplyScalar(0.7);
+      }
+      navBotClamp(g.mesh.position);
+
+      if(g.fuse <= 0){
+        explodeGrenade(g);
+        activeGrenades.splice(i, 1);
+      }
+    }
+  }
 
   /* ===== SISTEMA DE ARMAS Y PUÑOS 3D ===== */
   let activeWeapon='gun'; // 'gun' | 'fists'
   let punchSide=0, punchCd=0, punchT=0;
+
 
   const weapon=new THREE.Group();camera.add(weapon);
   {const gm=std({color:0x22252a,roughness:.4,metalness:.8},.5);
@@ -3050,7 +3177,9 @@ function initGameEngine() {
         if(d2D < 3.5){
           burst(cr.g.position,'spark',24,4.0);
           reserve=Math.min(240, reserve+45);
-          sfx.pickup();feed('⚡ MUNICIÓN SUMINISTRADA +45 BALAS','h');hudAmmo();
+          grenades=Math.min(maxGrenades, grenades+1); hudGrenades();
+          sfx.pickup();feed('⚡ MUNICIÓN Y GRANADA (+45 BALAS / +1 💣)','h');hudAmmo();
+
           cr.active=false;cr.cooldown=25;cr.g.visible=false;cr.g.scale.setScalar(0);
           banner('MUNICIÓN RECIBIDA (+45 BALAS)', 'CAJA DE SUMINISTROS RECOLECTADA (COOLDOWN 25S)', false, 2400);
           break;
@@ -3191,7 +3320,14 @@ function initGameEngine() {
       else { requestLock(); }
     }
     if((e.code==='KeyR'||e.key==='r'||e.key==='R')&&playing&&!reloading&&ammo<MAG&&reserve>0)startReload();
+    if((e.code==='KeyB'||e.key==='b'||e.key==='B')&&playing&&!isChatting){
+      e.preventDefault(); toggleFireMode();
+    }
+    if((e.code==='KeyG'||e.key==='g'||e.key==='G')&&playing&&!isChatting){
+      e.preventDefault(); throwGrenade();
+    }
     if((e.code==='KeyF'||e.key==='f'||e.key==='F')&&playing){
+
       flashlight.visible=!flashlight.visible;
       sfx.click();
       feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
@@ -4376,6 +4512,29 @@ function initGameEngine() {
         sfx.moan(3);
         break;
       }
+      case'grenade_throw':{
+        if(d.from !== (peer?.id)){
+          const gMesh = new THREE.Group();
+          const body = new THREE.Mesh(GEO_GRENADE, MAT_GRENADE);
+          gMesh.add(body);
+          const pinLight = new THREE.PointLight(0xff3300, 4, 3);
+          pinLight.position.set(0, 0.08, 0);
+          gMesh.add(pinLight);
+          gMesh.position.set(d.x, d.y, d.z);
+          scene.add(gMesh);
+          const vel = new THREE.Vector3(d.vx, d.vy, d.vz);
+          activeGrenades.push({ mesh: gMesh, vel: vel, fuse: 2.2, pinLight: pinLight, rotVel: new THREE.Vector3(R(5,10), R(5,10), R(5,10)) });
+          sfx.dry();
+        }
+        break;
+      }
+      case'grenade_boom':{
+        if(d.from !== (peer?.id)){
+          explodeGrenade({ pos: new THREE.Vector3(d.x, d.y, d.z) }, true);
+        }
+        break;
+      }
+
       case'zkill':{if(!isHost){
         feed((d.hs?'CRANIAL':'KILL')+' CONFIRMED',d.hs?'h':'k');sfx.die();}break;}
       case'zstate':{if(!isHost){updateRemoteZombiesFromState(d.zs);
@@ -4439,7 +4598,9 @@ function initGameEngine() {
     pickups.forEach(p=>scene.remove(p.m));pickups.length=0;
     queue=[];clearing=true;clearT=2.5;
     hp=100;ammoGun=30;reserveGun=120;ammoShotgun=6;reserveShotgun=36;ammo=MAG;reserve=reserveGun;wave=0;score=0;kills=0;headshots=0;
+    grenades=3;hudGrenades();if(typeof activeGrenades!=='undefined'&&Array.isArray(activeGrenades)){activeGrenades.forEach(g=>{if(g.mesh)scene.remove(g.mesh);});activeGrenades.length=0;}
     reloading=false;fireCd=0;firing=false;wKick=0;dmgFlash=0;shake=0;
+
     playerState='alive';downTimer=0;
     $('#relBar').classList.remove('on');$('#relTxt').textContent='';$('#feed').innerHTML='';
     $('#downedHud').classList.remove('show');$('#paused').classList.remove('show');
@@ -4740,6 +4901,8 @@ function initGameEngine() {
           }
           updateImpacts(dt);
           updateRocks(dt);
+          updateGrenades(dt);
+
           // Broadcast zstate a clientes periódicamente (10Hz)
           _zStateTimer += dt;
           if(_zStateTimer >= 0.10){
@@ -5005,7 +5168,10 @@ function initGameEngine() {
   bindTouchBtn('#tBtnFire', () => { if(playing && playerState === 'alive') firing = true; }, () => { firing = false; });
   bindTouchBtn('#tBtnJump', () => { if(jumpY <= 0 && playerState === 'alive') vy = 4.6; });
   bindTouchBtn('#tBtnReload', () => { if(playing && !reloading && ammo < MAG && reserve > 0) startReload(); });
+  bindTouchBtn('#tBtnMode', () => { if(playing && typeof toggleFireMode === 'function') toggleFireMode(); });
+  bindTouchBtn('#tBtnGrenade', () => { if(playing && typeof throwGrenade === 'function') throwGrenade(); });
   bindTouchBtn('#tBtnWeapon', () => { if(playing) switchWeapon(); });
+
   bindTouchBtn('#tBtnFlashlight', () => {
     if(flashlight){ flashlight.visible = !flashlight.visible; feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h'); }
   });

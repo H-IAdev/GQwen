@@ -39,11 +39,14 @@ La interfaz móvil está completamente integrada dentro del DOM de `coop.html` s
 ### C. Botonera Táctil de Acciones (`#touchActions`)
 - `FIRE` (#tBtnFire): Botón circular rojo ($66\text{px}$) para disparo continuo o puñetazos.
 - `RELOAD` (#tBtnReload): Recarga manual del fusil M-42 (R).
+- `MODE` (#tBtnMode): Botón para alternar el modo de disparo entre `AUTOMATIC`, `SEMI-AUTO` y `BURST-3` (B).
+- `GRANADA` (#tBtnGrenade): Botón rojo táctil con icono 💣 para lanzamiento de granada de fragmentación AoE (G).
 - `WEAPON` (#tBtnWeapon): Alternado entre fusil y puños 3D (Tab).
 - `PAUSE` (#tBtnPause): Menú de Pausa táctil (⚙️) para pausar/reanudar el juego sin depender del teclado físico.
 - `REVIVE` (#tBtnRevive): Interacción con cajas de munición o reanimación de compañeros derribados (E).
 - `VOZ PTT` (#tBtnPtt): Transmisión de voz Push-To-Talk P2P (V).
 - `JUMP` (#tBtnJump): Salto físico.
+
 
 ---
 
