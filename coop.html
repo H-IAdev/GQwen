@@ -1768,8 +1768,8 @@ function initGameEngine() {
 
 
   const CDN_ZOMBIE_URLS = [
-    'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/zombie/model.gltf',
-    'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/character-13/model.gltf'
+    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Zombie/glTF-Binary/Zombie.glb',
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb'
   ];
   let cachedZombieGLTF = null, isZombieGLTFLoading = false;
 
@@ -1818,12 +1818,11 @@ function initGameEngine() {
     if(!loader) return;
     const urlList = customUrl ? [customUrl, ...CDN_ZOMBIE_URLS] : CDN_ZOMBIE_URLS;
     isZombieGLTFLoading = true;
-    logDiag('Cargando mallas GLTF comprimidas desde CDN (DRACO+Meshopt)...', 'info');
 
     (function attempt(idx){
       if(idx >= urlList.length){
         isZombieGLTFLoading = false;
-        logDiag('Aviso: Malla CDN externa no disponible (usando motor ligero procedural resiliente).', 'info');
+        logDiag('Malla CDN externa no alcanzada (ejecutando motor ligero procedural resiliente).', 'info');
         return;
       }
       loader.load(urlList[idx], (gltf) => {
@@ -1832,11 +1831,12 @@ function initGameEngine() {
         logDiag('✓ Modelo GLTF CDN cargado exitosamente: ' + urlList[idx].split('/').pop(), 'ok');
         applyGLTFToZombiePool(gltf);
       }, undefined, (err) => {
-        console.warn('[CDN Zombie] Error al cargar:', urlList[idx], err);
+        logDiag('CDN Zombie (' + (urlList[idx].split('/').pop() || 'GLTF') + ') no disponible, evaluando alternativa...', 'info');
         attempt(idx + 1);
       });
     })(0);
   }
+
 
 
   // API pública para inyectar cualquier CDN externa o buscar en Poly Pizza
@@ -2749,7 +2749,9 @@ function initGameEngine() {
       const t3dPos=trackPos(nearest.trackT);const t3dN=outN(nearest.trackT);
       t3dPos.x+=t3dN.x*(nearest.trackLat!==undefined?nearest.trackLat:3);t3dPos.y=0;t3dPos.z+=t3dN.z*(nearest.trackLat!==undefined?nearest.trackLat:3);
       const dx=z3dPos.x-t3dPos.x,dz=z3dPos.z-t3dPos.z;
+      const dist3D = Math.hypot(dx, dz);
       const meleeR = 1.35 * (z.scale || 1);
+
       const stopR = meleeR * 0.7;
 
       if(z.windup>0){
