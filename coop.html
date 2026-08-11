@@ -1729,8 +1729,41 @@ function initGameEngine() {
   const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
   let cachedRobotGLTF = null, isRobotLoading = false;
 
+  function applyRobotGLTFToBot(b){
+    if(!b || !b.group || !cachedRobotGLTF) return;
+    try {
+      const robotClone = cachedRobotGLTF.scene.clone(true);
+      normalizeModel(robotClone, 1.8);
+      robotClone.scale.setScalar(0.35);
+      robotClone.position.set(0, 0, 0);
+      robotClone.rotation.y = 0;
+      
+      while(b.group.children.length > 0){
+        b.group.remove(b.group.children[0]);
+      }
+      b.group.add(robotClone);
+      
+      if(cachedRobotGLTF.animations && cachedRobotGLTF.animations.length > 0){
+        b.mixer = new THREE.AnimationMixer(robotClone);
+        b.actions = {};
+        cachedRobotGLTF.animations.forEach(clip => {
+          b.actions[clip.name] = b.mixer.clipAction(clip);
+        });
+        if(b.actions['Idle']) b.actions['Idle'].play();
+        b.activeAction = 'Idle';
+      }
+      logDiag('Bot ' + b.name + ' actualizado a Robot CDN 3D animado','ok');
+    } catch(e) {
+      logDiag('Aviso al reemplazar bot por GLTF: ' + e.message, 'err');
+    }
+  }
+
   function loadRobotGLTFForBots(){
-    if(cachedRobotGLTF || isRobotLoading) return;
+    if(cachedRobotGLTF){
+      bots.forEach(b => applyRobotGLTFToBot(b));
+      return;
+    }
+    if(isRobotLoading) return;
     const loader = getCDNLoader();
     if(!loader) return;
     isRobotLoading = true;
@@ -1739,37 +1772,7 @@ function initGameEngine() {
       cachedRobotGLTF = gltf;
       isRobotLoading = false;
       logDiag('✓ RobotExpressive.glb cargado con exito (' + gltf.animations.length + ' animaciones)','ok');
-      // Reemplazar mallas procedimentales por el modelo 3D de Robot animado
-      bots.forEach((b, idx) => {
-        if(!b.group) return;
-        try {
-          const robotClone = gltf.scene.clone(true);
-          normalizeModel(robotClone, 1.8);
-          robotClone.scale.setScalar(0.35);
-          robotClone.position.set(0, 0, 0);
-          robotClone.rotation.y = 0; // Mirar hacia el frente del vector de movimiento
-          
-          // Limpiar mallas procedurales anteriores del grupo
-          while(b.group.children.length > 0){
-            b.group.remove(b.group.children[0]);
-          }
-          b.group.add(robotClone);
-          
-          // Configurar AnimationMixer y clips
-          if(gltf.animations && gltf.animations.length > 0){
-            b.mixer = new THREE.AnimationMixer(robotClone);
-            b.actions = {};
-            gltf.animations.forEach(clip => {
-              b.actions[clip.name] = b.mixer.clipAction(clip);
-            });
-            if(b.actions['Idle']) b.actions['Idle'].play();
-            b.activeAction = 'Idle';
-          }
-          logDiag('Bot ' + b.name + ' actualizado a Robot 3D animado','ok');
-        } catch(e) {
-          logDiag('Aviso al reemplazar bot por GLTF: ' + e.message, 'err');
-        }
-      });
+      bots.forEach(b => applyRobotGLTFToBot(b));
     }, undefined, (err) => {
       isRobotLoading = false;
       logDiag('Error al cargar RobotExpressive.glb (usando fallback procedimental): ' + err.message, 'err');
@@ -1800,7 +1803,9 @@ function initGameEngine() {
     }
     botsEnabled=true;
     logDiag('Escuadrón de 3 bots en formación conjunta desplegado: '+BOT_NAMES.join(', '),'ok');
+    loadRobotGLTFForBots();
   }
+
 
   const BOT_RADIUS = 0.55; // Radio del cilindro de colisión del bot (0.55m)
 
