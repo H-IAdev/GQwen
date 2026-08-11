@@ -353,6 +353,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
         <div class="tBtn" id="tBtnMode">B<br><small style="font-size:7px">MODE</small></div>
         <div class="tBtn" id="tBtnGrenade" style="border-color:#ff4b3e;color:#ff4b3e">G<br><small style="font-size:7px">💣 GRANADA</small></div>
         <div class="tBtn" id="tBtnWeapon">TAB<br><small style="font-size:7px">WEAPON</small></div>
+        <div class="tBtn" id="tBtnCam" style="border-color:var(--cyan);color:var(--cyan)">C<br><small style="font-size:7px">CAM 3D</small></div>
         <div class="tBtn" id="tBtnFlashlight">F<br><small style="font-size:7px">LIGHT</small></div>
         <div class="tBtn" id="tBtnPause">PAUSE<br><small style="font-size:7px">⚙️</small></div>
         <div class="tBtn" id="tBtnPtt">VOZ<br><small style="font-size:7px">PTT</small></div>
@@ -363,6 +364,7 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
         <div class="tBtn" id="tBtnFire">FIRE</div>
       </div>
     </div>
+
   </div>
 
 
@@ -1876,66 +1878,93 @@ function initGameEngine() {
   let bots=[],botReviveT=0,botsEnabled=false;
   let squadRegroupTimer = 40.0, isSquadRegrouping = false, squadRegroupDur = 0;
 
-  const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
-  let cachedRobotGLTF = null, isRobotLoading = false;
+  const SOLDIER_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb';
+  let cachedSoldierGLTF = null, isSoldierLoading = false;
+  let localPlayerBodyGroup = null;
+  let camMode = 'fps'; // 'fps' | 'tps_back' | 'tps_front'
 
-  function applyRobotGLTFToBot(b){
-    if(!b || !b.group || !cachedRobotGLTF) return;
+  function toggleCamMode(){
+    if(camMode === 'fps') camMode = 'tps_back';
+    else if(camMode === 'tps_back') camMode = 'tps_front';
+    else camMode = 'fps';
+    const label = camMode === 'tps_back' ? '3ª PERSONA (POSTERIOR)' : camMode === 'tps_front' ? '3ª PERSONA (FRONTAL)' : '1ª PERSONA (FPS)';
+    feed('CÁMARA: ' + label, 'h');
+    banner('CÁMARA', label, false, 1500);
+  }
+
+  function applySoldierGLTFToMesh(targetGroup){
+    if(!targetGroup || !cachedSoldierGLTF) return null;
     try {
-      const src = cachedRobotGLTF.scene;
-      const robotClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
+      const src = cachedSoldierGLTF.scene;
+      const soldierClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
         ? THREE.SkeletonUtils.clone(src)
         : src.clone(true);
-      normalizeModel(robotClone, 1.7);
+      normalizeModel(soldierClone, 1.75);
 
-      while(b.group.children.length > 0){
-        b.group.remove(b.group.children[0]);
+      while(targetGroup.children.length > 0){
+        targetGroup.remove(targetGroup.children[0]);
       }
-      b.group.add(robotClone);
+      targetGroup.add(soldierClone);
 
-      if(cachedRobotGLTF.animations && cachedRobotGLTF.animations.length > 0){
-        b.mixer = new THREE.AnimationMixer(robotClone);
-        b.actions = {};
-        cachedRobotGLTF.animations.forEach(clip => {
-          b.actions[clip.name] = b.mixer.clipAction(clip);
+      let mixer = null, actions = {};
+      if(cachedSoldierGLTF.animations && cachedSoldierGLTF.animations.length > 0){
+        mixer = new THREE.AnimationMixer(soldierClone);
+        cachedSoldierGLTF.animations.forEach(clip => {
+          actions[clip.name] = mixer.clipAction(clip);
         });
-        if(b.actions['Idle']) b.actions['Idle'].play();
-        b.activeAction = 'Idle';
-
-        b.mixer.addEventListener('finished', ev => {
-          if(ev.action === b.actions['Death']){
-            try {
-              const box = new THREE.Box3().setFromObject(b.group);
-              b.restDip = Math.max(0, b.group.position.y - box.min.y);
-            } catch(ex){}
-          }
-        });
+        if(actions['Idle']) actions['Idle'].play();
       }
-      logDiag('Bot ' + b.name + ' actualizado a Robot CDN 3D animado', 'ok');
+      return { mixer, actions, activeAction: 'Idle' };
     } catch(e) {
-      logDiag('Aviso al reemplazar bot por GLTF: ' + e.message, 'err');
+      logDiag('Aviso al aplicar Soldier GLTF: ' + e.message, 'err');
+      return null;
     }
   }
 
+  function applySoldierToBot(b){
+    if(!b || !b.group || !cachedSoldierGLTF) return;
+    const res = applySoldierGLTFToMesh(b.group);
+    if(res){
+      b.mixer = res.mixer;
+      b.actions = res.actions;
+      b.activeAction = res.activeAction;
+      logDiag('Bot ' + b.name + ' actualizado a Soldado 3D CDN animado', 'ok');
+    }
+  }
 
-  function loadRobotGLTFForBots(){
-    if(cachedRobotGLTF){
-      bots.forEach(b => applyRobotGLTFToBot(b));
+  function applySoldierToGroup(group){
+    if(!group || !cachedSoldierGLTF) return null;
+    const res = applySoldierGLTFToMesh(group);
+    if(res){
+      group.userData.mixer = res.mixer;
+      group.userData.actions = res.actions;
+      group.userData.activeAction = res.activeAction;
+    }
+    return res;
+  }
+
+  function loadSoldierGLTFForPlayers(){
+    if(cachedSoldierGLTF){
+      bots.forEach(b => applySoldierToBot(b));
+      for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
+      if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
       return;
     }
-    if(isRobotLoading) return;
+    if(isSoldierLoading) return;
     const loader = getCDNLoader();
     if(!loader) return;
-    isRobotLoading = true;
-    logDiag('Cargando RobotExpressive.glb desde CDN...','info');
-    loader.load(ROBOT_GLB_URL, (gltf) => {
-      cachedRobotGLTF = gltf;
-      isRobotLoading = false;
-      logDiag('✓ RobotExpressive.glb cargado con exito (' + gltf.animations.length + ' animaciones)','ok');
-      bots.forEach(b => applyRobotGLTFToBot(b));
+    isSoldierLoading = true;
+    logDiag('Cargando Soldier.glb desde CDN (Docs Assets)...','info');
+    loader.load(SOLDIER_GLB_URL, (gltf) => {
+      cachedSoldierGLTF = gltf;
+      isSoldierLoading = false;
+      logDiag('✓ Modelo Soldado CDN (Soldier.glb) cargado con éxito (' + gltf.animations.length + ' animaciones)','ok');
+      bots.forEach(b => applySoldierToBot(b));
+      for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
+      if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
     }, undefined, (err) => {
-      isRobotLoading = false;
-      logDiag('Error al cargar RobotExpressive.glb (usando fallback procedimental): ' + err.message, 'err');
+      isSoldierLoading = false;
+      logDiag('Aviso al cargar Soldier.glb (usando fallback procedimental): ' + err.message, 'info');
     });
   }
 
@@ -1963,8 +1992,9 @@ function initGameEngine() {
     }
     botsEnabled=true;
     logDiag('Escuadrón de 3 bots en formación conjunta desplegado: '+BOT_NAMES.join(', '),'ok');
-    loadRobotGLTFForBots();
+    loadSoldierGLTFForPlayers();
   }
+
 
 
   const BOT_RADIUS = 0.55; // Radio del cilindro de colisión del bot (0.55m)
@@ -3383,10 +3413,13 @@ function initGameEngine() {
     if((e.code==='Digit1'||e.code==='Numpad1')&&playing)switchWeapon('gun');
     if((e.code==='Digit2'||e.code==='Numpad2')&&playing)switchWeapon('shotgun');
     if((e.code==='Digit3'||e.code==='Numpad3')&&playing)switchWeapon('fists');
-    // CHAT (T Key) & PTT (V Key)
+    if((e.code==='KeyC'||e.key==='c'||e.key==='C')&&playing&&!isChatting){
+      e.preventDefault(); toggleCamMode();
+    }
     if((e.code==='KeyT'||e.key==='t'||e.key==='T') && playing){
       e.preventDefault(); toggleChat(!isChatting); return;
     }
+
     if((e.code==='KeyV'||e.key==='v'||e.key==='V') && playing && !isChatting){
       setPTTState(true);
     }
@@ -3807,7 +3840,9 @@ function initGameEngine() {
       const fLight=new THREE.PointLight(0xffb060,0,5,2);fLight.position.set(0,0.04,-0.42);gun.add(fLight);
       g.traverse(o=>{if(o.isMesh)o.castShadow=!isRemote;});
       scene.add(g);
+      if(cachedSoldierGLTF) applySoldierToGroup(g);
       return {group:g,gun,flash,fLight,refs:{armL,armR,legL,legR},walk:R(0,6)};
+
     } catch(err) {
       logDiag('Aviso buildPlayerMesh: ' + err.message, 'err');
       const fbGroup = new THREE.Group();
@@ -4688,6 +4723,12 @@ function initGameEngine() {
     $('#over').classList.add('gone');$('#lobby').classList.add('gone');
     document.body.classList.add('playing');
     hudAmmo();hudHP();hudScore();hudWave();playing=true;startTime=elapsed;requestLock();
+    if(!localPlayerBodyGroup){
+      localPlayerBodyGroup = new THREE.Group();
+      localPlayerBodyGroup.name = 'localPlayerBody';
+      scene.add(localPlayerBodyGroup);
+    }
+    loadSoldierGLTFForPlayers();
     /* GQW-VIS-5.0: Spawn AI squad ONLY in dedicated 'bots' mode */
     if(gameMode === 'bots' && typeof spawnBots === 'function'){
       spawnBots();
@@ -4699,6 +4740,7 @@ function initGameEngine() {
       botsEnabled = false;
     }
     if(isHost&&sendNet)netSend({type:'start'});}
+
 
   function gameVictory(){
     playing=false;firing=false;
@@ -4850,8 +4892,28 @@ function initGameEngine() {
         const floorY = getFloorY(p.x, p.z);
         const eyeH = playerState === 'downed' ? .5 : playerState === 'dead' ? .3 : 1.7;
         p.y = floorY + eyeH + jumpY + bob;
+
+        if(localPlayerBodyGroup){
+          localPlayerBodyGroup.position.set(p.x, floorY, p.z);
+          localPlayerBodyGroup.rotation.y = yaw;
+          localPlayerBodyGroup.visible = (camMode !== 'fps' && playing && playerState === 'alive');
+
+          if(localPlayerBodyGroup.userData.mixer){
+            localPlayerBodyGroup.userData.mixer.update(dt);
+            const isMoving = vel.lengthSq() > 0.1;
+            const targetAct = isMoving ? (keys['ShiftLeft'] ? 'Run' : 'Walk') : 'Idle';
+            const actions = localPlayerBodyGroup.userData.actions;
+            let activeAct = localPlayerBodyGroup.userData.activeAction;
+            if(actions && actions[targetAct] && activeAct !== targetAct){
+              if(actions[activeAct]) actions[activeAct].fadeOut(0.18);
+              if(actions[targetAct]) actions[targetAct].reset().fadeIn(0.18).play();
+              localPlayerBodyGroup.userData.activeAction = targetAct;
+            }
+          }
+        }
         
         stepAcc += dt * sp;
+
         if(stepAcc > 2 && jumpY <= 0 && sp > 1 && playerState === 'alive'){ stepAcc = 0; sfx.step(); }
         fireCd -= dt; dryCd -= dt; punchCd -= dt; punchT *= Math.exp(-12 * dt);
         if(firing && fireCd <= 0 && playerState === 'alive'){
@@ -5152,8 +5214,23 @@ function initGameEngine() {
           keyLight.target.position.copy(camera.position).addScaledVector(_kd,8);
           keyLight.target.updateMatrixWorld();
         }
+        const _origCamPos = camera.position.clone();
+        const _origCamRotY = camera.rotation.y;
+        if(camMode === 'tps_back'){
+          const _back = new THREE.Vector3(0, 0.45, 2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+          camera.position.add(_back);
+        } else if(camMode === 'tps_front'){
+          const _front = new THREE.Vector3(0, 0.45, -2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+          camera.position.add(_front);
+          camera.rotation.y += Math.PI;
+        }
+
         renderer.render(scene,camera);
+
+        camera.position.copy(_origCamPos);
+        camera.rotation.y = _origCamRotY;
       }
+
     }
     animate();
 
@@ -5288,8 +5365,10 @@ function initGameEngine() {
   bindTouchBtn('#tBtnMode', () => { if(playing && typeof toggleFireMode === 'function') toggleFireMode(); });
   bindTouchBtn('#tBtnGrenade', () => { if(playing && typeof throwGrenade === 'function') throwGrenade(); });
   bindTouchBtn('#tBtnWeapon', () => { if(playing) switchWeapon(); });
+  bindTouchBtn('#tBtnCam', () => { if(playing) toggleCamMode(); });
 
   bindTouchBtn('#tBtnFlashlight', () => {
+
     if(flashlight){ flashlight.visible = !flashlight.visible; feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h'); }
   });
   bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });

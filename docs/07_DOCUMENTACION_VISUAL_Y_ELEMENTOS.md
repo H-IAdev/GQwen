@@ -74,14 +74,17 @@ JERARQUÍA DE ILUMINACIÓN — GQwen Co-Op 3D (GQW-VIS-6.0)
 
 ---
 
-## 3. EFECTOS DE POSTPROCESO Y COMBATE
+## 4. MODELO DE JUGADOR Y BOTS CDN (`Soldier.glb`) Y CÁMARA 3D
 
-1. **ACES Filmic Tone Mapping**:
-   - `renderer.toneMapping = THREE.ACESFilmicToneMapping`
-   - `renderer.toneMappingExposure = 0.98`
-2. **UnrealBloomPass Selectivo (Capa 2)**:
-   - Umbral de Bloom fijado en `0.85`, permitiendo que únicamente los emisivos intensos (ojos de bosses `6.0`, `CORE_NEON` `4.5`, destellos de arma `45`) generen resplandor luminoso sin saturar el entorno.
-3. **Chispas Aditivas de Impacto**:
-   - Material `pMats.spark` configurado con `THREE.AdditiveBlending` y `depthWrite = false`.
-4. **Telégrafo Térmico del Rockhurler**:
-   - La roca volcánica proyectada incrementa dinámicamente su intensidad emisiva de `0.4` a `2.2` durante la carga de 0.9s.
+1. **Skin Unificada CDN**:
+   - Modelo: `https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb` (cargado directamente con `GLTFLoader`).
+   - Clado y retargeteado dinámicamente con `THREE.SkeletonUtils.clone()`.
+   - Normalizado a una altura táctica estándar de $1.75\text{m}$.
+   - Animaciones sincronizadas: `Idle`, `Walk`, `Run` y `TPose`.
+   - Asignado a todos los **compañeros IA (`bots`)**, **jugadores remotos P2P (`remotePlayers`)** y al **jugador local (`localPlayerBodyGroup`)**.
+
+2. **Sistema de Vista de Cámara 3D (Alternador 1ª y 3ª Persona)**:
+   - **Tecla `C`** / **Botón Táctil `C / CAM 3D`**: Alterna cíclicamente entre 3 modos de cámara:
+     - `1ª Persona (FPS)`: Modo inmersivo tradicional.
+     - `3ª Persona (Posterior)`: Cámara jalada $2.5\text{m}$ hacia atrás y $+0.45\text{m}$ arriba para observar la skin del soldado en acción.
+     - `3ª Persona (Frontal)`: Cámara ubicada $2.5\text{m}$ enfrente del jugador mirando hacia atrás para inspección frontal.
