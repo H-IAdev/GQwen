@@ -543,13 +543,14 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 25, spd: [1.8, 2.4], dmg: 12, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 18, spd: [3.4, 4.2], dmg: 10, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 60, spd: [1.6, 2.2], dmg: 20, score: 30, sc: 1.35, armor: 0 },
-      boss_juggernaut: { hp: 550, spd: [1.8, 2.3], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 280, spd: [3.8, 4.6], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 380, spd: [1.5, 2.0], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
+      walker: { hp: 25, spd: [1.2, 1.7], dmg: 12, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 18, spd: [2.3, 2.9], dmg: 10, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 60, spd: [1.1, 1.5], dmg: 20, score: 30, sc: 1.35, armor: 0 },
+      boss_juggernaut: { hp: 550, spd: [1.2, 1.6], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 280, spd: [2.6, 3.2], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 380, spd: [1.0, 1.4], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
     },
+
 
     weapons: {
       m42: { mag: 30, reserve: 120, reserveMax: 240, damage: 25, reloadTime: 1.0 },
@@ -3344,8 +3345,9 @@ function initGameEngine() {
     wave=n;hudWave();queue=[];const N=numPlayers();
     const plan=WAVE_PLAN[Math.min(n,WAVE_PLAN.length)-1];
     hpMul=(1+(n-1)*0.16)*(1+0.25*(N-1));
-    spMul=1+Math.min(0.25,(n-1)*0.03);
+    spMul=1+Math.min(0.12,(n-1)*0.012);
     spawnInt=Math.max(1.6,3.6-n*0.18);spawnT=1.0;
+
     for(let i=0;i<plan.c;i++){const r=Math.random();queue.push(r<.55?'walker':(r<.85?'runner':'brute'));}
     for(let i=0;i<(plan.brutes||0);i++)queue.push('brute');
     if(plan.boss)queue.push(plan.boss);
