@@ -1644,11 +1644,38 @@ function initGameEngine() {
   ];
   let cachedZombieGLTF = null, isZombieGLTFLoading = false;
 
+  function applyGLTFToZombiePool(gltf){
+    if(!gltf || !ZOMBIE_POOL || ZOMBIE_POOL.length === 0) return;
+    for(const slot of ZOMBIE_POOL){
+      if(slot && slot.detailG){
+        try {
+          if(slot.mountAnchor){
+            while(slot.mountAnchor.children.length > 0) slot.mountAnchor.remove(slot.mountAnchor.children[0]);
+          }
+          const zClone = gltf.scene.clone(true);
+          normalizeModel(zClone, 1.8);
+          slot.gltfMesh = zClone;
+          zClone.visible = false;
+          if(slot.mountAnchor) slot.mountAnchor.add(zClone);
+          else slot.detailG.add(zClone);
+          // Registrar sub-meshes en hitboxes para disparos y raycast
+          zClone.traverse(c => {
+            if(c.isMesh){ c.userData.part = 'body'; c.userData.z = slot; }
+          });
+        } catch(e){}
+      }
+    }
+  }
+
   function loadZombieGLTFAssets(customUrl = null){
+    if(cachedZombieGLTF && !customUrl){
+      applyGLTFToZombiePool(cachedZombieGLTF);
+      return;
+    }
+    if(isZombieGLTFLoading) return;
     const loader = getCDNLoader();
     if(!loader) return;
     const urlList = customUrl ? [customUrl, ...CDN_ZOMBIE_URLS] : CDN_ZOMBIE_URLS;
-    if(cachedZombieGLTF && !customUrl) return;
     isZombieGLTFLoading = true;
     logDiag('Cargando mallas GLTF comprimidas desde CDN (DRACO+Meshopt)...', 'info');
 
@@ -1662,34 +1689,14 @@ function initGameEngine() {
         cachedZombieGLTF = gltf;
         isZombieGLTFLoading = false;
         logDiag('✓ Modelo GLTF CDN cargado exitosamente: ' + urlList[idx].split('/').pop(), 'ok');
-        
-        // Asignar mallas GLTF optimizadas al punto de anclaje de cada slot (mountAnchor)
-        for(const slot of ZOMBIE_POOL){
-          if(slot && slot.detailG){
-            try {
-              if(slot.mountAnchor){
-                while(slot.mountAnchor.children.length > 0) slot.mountAnchor.remove(slot.mountAnchor.children[0]);
-              }
-              const zClone = gltf.scene.clone(true);
-              normalizeModel(zClone, 1.8);
-              slot.gltfMesh = zClone;
-              zClone.visible = false;
-              if(slot.mountAnchor) slot.mountAnchor.add(zClone);
-              else slot.detailG.add(zClone);
-              // Registrar sub-meshes en hitboxes para disparos y raycast
-              zClone.traverse(c => {
-                if(c.isMesh){ c.userData.part = 'body'; c.userData.z = slot; }
-              });
-            } catch(e){}
-          }
-        }
-
+        applyGLTFToZombiePool(gltf);
       }, undefined, (err) => {
         console.warn('[CDN Zombie] Error al cargar:', urlList[idx], err);
         attempt(idx + 1);
       });
     })(0);
   }
+
 
   // API pública para inyectar cualquier CDN externa o buscar en Poly Pizza
   window.loadCustomZombieCDNModel = function(url){ loadZombieGLTFAssets(url); };
@@ -2262,19 +2269,19 @@ function initGameEngine() {
       const eb=new THREE.Mesh(GEO_POOL.eyeB,EYE_M);eb.position.set(s*.06,1.53,.12);
       eb.layers.set(2);eb.visible=false;g.add(eb);eyeB.push(eb);
     });
-    // Extremidades
+    // Extremidades procedimentales simplificadas (1 sola sub-malla por extremidad)
     function arm(s){
       const p=new THREE.Group();p.position.set(s*.3,1.28,0);g.add(p);
-      const ua=limbGeo(GEO_POOL.armCyl,GEO_POOL.armCap,.34,defSkin);ua.position.y=-.17;p.add(ua);
-      const f=new THREE.Group();f.position.y=-.34;p.add(f);
-      const fa=limbGeo(GEO_POOL.faCyl,GEO_POOL.faCap,.3,defSkin);fa.position.y=-.15;f.add(fa);return{p,f};}
+      const cyl=mkMesh(GEO_POOL.armCyl,defSkin);cyl.position.y=-.17;p.add(cyl);
+      return{p,f:cyl};
+    }
     function leg(s){
       const p=new THREE.Group();p.position.set(s*.11,.72,0);g.add(p);
-      const ul=limbGeo(GEO_POOL.legCyl,GEO_POOL.legCap,.38,defDark);ul.position.y=-.19;p.add(ul);
-      const sh=new THREE.Group();sh.position.y=-.38;p.add(sh);
-      const sl=limbGeo(GEO_POOL.armCyl,GEO_POOL.armCap,.34,defSkin);sl.position.y=-.17;sh.add(sl);
-      const foot=mkMesh(GEO_POOL.foot,defDark);foot.position.set(0,-.35,.04);sh.add(foot);return{p,s:sh};}
+      const cyl=mkMesh(GEO_POOL.legCyl,defDark);cyl.position.y=-.19;p.add(cyl);
+      return{p,s:cyl};
+    }
     const aL=arm(-1),aR=arm(1),lL=leg(-1),lR=leg(1);
+
     // Aura Stalker (siempre en la escena, oculta por defecto)
     const aura=new THREE.PointLight(0xff00cc,0,6,1.8);
     aura.position.set(0,1.2,0);aura.visible=false;g.add(aura);
@@ -2305,6 +2312,8 @@ function initGameEngine() {
     buildPrebuiltLODForSlot(slot);
     ZOMBIE_POOL.push(slot);
   }
+  try { loadZombieGLTFAssets(); } catch(e){}
+
   /* InstancedMesh para zombies distantes (>20m) — reduce draw calls 60→1 por parte */
   const INST_BODY_MAT=std({color:0x3a3f46,roughness:.95},.08);
   const INST_HEAD_MAT=std({color:0x7d9070,roughness:.8},.1);
@@ -2381,8 +2390,12 @@ function initGameEngine() {
   function spawnZombie(type,hpMul,spMul){
     const slot=acquireZombieSlot();
     if(!slot)return null;
+    if(cachedZombieGLTF && !slot.gltfMesh){
+      applyGLTFToZombiePool(cachedZombieGLTF);
+    }
     /* Aplicar tipo al LOD pre-construido (solo intercambia materiales, sin new THREE) */
     applyZombieType(slot,type);
+
     slot.id=zId++;
     slot.type=type;
     slot.hp=0;slot.t=Math.random();slot.lat=R(2,4.5);slot.speed=1;slot.dmg=5;slot.score=10;
