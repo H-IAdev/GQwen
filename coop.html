@@ -1666,7 +1666,8 @@ function initGameEngine() {
   const flashlight=new THREE.SpotLight(0xfff5e0,0,45,Math.PI/7,0.35,1.8);
   flashlight.position.set(0.2,-0.15,-0.2);flashlight.visible=false;flashlight.layers.set(2);camera.add(flashlight);
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
-  const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_vBurst=new THREE.Vector3(),_vFwd=new THREE.Vector3();
+  const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_v4=new THREE.Vector3(),_vHead=new THREE.Vector3(),_vBurst=new THREE.Vector3(),_vFwd=new THREE.Vector3();
+
   const _vRock=new THREE.Vector3(), _vCam=new THREE.Vector3(), _vHand=new THREE.Vector3(), _vDir=new THREE.Vector3();
   /* Fase 6D — Reusables para frustum culling */
   const _frustum=new THREE.Frustum();
@@ -2090,28 +2091,43 @@ function initGameEngine() {
       const m=buildPlayerMesh(i+1, false, true);
       m.group.position.copy(camera.position).add(BOT_OFFSETS[i] || new THREE.Vector3());
       scene.add(m.group);
-      bots.push({...m,id:i+1,name:roles[i].name,hp:100,maxHp:100,
-        role: roles[i].role, leadOffset: roles[i].leadOffset, latOffset: roles[i].latOffset, baseSpeed: roles[i].speed,
-        scanTimer: 0, restTimer: 0, patrolProgress: Math.random(),
-        downed:false,downT:0,dead:false,
-        fireCd:R(.6,1.2),
-        vel:new THREE.Vector3(),
-        revivingPlayer:false,
-        mixer:null,actions:{},activeAction:null
+      bots.push({
+        ...m,
+        id: i+1,
+        name: roles[i].name,
+        hp: 100,
+        maxHp: 100,
+        role: roles[i].role,
+        leadOffset: roles[i].leadOffset,
+        latOffset: roles[i].latOffset,
+        baseSpeed: roles[i].speed,
+        
+        recentDamageTimer: 0,
+        isRetreatingToHeal: false,
+        lastThreatScore: 0,
+        currentAction: 'formation',
+        
+        downed: false,
+        downT: 0,
+        dead: false,
+        fireCd: R(.6, 1.2),
+        vel: new THREE.Vector3(),
+        revivingPlayer: false,
+        mixer: null,
+        actions: {},
+        activeAction: null,
+        scanTimer: 0,
+        restTimer: 0,
+        patrolProgress: Math.random()
       });
     }
     botsEnabled=true;
-    logDiag('Escuadrón de 3 bots en formación conjunta desplegado: '+BOT_NAMES.join(', '),'ok');
+    logDiag('Escuadrón Utility AI desplegado: '+BOT_NAMES.join(', '),'ok');
     loadRobotGLTFForBots();
     loadSoldierGLTFForPlayers();
   }
 
-
-
-
-
   const BOT_RADIUS = 0.55; // Radio del cilindro de colisión del bot (0.55m)
-
 
   function navBotClamp(p){
     const t = closestT(p.x, p.z);
@@ -2119,7 +2135,6 @@ function initGameEngine() {
     const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
     const st = stationness(t);
     
-    // Clampear estrictamente dentro de las paredes laterales del túnel y andén a lo largo de todo el mapa
     const minLat = lerp(-3.8, -2.6, st) + BOT_RADIUS;
     const maxLat = lerp(6.8, 3.6, st) - BOT_RADIUS;
     
@@ -2134,16 +2149,12 @@ function initGameEngine() {
     }
   }
 
-
-  // Algoritmo de Separación Inter-Entidad (Formación Táctica de Escuadrón de 3 hombres: 1.8m espacio personal)
   function applyBotSeparation(b, dt){
     if(!b.group || b.downed || b.dead) return;
     const pos = b.group.position;
-    const MIN_SEP = 1.8; // 1.8m para mantener al escuadrón unido sin encimarse
+    const MIN_SEP = 1.8;
     let sepX = 0, sepZ = 0;
 
-
-    // Repulsión respecto a otros bots de escuadrón
     for(const ob of bots){
       if(ob === b || !ob.group || ob.dead) continue;
       const opos = ob.group.position;
@@ -2157,7 +2168,6 @@ function initGameEngine() {
       }
     }
 
-    // Repulsión respecto a la posición del jugador
     if(camera){
       const dx = pos.x - camera.position.x;
       const dz = pos.z - camera.position.z;
@@ -2183,24 +2193,18 @@ function initGameEngine() {
     const dx=dest.x-g.position.x,dz=dest.z-g.position.z;
     const dist=Math.hypot(dx,dz)||0.001;
 
-    // Avanzar con deslizamiento tangencial a paredes
     g.position.x += (dx / dist) * speed * dt;
     g.position.z += (dz / dist) * speed * dt;
     navBotClamp(g.position);
-
-    // Aplicar repulsión personal entre entidades (Boids 2.2m)
     applyBotSeparation(b, dt);
 
-    // Si colisionó y fue empujado por la pared, deslizar a lo largo de la tangente
     const actualDx = g.position.x - oldX;
     const actualDz = g.position.z - oldZ;
     if(Math.hypot(actualDx, actualDz) < 0.001 && dist > 0.5){
-      // Re-elegir punto de destino libre si está atascado contra un muro
       b.roamTarget = null;
       b.patrolPos = null;
     }
 
-    // Alineación natural con la altura exacta del suelo/escalera
     const targetY = getFloorY(g.position.x, g.position.z);
     g.position.y = lerp(g.position.y, targetY, dt * 14);
 
@@ -2212,7 +2216,6 @@ function initGameEngine() {
     if(!b.downed){
       b.walk+=dt*speed*2.4;
       if(b.mixer){
-        // mixer.update(dt) es llamado globalmente 1 vez por frame en updateBots()
         const targetAction = speed > 4.5 ? 'Running' : 'Walking';
         if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
@@ -2227,34 +2230,209 @@ function initGameEngine() {
     }
   }
 
+  function findNearestEnemy(pos) {
+    let nearest = null;
+    let minDist = Infinity;
+    for (const z of zombies) {
+      if (z.dead) continue;
+      const dist = pos.distanceTo(z.g.position);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = z;
+      }
+    }
+    return nearest ? { enemy: nearest, dist: minDist } : null;
+  }
 
+  function executeBotFire(bot, target, dt) {
+    bot.fireCd -= dt;
+    if (bot.fireCd <= 0) {
+      bot.fireCd = R(0.4, 0.9);
+      if (bot.flash) {
+        bot.flash.visible = true;
+        bot.flash.material.rotation = R(0, 6.28);
+      }
+      if (bot.fLight) bot.fLight.intensity = 45;
+      sfx.shot();
+      if (bot.actions['Punch']) {
+        bot.actions['Punch'].stop().play();
+      }
+      const dist = bot.group.position.distanceTo(target.g.position);
+      const hitChance = Math.max(0.30, 0.95 - (dist * 0.02));
+      if (Math.random() < hitChance && !target.dead) {
+        const isHeadshot = Math.random() < 0.25;
+        const dmg = isHeadshot ? 50 : 22;
+        hurtZombie(target, isHeadshot ? 'head' : 'body', target.g.position, dmg);
+        burst(target.g.position, 'ichor', isHeadshot ? 12 : 6, 2.8);
+      }
+    }
+  }
+
+  function evaluateBotUtility(bot, dt) {
+    if (bot.dead || bot.downed) return null;
+    const botPos = bot.group.position;
+    const playerPos = camera.position;
+
+    let bestTarget = null;
+    let maxThreat = -1;
+    for (const z of zombies) {
+      if (z.dead) continue;
+      const dist = botPos.distanceTo(z.g.position);
+      if (dist > 40) continue;
+      const dirToZ = _v1.subVectors(z.g.position, botPos).normalize();
+      const botFacing = _v2.set(Math.sin(bot.group.rotation.y), 0, Math.cos(bot.group.rotation.y));
+      const dot = botFacing.dot(dirToZ);
+      if (dot > -0.34 || dist < 4.0) {
+        let threat = (100 / Math.max(1, dist));
+        if (z.type.includes('boss')) threat *= 2.5;
+        if (z.grabbed || z.grabVictim) threat *= 3.0;
+        if (threat > maxThreat) {
+          maxThreat = threat;
+          bestTarget = z;
+        }
+      }
+    }
+    bot.lastThreatScore = maxThreat;
+
+    const uRescue = (playerState === 'downed' && botPos.distanceTo(playerPos) < 15) ? 0.95 : 0.0;
+    const uSelfPreservation = (bot.hp < 30 && maxThreat > 20) ? 0.85 :
+                              (bot.isRetreatingToHeal && bot.hp < 60) ? 0.80 : 0.0;
+    const uCombat = bestTarget ? Math.min(0.80, maxThreat / 100) : 0.0;
+    const uFormation = 0.20;
+
+    const HYSTERESIS = 0.15;
+
+    if (uRescue > uCombat + HYSTERESIS && uRescue > uSelfPreservation + HYSTERESIS) {
+      bot.currentAction = 'rescue';
+      bot.targetEnemy = null;
+      const pd = botPos.distanceTo(playerPos);
+      const aimAng = Math.atan2(playerPos.x - botPos.x, playerPos.z - botPos.z);
+      bot.group.rotation.y = aimAng;
+      if (pd > 2.0) {
+        moveBotTo(bot, playerPos, 7.2, dt);
+      } else {
+        botReviveT += dt;
+        if (bot.actions['Wave'] && bot.activeAction !== 'Wave') {
+          if (bot.actions[bot.activeAction]) bot.actions[bot.activeAction].fadeOut(0.15);
+          bot.actions['Wave'].reset().fadeIn(0.15).play();
+          bot.activeAction = 'Wave';
+        }
+        if (botReviveT > 3.0) {
+          playerState = 'alive'; hp = 55; hudHP();
+          feed(bot.name + ' TE REANIMÓ', 'g'); sfx.revive();
+          if ($('#downedHud')) $('#downedHud').classList.remove('show');
+          netSend({type: 'pstate', state: 'alive'});
+          botReviveT = 0;
+        }
+      }
+      return;
+    }
+
+    if (uSelfPreservation > uCombat + HYSTERESIS) {
+      bot.currentAction = 'retreat';
+      if (bestTarget) {
+        const botT = closestT(botPos.x, botPos.z);
+        const enemyT = closestT(bestTarget.g.position.x, bestTarget.g.position.z);
+        let escapeDir = Math.sign(botT - enemyT);
+        if (escapeDir === 0) escapeDir = 1;
+        const safeT = (botT + escapeDir * 0.08 + 1) % 1;
+        const trackP = trackPos(safeT);
+        const trackN = outN(safeT);
+        const safeDest = new THREE.Vector3(
+          trackP.x + trackN.x * (bot.latOffset || 1.8),
+          getFloorY(trackP.x, trackP.z),
+          trackP.z + trackN.z * (bot.latOffset || 1.8)
+        );
+        moveBotTo(bot, safeDest, bot.baseSpeed * 1.35, dt);
+        const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
+        bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 8);
+        if (botPos.distanceTo(bestTarget.g.position) < 10) {
+          executeBotFire(bot, bestTarget, dt);
+        }
+        if (bot.hp < 28 || (bot.hp < 45 && bot.recentDamageTimer > 1.5)) {
+          bot.isRetreatingToHeal = true;
+        }
+        if (Math.random() < 0.01) {
+          feed(`🏥 ${bot.name}: ¡REPLEGÁNDOME PARA CURARME!`, 'h');
+        }
+      }
+      return;
+    }
+
+    if (uCombat > uFormation + HYSTERESIS && bestTarget) {
+      bot.currentAction = 'combat';
+      bot.aimingTgt = true;
+      const distToTarget = botPos.distanceTo(bestTarget.g.position);
+      const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
+      bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 10);
+      if (distToTarget > 8.0) {
+        moveBotTo(bot, bestTarget.g.position, bot.baseSpeed, dt);
+      } else if (distToTarget < 4.5 || bot.recentDamageTimer > 0) {
+        const retreatDir = new THREE.Vector3().subVectors(botPos, bestTarget.g.position).normalize();
+        const retreatTarget = botPos.clone().add(retreatDir.multiplyScalar(3.0));
+        moveBotTo(bot, retreatTarget, bot.baseSpeed * 0.85, dt);
+      } else {
+        if (bot.actions['Idle'] && bot.activeAction !== 'Idle' && bot.activeAction !== 'Punch') {
+          if (bot.actions[bot.activeAction]) bot.actions[bot.activeAction].fadeOut(0.2);
+          bot.actions['Idle'].reset().fadeIn(0.2).play();
+          bot.activeAction = 'Idle';
+        }
+      }
+      executeBotFire(bot, bestTarget, dt);
+      return;
+    }
+
+    bot.currentAction = 'formation';
+    bot.aimingTgt = false;
+
+    const playerForward = _v3.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const toBot = _v4.subVectors(botPos, camera.position);
+    const dotToBot = playerForward.dot(toBot.normalize());
+
+    if (dotToBot > 0.85 && toBot.length() < 8 && playerState === 'alive') {
+      const sideStep = new THREE.Vector3(-playerForward.z, 0, playerForward.x);
+      const sidePos = botPos.clone().add(sideStep.multiplyScalar(2.5));
+      moveBotTo(bot, sidePos, bot.baseSpeed * 1.2, dt);
+      return;
+    }
+
+    const offsetAngle = yaw + (bot.id === 1 ? Math.PI * 0.5 : bot.id === 2 ? -Math.PI * 0.5 : Math.PI);
+    const targetPatrolPos = new THREE.Vector3(
+      playerPos.x + Math.sin(offsetAngle) * 3.5,
+      getFloorY(playerPos.x, playerPos.z),
+      playerPos.z + Math.cos(offsetAngle) * 3.5
+    );
+
+    if (botPos.distanceTo(targetPatrolPos) > 1.5) {
+      moveBotTo(bot, targetPatrolPos, bot.baseSpeed, dt);
+    } else {
+      bot.group.rotation.y = lerpAngle(bot.group.rotation.y, offsetAngle, dt * 4);
+    }
+  }
 
   function updateBots(dt){
     if(!botsEnabled||!playing)return;
+
     for(const b of bots){
       const g=b.group;
-      if(!g)continue;
-      if(b.dead)continue;
+      if(!g||b.dead)continue;
 
-      // Actualizar mezclador de animaciones GLTF RobotExpressive
       if(b.mixer) b.mixer.update(dt);
+      if(b.recentDamageTimer > 0) b.recentDamageTimer -= dt;
 
-      // --- ROBOT CAÍDO (DOWNED STATE) ---
       if(b.downed){
+        g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
+        g.position.y = getFloorY(g.position.x, g.position.z) - 0.28;
+        b.downT -= dt;
         if(b.actions['Death'] && b.activeAction !== 'Death'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
           b.actions['Death'].reset().fadeIn(0.15).setLoop(THREE.LoopOnce, 1);
           b.actions['Death'].clampWhenFinished = true;
           b.actions['Death'].play();
           b.activeAction = 'Death';
-        } else if(!b.mixer){
-          g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, -1.45, dt * 6);
         }
-        const floorY = getFloorY(g.position.x, g.position.z);
-        g.position.y = THREE.MathUtils.lerp(g.position.y, floorY + (b.restDip || 0), dt * 10);
-        b.downT -= dt;
         if(b.downT <= 0){
-          b.downed = false; b.hp = 70; b.restDip = 0; g.rotation.x = 0;
+          b.downed = false; b.hp = 70; b.recentDamageTimer = 0; b.isRetreatingToHeal = false; g.rotation.x = 0;
           if(b.actions['Death']) b.actions['Death'].stop();
           if(b.actions['Idle']) b.actions['Idle'].reset().fadeIn(0.2).play();
           b.activeAction = 'Idle';
@@ -2262,172 +2440,29 @@ function initGameEngine() {
         }
         continue;
       }
+
       g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
 
+      const nearestEnemy = findNearestEnemy(g.position);
+      const inCover = nearestEnemy ? nearestEnemy.dist > 12 : true;
+      if(b.recentDamageTimer <= 0 && b.hp < b.maxHp && inCover){
+        b.hp = Math.min(b.maxHp, b.hp + dt * 8);
+        if(b.hp >= 60) b.isRetreatingToHeal = false;
+      }
 
-      // --- RESCATAR COMPAÑEROS O JUGADOR DERRIBADOS (AYUDA MUTUA A ALIADOS) ---
-      let downedTarget = null;
-      if(playerState==='downed'){
-        downedTarget = { pos: camera.position, isPlayer: true };
-      } else {
-        for(const ob of bots){
-          if(ob !== b && ob.downed && !ob.dead){
-            downedTarget = { pos: ob.group.position, isPlayer: false, bot: ob };
-            break;
+      evaluateBotUtility(b, dt);
+
+      for(const ob of bots){
+        if(ob===b||!ob.downed||ob.dead)continue;
+        if(g.position.distanceTo(ob.group.position)<3.0){
+          ob.downT-=dt*2;
+          if(ob.downT <= 0){
+            ob.downed = false; ob.hp = 70; ob.recentDamageTimer = 0; ob.isRetreatingToHeal = false; ob.group.rotation.x = 0;
+            feed(b.name+' ASISTIÓ A '+ob.name,'g');
           }
         }
       }
 
-      if(downedTarget){
-        b.aimingTgt = true;
-        const pd = g.position.distanceTo(downedTarget.pos);
-        const aimAng = Math.atan2(downedTarget.pos.x - g.position.x, downedTarget.pos.z - g.position.z);
-        g.rotation.y = aimAng;
-        if(pd > 2.0){
-          moveBotTo(b, downedTarget.pos, 7.2, dt);
-        } else {
-          botReviveT += dt;
-          if(b.actions['Wave'] && b.activeAction !== 'Wave'){
-            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
-            b.actions['Wave'].reset().fadeIn(0.15).play();
-            b.activeAction = 'Wave';
-          }
-          if(botReviveT > 3.0){
-            if(downedTarget.isPlayer){
-              playerState='alive'; hp=55; hudHP();
-              feed(b.name+' TE REANIMÓ','g'); sfx.revive();
-              if($('#downedHud')) $('#downedHud').classList.remove('show');
-              netSend({type:'state',hp:hp,state:'alive'});
-            } else if(downedTarget.bot){
-              downedTarget.bot.downed = false; downedTarget.bot.hp = 70; downedTarget.bot.group.rotation.x = 0;
-              feed(b.name+' REANIMÓ A '+downedTarget.bot.name, 'g'); sfx.revive();
-            }
-            botReviveT = 0;
-          }
-        }
-        continue;
-      }
-      botReviveT=0;
-
-      // --- SELECCIÓN TÁCTICA DE OBJETIVO (ENGAGE ZOMBIE) ---
-      let tgt=null,td=Infinity;
-      for(const z of zombies){
-        if(z.dead)continue;
-        const d=g.position.distanceTo(z.g.position);
-        if(d<td){td=d;tgt=z;}
-      }
-
-      if(tgt && td < 42){
-        b.aimingTgt = true;
-        // Orientarse de frente hacia el zombie objetivo
-        const aimAng = Math.atan2(tgt.g.position.x - g.position.x, tgt.g.position.z - g.position.z);
-        g.rotation.y = aimAng;
-
-        // Maniobras tácticas: avanzar si está lejos (>6m), replegarse/backpedal si está muy cerca (<2.2m)
-        if(td > 5.0) moveBotTo(b, tgt.g.position, Math.min(6.5, 3.5 + td * 0.10), dt);
-        else if(td < 2.2){
-          const retreatPos = g.position.clone().sub(tgt.g.position.clone().sub(g.position).normalize().multiplyScalar(3.0));
-          moveBotTo(b, retreatPos, 4.2, dt);
-        } else {
-          if(b.actions['Idle'] && b.activeAction !== 'Idle' && b.activeAction !== 'Punch'){
-            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
-            b.actions['Idle'].reset().fadeIn(0.2).play();
-            b.activeAction = 'Idle';
-          }
-        }
-
-        // --- RÁFAGA DE DISPARO Y EFECTOS VISUALES ---
-        b.fireCd -= dt;
-        if(b.fireCd <= 0){
-          b.fireCd = R(0.5, 1.1);
-          if(b.flash){ b.flash.visible = true; b.flash.material.rotation = R(0, 6.28); }
-          if(b.fLight) b.fLight.intensity = 45;
-          sfx.shot();
-
-          // Gesto de disparo animado (Punch/Yes clip)
-          if(b.actions['Punch']){
-            b.actions['Punch'].stop().play();
-          }
-
-          if(Math.random() < 0.72 && !tgt.dead){
-            const hs = Math.random() < 0.20;
-            const dmg = hs ? 55 : 22;
-            hurtZombie(tgt, hs ? 'head' : 'body', tgt.g.position, dmg);
-            burst(tgt.g.position, 'ichor', hs ? 12 : 6, 2.8);
-          }
-        }
-      } else {
-        b.aimingTgt = false;
-        b.scanTimer = (b.scanTimer || 0) - dt;
-        b.restTimer = (b.restTimer || 0) - dt;
-
-        if(isSquadRegrouping){
-          // --- REUNIÓN PERIÓDICA O DESCANSO DE ESCUADRÓN ---
-          const bOff = BOT_OFFSETS[b.id - 1] || new THREE.Vector3();
-          const regroupPos = camera.position.clone().add(bOff);
-          const distToPlayer = g.position.distanceTo(regroupPos);
-
-          if(distToPlayer > 2.2){
-            moveBotTo(b, regroupPos, b.baseSpeed || 5.5, dt);
-          } else {
-            g.rotation.y = lerpAngle(g.rotation.y, yaw, dt * 5);
-            let restAction = 'Idle';
-            if(b.id === 1 && b.actions['Sitting']) restAction = 'Sitting';
-            else if(b.id === 3 && b.actions['Dance']) restAction = 'Dance';
-
-            if(b.actions[restAction] && b.activeAction !== restAction){
-              if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.25);
-              b.actions[restAction].reset().fadeIn(0.25).play();
-              b.activeAction = restAction;
-            }
-          }
-        } else if(b.scanTimer > 0){
-          // --- PAUSA DE ESCANEO / DESCANSO INDEPENDIENTE (INSPECCIÓN VISUAL) ---
-          let gestAction = 'Idle';
-          if(b.id === 1 && b.actions['Wave']) gestAction = 'Wave';
-          else if(b.id === 2 && b.actions['Sitting']) gestAction = 'Sitting';
-          else if(b.id === 3 && b.actions['Dance']) gestAction = 'Dance';
-
-          if(b.actions[gestAction] && b.activeAction !== gestAction){
-            if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.25);
-            b.actions[gestAction].reset().fadeIn(0.25).play();
-            b.activeAction = gestAction;
-          }
-        } else {
-          // --- PATRULLAJE INDEPENDIENTE RECORRIENDO EL LOOP COMPLETO DEL MAPA (TRACK t ∈ [0, 1]) ---
-          // Asignar punto objetivo a lo largo del circuito según la personalidad del bot y la posición del jugador
-          let targetTrackT = (playerT + (b.leadOffset || 0)) % 1;
-          if(targetTrackT < 0) targetTrackT += 1;
-
-          const trackP = trackPos(targetTrackT);
-          const trackN = outN(targetTrackT);
-          const patrolDest = new THREE.Vector3(
-            trackP.x + trackN.x * (b.latOffset || 2.0),
-            getFloorY(trackP.x, trackP.z),
-            trackP.z + trackN.z * (b.latOffset || 2.0)
-          );
-
-          const distToPatrol = g.position.distanceTo(patrolDest);
-          if(distToPatrol > 2.0){
-            const patrolSpeed = (distToPatrol > 15.0) ? (b.baseSpeed + 2.0) : (b.baseSpeed || 5.5);
-            moveBotTo(b, patrolDest, patrolSpeed, dt);
-            // Formación táctica mantenida: sincronizar ritmo con el avance del jugador por la pista
-            if(Math.random() < 0.15){
-              b.scanTimer = R(1.0, 2.5);
-            }
-            if(b.actions['Idle'] && b.activeAction !== 'Idle'){
-              if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.2);
-              b.actions['Idle'].reset().fadeIn(0.2).play();
-              b.activeAction = 'Idle';
-            }
-          }
-        }
-
-
-      }
-
-
-      // Desvanecimiento de destello de arma
       if(b.flash && b.flash.visible){
         b.flash.scale.multiplyScalar(0.82);
         if(b.flash.scale.x < 0.05){ b.flash.visible = false; b.flash.scale.setScalar(0.22); }
@@ -2435,17 +2470,8 @@ function initGameEngine() {
       if(b.fLight && b.fLight.intensity > 0){
         b.fLight.intensity = Math.max(0, b.fLight.intensity - dt * 220);
       }
-
-      // --- REANIMAR OTROS BOTS CAÍDOS ---
-      for(const ob of bots){
-        if(ob===b||!ob.downed||ob.dead)continue;
-        if(g.position.distanceTo(ob.group.position)<3.0){
-          ob.downT-=dt*2;
-        }
-      }
     }
 
-    // --- EVENTOS PERIÓDICOS DE REUNIÓN DE ESCUADRÓN (CADA 40 SEGUNDOS) ---
     squadRegroupTimer -= dt;
     if(squadRegroupTimer <= 0){
       squadRegroupTimer = 45.0;
@@ -2465,6 +2491,7 @@ function initGameEngine() {
       }
     }
   }
+
 
   function damageBotNearest(pos,dmg){
     if(!botsEnabled)return null;
@@ -5370,19 +5397,34 @@ function initGameEngine() {
         }
         const _origCamPos = camera.position.clone();
         const _origCamRotY = camera.rotation.y;
-        if(camMode === 'tps_back'){
-          const _back = new THREE.Vector3(0, 0.45, 2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-          camera.position.add(_back);
-        } else if(camMode === 'tps_front'){
-          const _front = new THREE.Vector3(0, 0.45, -2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-          camera.position.add(_front);
-          camera.rotation.y += Math.PI;
+
+        if(camMode === 'fps_body' && playing && playerState === 'alive'){
+          if(camera.near !== 0.05){ camera.near = 0.05; camera.updateProjectionMatrix(); }
+          if(localPlayerBodyGroup){
+            localPlayerBodyGroup.visible = true;
+            if(localPlayerBodyGroup.userData && localPlayerBodyGroup.userData.headBone){
+              localPlayerBodyGroup.userData.headBone.getWorldPosition(_vHead);
+              _vHead.y = Math.max(getFloorY(_vHead.x, _vHead.z) + 1.52, _vHead.y);
+              camera.position.copy(_vHead);
+            }
+          }
+        } else {
+          if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
+          if(camMode === 'tps_back'){
+            const _back = new THREE.Vector3(0, 0.45, 2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+            camera.position.add(_back);
+          } else if(camMode === 'tps_front'){
+            const _front = new THREE.Vector3(0, 0.45, -2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+            camera.position.add(_front);
+            camera.rotation.y += Math.PI;
+          }
         }
 
         renderer.render(scene,camera);
 
         camera.position.copy(_origCamPos);
         camera.rotation.y = _origCamRotY;
+
       }
 
     }

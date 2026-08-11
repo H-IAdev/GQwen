@@ -139,8 +139,16 @@ Para evitar problemas de desincronización en partidas cooperativas:
 
 ---
 
-## 6. REGISTRO DE VERIFICACIÓN Y PRUEBAS
+## 7. MOTOR DE INTELIGENCIA DE UTILIDAD PARA BOTS DE ESCUADRÓN (`evaluateBotUtility`)
 
-- **Prueba de Armadura**: Confirmado en consola que el Juggernaut absorbe el $45\%$ del daño base por bala.
-- **Prueba de Exclusividad**: Verificado en 15 oleadas que ningún `boss_stalker` ni `boss_rockhurler` aparece mientras el `boss_juggernaut` está activo.
-- **Prueba de Red P2P**: Clientes móviles y PC reciben el paquete `zstate` a 10Hz manteniendo sincronía exacta de infectados.
+El escuadrón de acompañantes IA (`bots`: VEGA, RUIZ, KIDO) opera mediante un motor de **Utility AI** determinista de 4 estados con umbral de histéresis ($0.15$):
+
+1. **Percepción del Entorno**:
+   - FOV cónico de $110^\circ$ (`dot > -0.34`) + detección táctil cercana ($< 4.0\text{m}$).
+   - Threat Score dinámico: $(100 / \text{dist}) \cdot \text{multiplicadores (Bosses 2.5×, Agarre 3.0×)}$.
+
+2. **Estados Evaluados en Tiempo Real**:
+   - **`rescue`** ($u = 0.95$): Prioridad máxima al detectar a un aliado o jugador derribado ($< 15\text{m}$).
+   - **`retreat`** ($u = 0.85$ / $0.80$): Retirada táctica a sprint ($+35\%$ velocidad) cuando $\text{HP} < 30$ o $\text{HP} < 60$ en regeneración pasiva, efectuando *backpedal* y fuego de supresión.
+   - **`combat`** ($u = \min(0.80, \text{threat}/100)$): Avance o retroceso táctico manteniendo distancia idónea de combate y disparo probabilístico.
+   - **`formation`** ($u = 0.20$): Cobertura de ángulos muertos respecto a la mirada del jugador + evasión automática de la línea de fuego del jugador ($\text{dot} > 0.85$).
