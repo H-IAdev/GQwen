@@ -545,13 +545,14 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 25, spd: [1.2, 1.7], dmg: 12, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 18, spd: [2.3, 2.9], dmg: 10, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 60, spd: [1.1, 1.5], dmg: 20, score: 30, sc: 1.35, armor: 0 },
-      boss_juggernaut: { hp: 550, spd: [1.2, 1.6], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 280, spd: [2.6, 3.2], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 380, spd: [1.0, 1.4], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
+      walker: { hp: 25, spd: [1.2, 1.7], dmg: 10, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 18, spd: [2.3, 2.9], dmg: 8, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 60, spd: [1.1, 1.5], dmg: 15, score: 30, sc: 1.35, armor: 0 },
+      boss_juggernaut: { hp: 550, spd: [1.2, 1.6], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 280, spd: [2.0, 2.5], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 380, spd: [1.0, 1.4], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
     },
+
 
 
     weapons: {
@@ -1967,6 +1968,59 @@ function initGameEngine() {
   }
 
 
+  const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
+  let cachedRobotGLTF = null, isRobotLoading = false;
+
+  function applyRobotGLTFToBot(b){
+    if(!b || !b.group || !cachedRobotGLTF) return;
+    try {
+      const src = cachedRobotGLTF.scene;
+      const robotClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
+        ? THREE.SkeletonUtils.clone(src)
+        : src.clone(true);
+      normalizeModel(robotClone, 1.7);
+
+      while(b.group.children.length > 0){
+        b.group.remove(b.group.children[0]);
+      }
+      b.group.add(robotClone);
+
+      if(cachedRobotGLTF.animations && cachedRobotGLTF.animations.length > 0){
+        b.mixer = new THREE.AnimationMixer(robotClone);
+        b.actions = {};
+        cachedRobotGLTF.animations.forEach(clip => {
+          b.actions[clip.name] = b.mixer.clipAction(clip);
+        });
+        if(b.actions['Idle']) b.actions['Idle'].play();
+        b.activeAction = 'Idle';
+      }
+      logDiag('Bot ' + b.name + ' actualizado a Robot 3D CDN animado', 'ok');
+    } catch(e) {
+      logDiag('Aviso al aplicar Robot GLTF a bot: ' + e.message, 'err');
+    }
+  }
+
+  function loadRobotGLTFForBots(){
+    if(cachedRobotGLTF){
+      bots.forEach(b => applyRobotGLTFToBot(b));
+      return;
+    }
+    if(isRobotLoading) return;
+    const loader = getCDNLoader();
+    if(!loader) return;
+    isRobotLoading = true;
+    logDiag('Cargando RobotExpressive.glb para Bots desde CDN...','info');
+    loader.load(ROBOT_GLB_URL, (gltf) => {
+      cachedRobotGLTF = gltf;
+      isRobotLoading = false;
+      logDiag('✓ RobotExpressive.glb cargado con éxito para escuadrón bot (' + gltf.animations.length + ' animaciones)','ok');
+      bots.forEach(b => applyRobotGLTFToBot(b));
+    }, undefined, (err) => {
+      isRobotLoading = false;
+      logDiag('Aviso al cargar RobotExpressive.glb: ' + err.message, 'info');
+    });
+  }
+
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
     bots=[];
@@ -1991,8 +2045,10 @@ function initGameEngine() {
     }
     botsEnabled=true;
     logDiag('Escuadrón de 3 bots en formación conjunta desplegado: '+BOT_NAMES.join(', '),'ok');
+    loadRobotGLTFForBots();
     loadSoldierGLTFForPlayers();
   }
+
 
 
 
@@ -2789,16 +2845,18 @@ function initGameEngine() {
       const stopR = meleeR * 0.7;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      const windupMax = z.type==='runner'?0.65:z.type==='boss_juggernaut'||z.type==='brute'?0.85:0.75;
+      const windupMax = z.type==='boss_juggernaut'?1.30:z.type==='boss_stalker'?1.15:z.type==='boss_rockhurler'?1.00:z.type==='brute'?0.95:z.type==='runner'?0.70:0.80;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
         }
-        z.t+=Math.sign(dir)*z.curSpd*boost*0.45*dt/TRACK_LEN; // windup: avanza despacio dando tiempo a reaccionar
+        if(z.type==='boss_stalker'&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
+        const windupMoveSpd = z.type.startsWith('boss_') ? 0.30 : 0.45;
+        z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN; // windup: marcha despacio dando tiempo a reaccionar
         if(z.windup<=0){
-          z.cool = z.type==='runner'?1.6:z.type==='boss_juggernaut'||z.type==='brute'?2.4:2.0;
+          z.cool = z.type==='boss_juggernaut'?3.6:z.type==='boss_stalker'?3.2:z.type==='boss_rockhurler'?3.0:z.type==='brute'?2.8:z.type==='runner'?1.8:2.2;
           if(dist3D<meleeR){
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
@@ -2826,6 +2884,7 @@ function initGameEngine() {
           z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.animT*0.8)*.05;
         }
       }
+
 
 
       z.t=((z.t%1)+1)%1;

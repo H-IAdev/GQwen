@@ -24,12 +24,12 @@ Todos los parámetros de combate están registrados formalmente en el objeto con
 
 | Entidad ID | HP Base | Rango Velocidad | Daño Ataque | Score | Escala 3D (`sc`) | Armadura (`armor`) | Comportamiento Táctico |
 |:---|:---|:---|:---|:---|:---|:---|:---|
-| `walker` | 25 HP | 1.2 – 1.7 m/s | 12 HP | 10 pts | 1.00× | 0% | Infectado estándar. Avance moderado y predecible. |
-| `runner` | 18 HP | 2.3 – 2.9 m/s | 10 HP | 15 pts | 0.88× | 0% | Trotador ágil pero con tiempo amplio de reacción. |
-| `brute` | 60 HP | 1.1 – 1.5 m/s | 20 HP | 30 pts | 1.35× | 0% | Tanque pesado. Torso ensanchado (40% más ancho). |
-| `boss_juggernaut` | 550 HP | 1.2 – 1.6 m/s | 45 HP | 350 pts | 2.40× | **45%** | **Jefe Final**: Núcleo neón verde, marcha imponente. |
-| `boss_stalker` | 280 HP | 2.6 – 3.2 m/s | 30 HP | 180 pts | 1.60× | **30%** | **Asesino de Neón**: Aureola magenta, emboscador táctico. |
-| `boss_rockhurler` | 380 HP | 1.0 – 1.4 m/s | 35 HP | 220 pts | 2.10× | **35%** | **Jefe de Rango**: Artillería de rocas y agarre de zombies. |
+| `walker` | 25 HP | 1.2 – 1.7 m/s | 10 HP | 10 pts | 1.00× | 0% | Infectado estándar. Avance moderado y predecible. |
+| `runner` | 18 HP | 2.3 – 2.9 m/s | 8 HP | 15 pts | 0.88× | 0% | Trotador ágil pero con tiempo amplio de reacción. |
+| `brute` | 60 HP | 1.1 – 1.5 m/s | 15 HP | 30 pts | 1.35× | 0% | Tanque pesado. Torso ensanchado (40% más ancho). |
+| `boss_juggernaut` | 550 HP | 1.2 – 1.6 m/s | 28 HP | 350 pts | 2.40× | **45%** | **Jefe Final**: Núcleo neón verde, marcha imponente. Windup 1.30s / Cool 3.6s. |
+| `boss_stalker` | 280 HP | 2.0 – 2.5 m/s | 18 HP | 180 pts | 1.60× | **30%** | **Asesino de Neón**: Aureola magenta, ataque tellegrafiado (Windup 1.15s / Cool 3.2s). |
+| `boss_rockhurler` | 380 HP | 1.0 – 1.4 m/s | 22 HP | 220 pts | 2.10× | **35%** | **Jefe de Rango**: Artillería de rocas y agarre. Charge 1.4s / Cool 3.0s. |
 
 
 ### Cálculo de Daño Efectivo con Armadura
