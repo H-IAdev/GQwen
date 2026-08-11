@@ -1945,7 +1945,6 @@ function initGameEngine() {
 
   function loadSoldierGLTFForPlayers(){
     if(cachedSoldierGLTF){
-      bots.forEach(b => applySoldierToBot(b));
       for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
       if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
       return;
@@ -1954,12 +1953,11 @@ function initGameEngine() {
     const loader = getCDNLoader();
     if(!loader) return;
     isSoldierLoading = true;
-    logDiag('Cargando Soldier.glb desde CDN (Docs Assets)...','info');
+    logDiag('Cargando Soldier.glb desde CDN para Jugadores Humanos...','info');
     loader.load(SOLDIER_GLB_URL, (gltf) => {
       cachedSoldierGLTF = gltf;
       isSoldierLoading = false;
-      logDiag('✓ Modelo Soldado CDN (Soldier.glb) cargado con éxito (' + gltf.animations.length + ' animaciones)','ok');
-      bots.forEach(b => applySoldierToBot(b));
+      logDiag('✓ Modelo Soldado CDN (Soldier.glb) cargado para jugadores (' + gltf.animations.length + ' animaciones)','ok');
       for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
       if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
     }, undefined, (err) => {
@@ -1967,6 +1965,7 @@ function initGameEngine() {
       logDiag('Aviso al cargar Soldier.glb (usando fallback procedimental): ' + err.message, 'info');
     });
   }
+
 
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
@@ -1977,7 +1976,7 @@ function initGameEngine() {
       { role: 'flanker', name: 'KIDO', leadOffset: 0.005, latOffset: -0.6, speed: 5.8 }
     ];
     for(let i=0;i<3;i++){
-      const m=buildPlayerMesh(i+1);
+      const m=buildPlayerMesh(i+1, false, true);
       m.group.position.copy(camera.position).add(BOT_OFFSETS[i] || new THREE.Vector3());
       scene.add(m.group);
       bots.push({...m,id:i+1,name:roles[i].name,hp:100,maxHp:100,
@@ -1994,6 +1993,7 @@ function initGameEngine() {
     logDiag('Escuadrón de 3 bots en formación conjunta desplegado: '+BOT_NAMES.join(', '),'ok');
     loadSoldierGLTFForPlayers();
   }
+
 
 
 
@@ -3819,7 +3819,7 @@ function initGameEngine() {
   }
   const FLASH_TEX = getFlashTex();
 
-  function buildPlayerMesh(id, isRemote = false){
+  function buildPlayerMesh(id, isRemote = false, isBot = false){
     try {
       const g=new THREE.Group();
       const col=std({color:PCOLORS[id],roughness:0.6,metalness:0.2},.35);
@@ -3840,8 +3840,9 @@ function initGameEngine() {
       const fLight=new THREE.PointLight(0xffb060,0,5,2);fLight.position.set(0,0.04,-0.42);gun.add(fLight);
       g.traverse(o=>{if(o.isMesh)o.castShadow=!isRemote;});
       scene.add(g);
-      if(cachedSoldierGLTF) applySoldierToGroup(g);
+      if(!isBot && cachedSoldierGLTF) applySoldierToGroup(g);
       return {group:g,gun,flash,fLight,refs:{armL,armR,legL,legR},walk:R(0,6)};
+
 
     } catch(err) {
       logDiag('Aviso buildPlayerMesh: ' + err.message, 'err');
