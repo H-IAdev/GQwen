@@ -2759,15 +2759,16 @@ function initGameEngine() {
       const stopR = meleeR * 0.7;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
+      const windupMax = z.type==='runner'?0.65:z.type==='boss_juggernaut'||z.type==='brute'?0.85:0.75;
 
       if(z.windup>0){
-        z.windup-=dt;const w=1-Math.max(0,z.windup)/.45;
+        z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
-          z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.75?(w-.75)*4*1.6:0);
+          z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
         }
-        z.t+=Math.sign(dir)*z.curSpd*boost*0.75*dt/TRACK_LEN; // windup: avanza suavemente
+        z.t+=Math.sign(dir)*z.curSpd*boost*0.45*dt/TRACK_LEN; // windup: avanza despacio dando tiempo a reaccionar
         if(z.windup<=0){
-          z.cool=1.2;
+          z.cool = z.type==='runner'?1.6:z.type==='boss_juggernaut'||z.type==='brute'?2.4:2.0;
           if(dist3D<meleeR){
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
@@ -2789,12 +2790,13 @@ function initGameEngine() {
           z.aL.p.rotation.x=-1.1+Math.sin(z.animT*1.8+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.animT*1.8)*.12;
         }
         if(z.head) z.head.rotation.z=Math.sin(z.animT*1.2)*.14;
-      }else if(z.cool<=0){z.windup=.45;sfx.moan(2);}
+      }else if(z.cool<=0){z.windup=windupMax;sfx.moan(2);}
       else{
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.animT*0.8)*.05;
         }
       }
+
 
       z.t=((z.t%1)+1)%1;
       const targetLat=nearest.trackLat!==undefined?nearest.trackLat:3;
