@@ -543,13 +543,14 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 25, spd: [3.2, 4.0], dmg: 12, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 18, spd: [5.5, 6.8], dmg: 10, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 60, spd: [2.5, 3.2], dmg: 20, score: 30, sc: 1.35, armor: 0 },
-      boss_juggernaut: { hp: 550, spd: [2.6, 3.2], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 280, spd: [6.5, 8.0], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 380, spd: [2.2, 2.8], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
+      walker: { hp: 25, spd: [1.8, 2.4], dmg: 12, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 18, spd: [3.4, 4.2], dmg: 10, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 60, spd: [1.6, 2.2], dmg: 20, score: 30, sc: 1.35, armor: 0 },
+      boss_juggernaut: { hp: 550, spd: [1.8, 2.3], dmg: 45, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 280, spd: [3.8, 4.6], dmg: 30, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 380, spd: [1.5, 2.0], dmg: 35, score: 220, sc: 2.1, armor: 0.35 }
     },
+
     weapons: {
       m42: { mag: 30, reserve: 120, reserveMax: 240, damage: 25, reloadTime: 1.0 },
       shotgun: { mag: 6, reserve: 36, reserveMax: 72, damage: 18, pellets: 8, reloadTime: 1.8 }
@@ -2584,8 +2585,9 @@ function initGameEngine() {
       slot.charging=false;slot.grabbed=null;slot.grabAnimT=0;slot.grabVictim=null;
     }
     const d2=ZDEF[type] || ZDEF.walker;
-    slot.hp=d2.hp*hpMul;slot.speed=R(...d2.spd)*spMul;slot.dmg=d2.dmg;slot.score=d2.score;
+    slot.hp=d2.hp*hpMul;slot.speed=R(...d2.spd)*spMul;slot.curSpd=slot.speed*0.25;slot.dmg=d2.dmg;slot.score=d2.score;
     slot.scale=d2.sc||1;
+
     // Resetear rotación (muerte deja el zombie caído — g.rotation.x != 0)
     slot.g.rotation.set(0,0,0);
     // Posicionar (LOD ya está en la escena, solo mover y mostrar)
@@ -2672,8 +2674,9 @@ function initGameEngine() {
   }
   function updateZombies(dt){
     camera.getWorldPosition(_vCam);
-    const boost=B<.4?1.2:1;
+    const boost = 1.0 + Math.max(0, (0.4 - B) * 0.35);
     const targets=getAlivePlayers();
+
     for(let i=zombies.length-1;i>=0;i--){
       const z=zombies[i];
       if(z.mixer){
@@ -2733,6 +2736,7 @@ function initGameEngine() {
         }
         if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
       }
+      z.curSpd = lerp(z.curSpd || (z.speed * 0.25), z.speed, dt * 2.2);
       z.fade=Math.min(1,z.fade+dt*2);z.g.scale.setScalar(z.scale*(.5+.5*z.fade));
       z.cool-=dt;z.hitT-=dt;
       let nearest=null,nearD=Infinity;
@@ -2741,7 +2745,7 @@ function initGameEngine() {
       let dir=nearest.trackT-z.t;if(dir>.5)dir-=1;if(dir<-.5)dir+=1;
       const dist=Math.abs(dir)*TRACK_LEN;
       // LOD: ocultar animación de zombies lejanos (>45m) — solo mover posición a velocidad constante
-      if(dist>45){if(z.g.visible)z.g.visible=false;z.t+=Math.sign(dir)*z.speed*boost*dt/TRACK_LEN;z.t=((z.t%1)+1)%1;continue;}
+      if(dist>45){if(z.g.visible)z.g.visible=false;z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;z.t=((z.t%1)+1)%1;continue;}
       if(!z.g.visible&&!z.frustumHidden)z.g.visible=true; // Fase 6D: respetar frustum culling
       // Distancia 3D real entre zombie y target
       const tp=trackPos(z.t),tn3d=outN(z.t);
@@ -2753,14 +2757,14 @@ function initGameEngine() {
       const meleeR = 1.35 * (z.scale || 1);
       const stopR = meleeR * 0.7;
 
-      z.animT = (z.animT || 0) + dt * z.speed * 4.2;
+      z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/.45;
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.75?(w-.75)*4*1.6:0);
         }
-        z.t+=Math.sign(dir)*z.speed*boost*0.75*dt/TRACK_LEN; // windup: avanza suavemente
+        z.t+=Math.sign(dir)*z.curSpd*boost*0.75*dt/TRACK_LEN; // windup: avanza suavemente
         if(z.windup<=0){
           z.cool=1.2;
           if(dist3D<meleeR){
@@ -2775,7 +2779,7 @@ function initGameEngine() {
           }
         }
       }else if(dist3D>stopR){
-        z.t+=Math.sign(dir)*z.speed*boost*dt/TRACK_LEN;
+        z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;
         const s=Math.sin(z.animT);
         if(z.lL&&z.lL.p&&z.lR&&z.lR.p){
           z.lL.p.rotation.x=s*.7;z.lR.p.rotation.x=-s*.7;
@@ -2790,6 +2794,7 @@ function initGameEngine() {
           z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.animT*0.8)*.05;
         }
       }
+
       z.t=((z.t%1)+1)%1;
       const targetLat=nearest.trackLat!==undefined?nearest.trackLat:3;
       z.lat+=(targetLat-z.lat)*dt*1.6;z.lat=clamp(z.lat,-5.1,8.3);
