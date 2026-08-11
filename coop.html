@@ -1768,10 +1768,10 @@ function initGameEngine() {
 
 
   const CDN_ZOMBIE_URLS = [
-    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Zombie/glTF-Binary/Zombie.glb',
-    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb'
+    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Zombie/glTF-Binary/Zombie.glb'
   ];
   let cachedZombieGLTF = null, isZombieGLTFLoading = false;
+
 
   function applyGLTFToZombiePool(gltf){
     if(!gltf || !ZOMBIE_POOL || ZOMBIE_POOL.length === 0) return;
@@ -2740,8 +2740,8 @@ function initGameEngine() {
       if(!nearest)continue;
       let dir=nearest.trackT-z.t;if(dir>.5)dir-=1;if(dir<-.5)dir+=1;
       const dist=Math.abs(dir)*TRACK_LEN;
-      // LOD: ocultar animación de zombies lejanos (>45m) — solo mover posición
-      if(dist>45){if(z.g.visible)z.g.visible=false;z.t+=Math.sign(dir)*z.speed*boost*dt*0.4/TRACK_LEN;z.t=((z.t%1)+1)%1;continue;}
+      // LOD: ocultar animación de zombies lejanos (>45m) — solo mover posición a velocidad constante
+      if(dist>45){if(z.g.visible)z.g.visible=false;z.t+=Math.sign(dir)*z.speed*boost*dt/TRACK_LEN;z.t=((z.t%1)+1)%1;continue;}
       if(!z.g.visible&&!z.frustumHidden)z.g.visible=true; // Fase 6D: respetar frustum culling
       // Distancia 3D real entre zombie y target
       const tp=trackPos(z.t),tn3d=outN(z.t);
@@ -2751,15 +2751,16 @@ function initGameEngine() {
       const dx=z3dPos.x-t3dPos.x,dz=z3dPos.z-t3dPos.z;
       const dist3D = Math.hypot(dx, dz);
       const meleeR = 1.35 * (z.scale || 1);
-
       const stopR = meleeR * 0.7;
+
+      z.animT = (z.animT || 0) + dt * z.speed * 4.2;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/.45;
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.75?(w-.75)*4*1.6:0);
         }
-        z.t+=Math.sign(dir)*z.speed*boost*0.35*dt/TRACK_LEN; // windup: avanza cerrando distancia
+        z.t+=Math.sign(dir)*z.speed*boost*0.75*dt/TRACK_LEN; // windup: avanza suavemente
         if(z.windup<=0){
           z.cool=1.2;
           if(dist3D<meleeR){
@@ -2775,23 +2776,24 @@ function initGameEngine() {
         }
       }else if(dist3D>stopR){
         z.t+=Math.sign(dir)*z.speed*boost*dt/TRACK_LEN;
-        const s=Math.sin(z.t*TRACK_LEN*.35);
+        const s=Math.sin(z.animT);
         if(z.lL&&z.lL.p&&z.lR&&z.lR.p){
           z.lL.p.rotation.x=s*.7;z.lR.p.rotation.x=-s*.7;
         }
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
-          z.aL.p.rotation.x=-1.1+Math.sin(z.t*20+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.t*20)*.12;
+          z.aL.p.rotation.x=-1.1+Math.sin(z.animT*1.8+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.animT*1.8)*.12;
         }
-        if(z.head) z.head.rotation.z=Math.sin(z.t*12)*.14;
+        if(z.head) z.head.rotation.z=Math.sin(z.animT*1.2)*.14;
       }else if(z.cool<=0){z.windup=.45;sfx.moan(2);}
       else{
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
-          z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.t*8)*.05;
+          z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.animT*0.8)*.05;
         }
       }
       z.t=((z.t%1)+1)%1;
       const targetLat=nearest.trackLat!==undefined?nearest.trackLat:3;
-      z.lat+=(targetLat-z.lat)*dt*2.6;z.lat=clamp(z.lat,-5.1,8.3);
+      z.lat+=(targetLat-z.lat)*dt*1.6;z.lat=clamp(z.lat,-5.1,8.3);
+
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
       const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : floorY;
