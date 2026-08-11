@@ -67,13 +67,27 @@ function updateBreakerHysteresis(dimmerVal) {
 
 ---
 
+---
+
+### F. Clonación Independiente de Esqueletos con `SkeletonUtils`
+- **Aislamiento de Animaciones**: Se integra `SkeletonUtils.clone()` para evitar interferencias de animación entre instancias de bots de escuadrón.
+- **Asentamiento de Cadáveres (`restDip`)**: Mediciones en tiempo real tras la animación `'Death'` para ubicar cuerpos rasos en el suelo sin desplazamientos ni flotación.
+
+---
+
+### G. Throttling de Renderizado de HUD de Escuadrón (`updateTeamHUD`)
+- **Frecuencia**: Se limita la reconstrucción del DOM de la lista de escuadrón a **4 Hz (cada 250 ms)** mediante `_teamHudAcc`, eliminando el *Layout Thrashing* provocado por ejecuciones a 60 FPS en cada fotograma.
+
+---
+
 ## 3. Registro de Rendimiento Comparativo Actualizado
 
 | Métrica | Estado Anterior | Estado Actual (Milestone 41) | Mejora Obtenida |
 | :--- | :--- | :--- | :--- |
 | **Instanciaciones Color Neón / seg** | ~1,440 allocs/sec | **0 allocs/sec** | 100% Eliminación de Pausas de Neón |
 | **Escrituras Inútiles al DOM (HUD)** | 60 escrituras/sec | **$\le 1$ escritura/sec** | 0 Layout Thrashing en Interfaz |
-| **Búsqueda DOM `querySelector`** | En cada disparo | **1 búsqueda (cached)** | $99.9\%$ Menos Consultas DOM |
+| **Renderizado Escuadrón (`updateTeamHUD`)** | 60 ops/sec | **4 ops/sec (250ms)** | 93% Menos Operaciones DOM |
 | **Enrage por Dimmer Breakers** | Parpadeo en 30% | **Banda Suave (30% - 38%)** | Estabilidad de Estado de Juego |
 | **Tiempo de Generación Normal Map** | 600 - 2000 ms | **< 15 ms** | **97% Reducción de Latencia** |
 | **Frame Time (Baja Gama Mobile)** | 24 - 38 ms | **12 - 16 ms** | 60 FPS Estables |
+

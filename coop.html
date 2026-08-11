@@ -454,7 +454,9 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js"></script>
+
 
 <script>
 if (typeof THREE === 'undefined') {
@@ -1785,14 +1787,26 @@ function initGameEngine() {
           zClone.visible = false;
           if(slot.mountAnchor) slot.mountAnchor.add(zClone);
           else slot.detailG.add(zClone);
-          // Registrar sub-meshes en hitboxes para disparos y raycast
+
+          if(gltf.animations && gltf.animations.length > 0){
+            slot.mixer = new THREE.AnimationMixer(zClone);
+            const walkClip = gltf.animations.find(a => /walk|run|idle/i.test(a.name)) || gltf.animations[0];
+            slot.mixer.clipAction(walkClip).play();
+          }
+
+          // Registrar sub-meshes en hitboxes para disparos y raycast con etiquetado de cabeza
           zClone.traverse(c => {
-            if(c.isMesh){ c.userData.part = 'body'; c.userData.z = slot; }
+            if(c.isMesh){
+              c.userData.z = slot;
+              const box = new THREE.Box3().setFromObject(c);
+              c.userData.part = (box.min.y > 1.25) ? 'head' : 'body';
+            }
           });
         } catch(e){}
       }
     }
   }
+
 
   function loadZombieGLTFAssets(customUrl = null){
     if(cachedZombieGLTF && !customUrl){
@@ -1866,17 +1880,17 @@ function initGameEngine() {
   function applyRobotGLTFToBot(b){
     if(!b || !b.group || !cachedRobotGLTF) return;
     try {
-      const robotClone = cachedRobotGLTF.scene.clone(true);
-      normalizeModel(robotClone, 1.8);
-      robotClone.scale.setScalar(0.35);
-      robotClone.position.set(0, 0, 0);
-      robotClone.rotation.y = 0;
-      
+      const src = cachedRobotGLTF.scene;
+      const robotClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
+        ? THREE.SkeletonUtils.clone(src)
+        : src.clone(true);
+      normalizeModel(robotClone, 1.7);
+
       while(b.group.children.length > 0){
         b.group.remove(b.group.children[0]);
       }
       b.group.add(robotClone);
-      
+
       if(cachedRobotGLTF.animations && cachedRobotGLTF.animations.length > 0){
         b.mixer = new THREE.AnimationMixer(robotClone);
         b.actions = {};
@@ -1885,12 +1899,22 @@ function initGameEngine() {
         });
         if(b.actions['Idle']) b.actions['Idle'].play();
         b.activeAction = 'Idle';
+
+        b.mixer.addEventListener('finished', ev => {
+          if(ev.action === b.actions['Death']){
+            try {
+              const box = new THREE.Box3().setFromObject(b.group);
+              b.restDip = Math.max(0, b.group.position.y - box.min.y);
+            } catch(ex){}
+          }
+        });
       }
-      logDiag('Bot ' + b.name + ' actualizado a Robot CDN 3D animado','ok');
+      logDiag('Bot ' + b.name + ' actualizado a Robot CDN 3D animado', 'ok');
     } catch(e) {
       logDiag('Aviso al reemplazar bot por GLTF: ' + e.message, 'err');
     }
   }
+
 
   function loadRobotGLTFForBots(){
     if(cachedRobotGLTF){
@@ -2072,19 +2096,20 @@ function initGameEngine() {
 
       // --- ROBOT CAÍDO (DOWNED STATE) ---
       if(b.downed){
-        g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
-        // Compensar desfase de elevación del hueso raíz de la animación Death (0 flotación en aire)
-        g.position.y = getFloorY(g.position.x, g.position.z) - 0.28;
-        b.downT -= dt;
         if(b.actions['Death'] && b.activeAction !== 'Death'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.15);
           b.actions['Death'].reset().fadeIn(0.15).setLoop(THREE.LoopOnce, 1);
           b.actions['Death'].clampWhenFinished = true;
           b.actions['Death'].play();
           b.activeAction = 'Death';
+        } else if(!b.mixer){
+          g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, -1.45, dt * 6);
         }
+        const floorY = getFloorY(g.position.x, g.position.z);
+        g.position.y = THREE.MathUtils.lerp(g.position.y, floorY + (b.restDip || 0), dt * 10);
+        b.downT -= dt;
         if(b.downT <= 0){
-          b.downed = false; b.hp = 70; g.rotation.x = 0;
+          b.downed = false; b.hp = 70; b.restDip = 0; g.rotation.x = 0;
           if(b.actions['Death']) b.actions['Death'].stop();
           if(b.actions['Idle']) b.actions['Idle'].reset().fadeIn(0.2).play();
           b.activeAction = 'Idle';
@@ -2093,6 +2118,7 @@ function initGameEngine() {
         continue;
       }
       g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, dt * 6);
+
 
       // --- RESCATAR COMPAÑEROS O JUGADOR DERRIBADOS (AYUDA MUTUA A ALIADOS) ---
       let downedTarget = null;
@@ -2352,7 +2378,7 @@ function initGameEngine() {
     armCap: new THREE.SphereGeometry(.06,4,3),
     faCyl:  new THREE.CylinderGeometry(.048,.048,.3,4),
     faCap:  new THREE.SphereGeometry(.048,4,3),
-    legCyl: new THREE.CylinderGeometry(.072,.072,.38,4),
+    legCyl: new THREE.CylinderGeometry(.072,.072,.72,4),
     legCap: new THREE.SphereGeometry(.072,4,3),
     // Remotos (BoxGeometry)
     rHead:  new THREE.BoxGeometry(.24,.26,.24),
@@ -2404,9 +2430,11 @@ function initGameEngine() {
     }
     function leg(s){
       const p=new THREE.Group();p.position.set(s*.11,.72,0);g.add(p);
-      const cyl=mkMesh(GEO_POOL.legCyl,defDark);cyl.position.y=-.19;p.add(cyl);
+      const cyl=mkMesh(GEO_POOL.legCyl,defDark);cyl.position.y=-.36;p.add(cyl);
+      const foot=mkMesh(GEO_POOL.foot,defDark);foot.position.set(0,-.69,.04);p.add(foot);
       return{p,s:cyl};
     }
+
     const aL=arm(-1),aR=arm(1),lL=leg(-1),lR=leg(1);
 
     // Aura Stalker (siempre en la escena, oculta por defecto)
@@ -2514,6 +2542,23 @@ function initGameEngine() {
 
     slot.type=type;
   }
+  const MIN_SPAWN_DIST = 26; // metros mínimos a cualquier unidad viva
+  function pickSpawnParams(){
+    const units = typeof getAlivePlayers === 'function' ? getAlivePlayers() : [];
+    const cands = [];
+    for(let i = 0; i < 14; i++){
+      const ct = Math.random();
+      let minD = Infinity;
+      for(const u of units){
+        if(u.trackT !== undefined) minD = Math.min(minD, trackDist(ct, u.trackT));
+      }
+      cands.push({t: ct, d: minD});
+    }
+    const valid = cands.filter(c => c.d >= MIN_SPAWN_DIST);
+    const chosen = valid.length ? pick(valid) : cands.reduce((a, b) => b.d > a.d ? b : a);
+    return { t: chosen.t, lat: clamp(R(1.2, 5.5), -5.1, 8.3) };
+  }
+
   function spawnZombie(type,hpMul,spMul){
     const slot=acquireZombieSlot();
     if(!slot)return null;
@@ -2523,9 +2568,11 @@ function initGameEngine() {
     /* Aplicar tipo al LOD pre-construido (solo intercambia materiales, sin new THREE) */
     applyZombieType(slot,type);
 
+    const sp = pickSpawnParams();
     slot.id=zId++;
     slot.type=type;
-    slot.hp=0;slot.t=Math.random();slot.lat=R(2,4.5);slot.speed=1;slot.dmg=5;slot.score=10;
+    slot.t=sp.t; slot.lat=sp.lat; slot.speed=1;slot.dmg=5;slot.score=10;
+
     slot.dead=false;slot.deathT=0;slot.loosened=false;
     slot.cool=R(.5,1.5);slot.windup=0;slot.hitT=0;slot.fade=1.0; // fade=1 por si viene de pool
     slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(2,4);slot.grabT=R(4,6);
@@ -2627,16 +2674,24 @@ function initGameEngine() {
     camera.getWorldPosition(_vCam);
     const boost=B<.4?1.2:1;
     const targets=getAlivePlayers();
-    for(let i=zombies.length-1;i>=0;i--){const z=zombies[i];if(z.anim&&z.anim.mixer){z.anim.mixer.timeScale=z.g.position.distanceTo(_vCam)>28.0?0.0:1.0;}
+    for(let i=zombies.length-1;i>=0;i--){
+      const z=zombies[i];
+      if(z.mixer){
+        if(z.dead || _vCam.distanceTo(z.g.position) < 42) z.mixer.update(dt);
+      }
       if(z.dead){z.deathT+=dt;const p=Math.min(1,z.deathT/.5),e=p*p*(3-2*p);
         z.g.rotation.x=z.fallDir*-1.4*e;
         if(!z.loosened&&z.deathT>.1){z.loosened=true;
-          z.aL.p.rotation.set(R(-.3,.5),0,R(-1,.2));z.aR.p.rotation.set(R(-.3,.5),0,R(-.2,1));}
+          if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+            z.aL.p.rotation.set(R(-.3,.5),0,R(-1,.2));z.aR.p.rotation.set(R(-.3,.5),0,R(-.2,1));
+          }
+        }
         if(z.deathT>1.2)z.g.position.y=-(z.deathT-1.2)*.5;
-        if(z.deathT>2.2){releaseZombieSlot(z);zombies.splice(i,1);}continue;}
+        if(z.deathT>2.0)releaseZombieSlot(z);
+        continue;
+      }
       /* Fase 6C — Spawning animation: fade-in progresivo desde escala 0.01 */
       /* CORRECCIÓN DE Y — offset +0.4*escala para que plantas de pies toquen el suelo */
-      z.g.position.y=getFloorY(z.g.position.x,z.g.position.z)+0.4*z.scale;
       if(z.spawning&&z.spawnT>0&&!z.isThrown){
         z.spawnT-=dt;const sp=1-Math.max(0,z.spawnT/.3),ss=sp*sp*(3-2*sp);
         z.g.scale.setScalar(z.scale*Math.max(0.01,ss));
@@ -2692,14 +2747,20 @@ function initGameEngine() {
       const tp=trackPos(z.t),tn3d=outN(z.t);
       const z3dPos={x:tp.x+tn3d.x*z.lat,y:0,z:tp.z+tn3d.z*z.lat};
       const t3dPos=trackPos(nearest.trackT);const t3dN=outN(nearest.trackT);
-      t3dPos.x+=t3dN.x*(nearest.trackLat||3);t3dPos.y=0;t3dPos.z+=t3dN.z*(nearest.trackLat||3);
+      t3dPos.x+=t3dN.x*(nearest.trackLat!==undefined?nearest.trackLat:3);t3dPos.y=0;t3dPos.z+=t3dN.z*(nearest.trackLat!==undefined?nearest.trackLat:3);
       const dx=z3dPos.x-t3dPos.x,dz=z3dPos.z-t3dPos.z;
-      const dist3D=Math.hypot(dx,dz);
-      if(z.windup>0){z.windup-=dt;const w=1-Math.max(0,z.windup)/.45;
-        z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.75?(w-.75)*4*1.6:0);
-        z.t+=Math.sign(dir)*dt*.006; // windup: still approaching
-        if(z.windup<=0){z.cool=1.2;
-          if(dist3D<1.35){ // attack radius ajustado a 1.35m para cercanía exacta
+      const meleeR = 1.35 * (z.scale || 1);
+      const stopR = meleeR * 0.7;
+
+      if(z.windup>0){
+        z.windup-=dt;const w=1-Math.max(0,z.windup)/.45;
+        if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+          z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.75?(w-.75)*4*1.6:0);
+        }
+        z.t+=Math.sign(dir)*z.speed*boost*0.35*dt/TRACK_LEN; // windup: avanza cerrando distancia
+        if(z.windup<=0){
+          z.cool=1.2;
+          if(dist3D<meleeR){
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
                 nearest.bot.hp-=z.dmg;burst(z.g.position,'ichor',5,2);
@@ -2707,23 +2768,32 @@ function initGameEngine() {
                   feed(nearest.bot.name+' HA CAÍDO','k');}
               }
             }else if(nearest.isLocal)damagePlayer(z.dmg);
-            else netSend({type:'pdmg',dmg:z.dmg,target:nearest.id});}}}
-      else if(dist3D>2.2){z.t+=Math.sign(dir)*z.speed*boost*dt/TRACK_LEN; // move if farther than 2.2m
+            else netSend({type:'pdmg',dmg:z.dmg,target:nearest.id});
+          }
+        }
+      }else if(dist3D>stopR){
+        z.t+=Math.sign(dir)*z.speed*boost*dt/TRACK_LEN;
         const s=Math.sin(z.t*TRACK_LEN*.35);
-        z.lL.p.rotation.x=s*.7;z.lR.p.rotation.x=-s*.7;
-        z.lL.s.rotation.x=Math.max(0,-Math.sin(z.t*TRACK_LEN*.35-.7))*.6;
-        z.lR.s.rotation.x=Math.max(0,Math.sin(z.t*TRACK_LEN*.35-.7))*.6;
-        z.aL.p.rotation.x=-1.1+Math.sin(z.t*20+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.t*20)*.12;
-        z.aL.f.rotation.x=z.aR.f.rotation.x=-.4;
-        z.head.rotation.z=Math.sin(z.t*12)*.14;
+        if(z.lL&&z.lL.p&&z.lR&&z.lR.p){
+          z.lL.p.rotation.x=s*.7;z.lR.p.rotation.x=-s*.7;
+        }
+        if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+          z.aL.p.rotation.x=-1.1+Math.sin(z.t*20+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.t*20)*.12;
+        }
+        if(z.head) z.head.rotation.z=Math.sin(z.t*12)*.14;
       }else if(z.cool<=0){z.windup=.45;sfx.moan(2);}
-      else{z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.t*8)*.05;}
+      else{
+        if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+          z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.t*8)*.05;
+        }
+      }
       z.t=((z.t%1)+1)%1;
-      const targetLat=nearest.trackLat||3;
-      z.lat+=(targetLat-z.lat)*dt*1.5;z.lat=clamp(z.lat,-5.1,8.3);
+      const targetLat=nearest.trackLat!==undefined?nearest.trackLat:3;
+      z.lat+=(targetLat-z.lat)*dt*2.6;z.lat=clamp(z.lat,-5.1,8.3);
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
-      const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat)+0.4*z.scale;
+      const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
       const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : floorY;
+
       z.g.position.set(p.x+n.x*z.lat, currentY, p.z+n.z*z.lat);
       z.g.rotation.y=Math.atan2(tn.x*Math.sign(dir),tn.z*Math.sign(dir));
       /* InstancedMesh: walkers/runners >20m usan instancia (menos draw calls) */
@@ -3089,7 +3159,8 @@ function initGameEngine() {
       const arm=new THREE.Mesh(GEO_POOL.rArm,skin);arm.position.set(s*.3,1.05,0);
       arm.userData.z=zData;arm.userData.part='body';g.add(arm);
       const leg=new THREE.Mesh(GEO_POOL.rLeg,std({color:0x22252a,roughness:.9},.08));
-      leg.position.set(s*.11,.45,0);leg.userData.z=zData;leg.userData.part='body';g.add(leg);
+      leg.position.set(s*.11,.275,0);leg.userData.z=zData;leg.userData.part='body';g.add(leg);
+
     });
     g.scale.setScalar(sc);scene.add(g);
     // Registrar hitboxes para clientes móviles y raycasting
@@ -3245,43 +3316,36 @@ function initGameEngine() {
 
   /* ===== OLEADAS ===== */
   function numPlayers(){return 1+Object.keys(remotePlayers).length;}
-  function startWave(n){wave=n;hudWave();queue=[];const N=numPlayers();
-    hpMul=(1 + (n-1)*0.7) * (1 + 0.3 * (N - 1));
-    spMul=1 + Math.min(0.3, (n-1) * 0.05);
-    spawnInt=Math.max(1.8, 4.0 - n * 0.2);spawnT=1.0;
 
-    // BOSS FINAL LOGIC: Juggernaut puede aparecer en CUALQUIER ola con prob creciente
-    // Cuando aparece → EXCLUSIVO: solo walkers + runners, cero otros bosses
-    const finalBossProb = Math.min(0.90, 0.20 + (n-1) * 0.08);
-    const finalBossWave = n >= 1 && Math.random() < finalBossProb;
+  const MAX_WAVES=10;
+  const WAVE_PLAN=[
+    {c:6,  boss:null},
+    {c:8,  boss:null},
+    {c:9,  boss:'boss_stalker'},
+    {c:10, boss:null,               brutes:2},
+    {c:11, boss:'boss_rockhurler'},
+    {c:12, boss:null,               brutes:3},
+    {c:13, boss:'boss_stalker',     brutes:2},
+    {c:14, boss:'boss_rockhurler',  brutes:2},
+    {c:15, boss:'boss_stalker',     brutes:3},
+    {c:12, boss:'boss_juggernaut',  brutes:2},   // FINAL WAVE
+  ];
 
-    // BOSS ROCKHURLER: aparece siempre desde ola 2
-    const rockhurlerWave = !finalBossWave && n >= 2;
+  function startWave(n){
+    wave=n;hudWave();queue=[];const N=numPlayers();
+    const plan=WAVE_PLAN[Math.min(n,WAVE_PLAN.length)-1];
+    hpMul=(1+(n-1)*0.16)*(1+0.25*(N-1));
+    spMul=1+Math.min(0.25,(n-1)*0.03);
+    spawnInt=Math.max(1.6,3.6-n*0.18);spawnT=1.0;
+    for(let i=0;i<plan.c;i++){const r=Math.random();queue.push(r<.55?'walker':(r<.85?'runner':'brute'));}
+    for(let i=0;i<(plan.brutes||0);i++)queue.push('brute');
+    if(plan.boss)queue.push(plan.boss);
+    queue.sort(()=>Math.random()-.5);
+    if(n===MAX_WAVES) banner('FINAL WAVE','ALPHA JUGGERNAUT — SEAL THE LOOP FOREVER',true,5000);
+    else banner('WAVE '+String(n).padStart(2,'0')+' / '+MAX_WAVES,'HOLD THE LOOP LINE',!!plan.boss,2800);
+    sfx.wave();hudScore();netSend({type:'wave',n});
+  }
 
-    if(finalBossWave){
-      // OLEADA BOSS FINAL: solo walkers/runners + Juggernaut exclusivo
-      for(let i=0;i<Math.min(3+n,8);i++) queue.push(Math.random()<.55?'walker':'runner');
-      queue.push('boss_juggernaut');
-      queue.sort(()=>Math.random()-.5);
-      banner('🚨 FINAL BOSS INCOMING 🚨','ALPHA JUGGERNAUT — CONTAINMENT FAILURE',true,5000);
-      feed('🚨 BOSS FINAL: ALPHA JUGGERNAUT — OLEADA '+n,'k');
-    } else if(rockhurlerWave){
-      // OLEADA CON BOSS ROCKHURLER + posible Stalker en olas altas
-      for(let i=0;i<Math.min(2+n,7);i++) queue.push(Math.random()<.55?'walker':'runner');
-      queue.push('boss_rockhurler');
-      if(n>=4) queue.push('boss_stalker');
-      if(n>=6) queue.push('brute','brute');
-      queue.sort(()=>Math.random()-.5);
-      banner('⚠️ ROCK HURLER DETECTED ⚠️','TOXIC BOULDER ENTITY INCOMING — TAKE COVER',true,4200);
-      feed('⚠️ ROCK HURLER — OLEADA '+n,'k');
-    } else {
-      // OLEADA NORMAL
-      for(let i=0;i<Math.min(3+n,10);i++) queue.push(Math.random()<.6?'walker':Math.random()<.5?'runner':'brute');
-      if(n>=3) queue.push('boss_stalker');
-      queue.sort(()=>Math.random()-.5);
-      banner('WAVE '+String(n).padStart(2,'0'),'HOLD THE LOOP LINE',false,2800);
-    }
-    sfx.wave();hudScore();netSend({type:'wave',n});}
 
   /* ===== CONTROLES WASD Y MOUSE ===== */
   function updateKey(e, isDown){
@@ -4623,15 +4687,51 @@ function initGameEngine() {
     }
     if(isHost&&sendNet)netSend({type:'start'});}
 
+  function gameVictory(){
+    playing=false;firing=false;
+    document.body.classList.remove('hurt');$('#paused').classList.remove('show');
+    sfx.revive();try{document.exitPointerLock();}catch(e){}
+    const t=document.querySelector('#over .ovT');
+    if(t){
+      t.style.color='var(--green)';
+      t.innerHTML='LOOP<span style="-webkit-text-stroke-color:var(--green)">CLEAR</span>';
+    }
+    const eb=document.querySelector('#over .eyebrow');
+    if(eb) eb.textContent='LOOP LINE — FINAL REPORT · CONTAINMENT RESTORED';
+    const s=Math.floor(Math.max(0,elapsed-startTime));
+    const timeStr=String(s/60|0).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    const ovC=document.querySelector('#over .ovC');
+    if(ovC) ovC.innerHTML='The loop held at <em>'+timeStr+'</em>. Breakers stable. Trains will run again at dawn.';
+    const overEl=$('#over');
+    if(overEl) overEl.style.background='rgba(3,10,6,.93)';
+    $('#stWave').textContent=wave;$('#stKill').textContent=kills;
+    $('#stHead').textContent=headshots;$('#stScore').textContent=score;
+    $('#overTime').textContent=timeStr;
+    setTimeout(()=>$('#over').classList.remove('gone'),500);
+    if(isHost)netSend({type:'gameover'});
+  }
+
   function gameOver(){playing=false;firing=false;
     document.body.classList.remove('hurt');$('#paused').classList.remove('show');
     sfx.down();try{document.exitPointerLock();}catch(e){}
+    const t=document.querySelector('#over .ovT');
+    if(t){
+      t.style.color='var(--red)';
+      t.innerHTML='OVER<span style="-webkit-text-stroke-color:var(--red)">RUN</span>';
+    }
+    const overEl=$('#over');
+    if(overEl) overEl.style.background='rgba(8,4,4,.93)';
+    const eb=document.querySelector('#over .eyebrow');
+    if(eb) eb.textContent='LOOP LINE — FINAL REPORT';
+    const ovC=document.querySelector('#over .ovC');
+    if(ovC) ovC.innerHTML='The line was lost. Signals dead. Containment breached.';
     $('#stWave').textContent=wave;$('#stKill').textContent=kills;
     $('#stHead').textContent=headshots;$('#stScore').textContent=score;
     const s=Math.floor(Math.max(0,elapsed-startTime));
     $('#overTime').textContent=String(s/60|0).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
     setTimeout(()=>$('#over').classList.remove('gone'),500);
     if(isHost)netSend({type:'gameover'});}
+
 
   /* ===== EVENTOS BOTONES LOBBY ===== */
   $('#soloBtn').addEventListener('click',e=>{e.currentTarget.blur();initSolo();});
@@ -4884,7 +4984,7 @@ function initGameEngine() {
               }
             });
           }
-          if(clearing){ clearT -= dt; if(clearT <= 0){ clearing = false; startWave(wave + 1); } }
+          if(clearing){ clearT -= dt; if(clearT <= 0){ clearing = false; if(wave>=MAX_WAVES) gameVictory(); else startWave(wave + 1); } }
           updateZombies(dt);
           updateBots(dt);
           updateBotChat(dt);
@@ -4892,13 +4992,14 @@ function initGameEngine() {
           updateDustMotes(dt, elapsed);
           /* Neón RGB pulsante + vapor estaciones */
           updateStationFX(dt, elapsed);
-          /* GQW-VIS-5.0 ETAPA 4: Breaker degradation — lights dim over time */
-          if(isHost&&B>5){
+          /* GQW-VIS-5.0 ETAPA 4: Breaker degradation — lights dim over time (only during active play) */
+          if(playing && isHost && B > 5){
             const brkDecay=(0.5+wave*0.06)*dt;
             B=Math.max(5,B-brkDecay);
             applyBrightness(B);
             if(B<30&&Math.random()<dt*0.3)feed('⚠ ENERGÍA BAJA — REACTIVA LOS BREAKERS','k');
           }
+
           updateImpacts(dt);
           updateRocks(dt);
           updateGrenades(dt);
@@ -4991,6 +5092,7 @@ function initGameEngine() {
   }
 
     /* === FIX YOUR TIMESTEP: acumulador 60Hz + render a rAF rate === */
+    let _teamHudAcc = 0;
     function animate(){
       requestAnimationFrame(animate);
       const now=performance.now();
@@ -5020,7 +5122,9 @@ function initGameEngine() {
         }else _fpsSkip--;
       }
       drawMinimap();
-      updateTeamHUD();
+      _teamHudAcc += frameDt;
+      if(_teamHudAcc >= 250){ _teamHudAcc = 0; updateTeamHUD(); }
+
       if(botsEnabled&&typeof mmCtx!=='undefined'&&mmCtx){
         for(const b of bots){if(b.dead)continue;
           const bx=(b.group.position.x-camera.position.x)*1.2+75;

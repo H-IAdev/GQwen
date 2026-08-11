@@ -1,4 +1,4 @@
-﻿# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: SISTEMA DE BOSSES E INTELIGENCIA ARTIFICIAL
+# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: SISTEMA DE BOSSES E INTELIGENCIA ARTIFICIAL
 # Lógica de Oleadas, Entidades Infectadas, IA de Combate y Red P2P Host/Client
 # Auditado directamente desde coop.html — Versión 4.7 UX POLISH
 
@@ -39,39 +39,41 @@ $$\text{Daño Recibido} = \text{Daño Base} \cdot (1 - \text{armor})$$
 
 ---
 
-## 3. LÓGICA DE OLEADAS Y MULTIPLICADORES ESCALARES
+## 3. LÓGICA DE 10 OLEADAS DETERMINISTAS (`WAVE_PLAN`) Y CONDICIÓN DE VICTORIA
 
-### 3.1 Fórmulas de Escalado por Oleada ($N$) y Jugadores ($P$)
+### 3.1 Tabla Determinista de Oleadas (`WAVE_PLAN`)
 
-En la función `startWave(n)` (Líneas 1640–1650), el Host calcula los multiplicadores de vida y velocidad para adaptar la dificultad al número de jugadores conectados:
+En lugar de generación estocástica imprevista, el juego implementa una estructura fija de 10 oleadas (`WAVE_PLAN`):
 
-$$\text{hpMul} = \left(1 + (N - 1) \cdot 0.7\right) \cdot \left(1 + 0.3 \cdot (P - 1)\right)$$
+| Oleada | Infectados Comunes | Infectados Brutos (`brute`) | Jefe Especial (`boss`) | Multiplicador HP (`hpMul`) | Multiplicador Vel (`spMul`) |
+|:---|:---|:---|:---|:---|:---|
+| **1** | 6 | 0 | Ninguno | $1.00\times$ | $1.00\times$ |
+| **2** | 8 | 0 | Ninguno | $1.16\times$ | $1.03\times$ |
+| **3** | 9 | 0 | `boss_stalker` | $1.32\times$ | $1.06\times$ |
+| **4** | 10 | 2 | Ninguno | $1.48\times$ | $1.09\times$ |
+| **5** | 11 | 0 | `boss_rockhurler` | $1.64\times$ | $1.12\times$ |
+| **6** | 12 | 3 | Ninguno | $1.80\times$ | $1.15\times$ |
+| **7** | 13 | 2 | `boss_stalker` | $1.96\times$ | $1.18\times$ |
+| **8** | 14 | 2 | `boss_rockhurler` | $2.12\times$ | $1.21\times$ |
+| **9** | 15 | 3 | `boss_stalker` | $2.28\times$ | $1.24\times$ |
+| **10 (Final)** | 12 | 2 | **`boss_juggernaut`** | $2.44\times$ | $1.25\times$ |
 
-$$\text{spMul} = 1 + \min\left(0.3, \, (N - 1) \cdot 0.05\right)$$
+### 3.2 Fórmulas de Escalado y Spawns Inteligentes
 
-- **`hpMul`**: Aumenta un $+70\%$ por cada oleada transcurrida y un $+30\%$ por cada jugador adicional en la sala.
-- **`spMul`**: Aumenta $+5\%$ de velocidad por oleada hasta un límite máximo de $+30\%$.
-
-### 3.2 Límite de Enemigos Activos Simultáneos (`maxActive`)
-
-Para mantener 60 FPS estables en dispositivos móviles y reducir la sobrecarga de red:
-
-$$\text{maxActive} = \min\left(4, \, 2 + \lfloor N / 2 \rfloor\right)$$
-
-- Oleada 1: Máximo 2 zombies simultáneos en pista.
-- Oleada 2-3: Máximo 3 zombies simultáneos.
-- Oleada 4+: Límite máximo de **4 zombies simultáneos activos**.
-
-### 3.3 Regla de Exclusividad del Boss Final (`Alpha Juggernaut`)
-
-Cuando el generador de colas selecciona un `boss_juggernaut`:
-1. Probabilidad de aparición: $P_{\text{boss}} = \min(0.90, \, 0.20 + (N - 1) \cdot 0.08)$.
-2. **Regla de Supresión**: Mientras el Juggernaut esté vivo en la cola o en el mapa, el motor bloquea la generación de cualquier otro infectado especial (`boss_stalker`, `boss_rockhurler` o `brute`).
-3. Únicamente se permite el acompañamiento de infectados comunes (`walker` o `runner`), focalizando el fuego del equipo en el Boss Final.
+- **Escalado de Vida y Velocidad**:
+  $$\text{hpMul} = \left(1 + (N - 1) \cdot 0.16\right) \cdot \left(1 + 0.25 \cdot (P - 1)\right)$$
+  $$\text{spMul} = 1 + \min\left(0.25, \, (N - 1) \cdot 0.03\right)$$
+- **Filtro de Spawn Seguro (`pickSpawnParams`)**: La función de spawn muestrea 14 candidatos y selecciona únicamente posiciones a una distancia de pista de al menos **$26.0\text{m}$** de cualquier jugador o bot vivo, evitando que los infectados emerjan directamente sobre el jugador.
+- **Histéresis de Ataque Melee**:
+  - Distancia de alcance $meleeR = 1.35 \cdot z.scale$.
+  - Punto de detención $stopR = meleeR \cdot 0.7$.
+  - Durante el *windup*, el infectado sigue desplazándose hacia el jugador a velocidad reducida, cerrando la distancia y aplicando el daño al completar el golpe.
+- **Condición de Victoria (`gameVictory()`)**: Al despejar la Oleada 10, el motor no pasa a la oleada 11 sino que activa la victoria `LOOP CLEAR — CONTAINMENT RESTORED` con overlay verde, estadísticas completas y opción de despliegue `REDEPLOY`.
 
 ---
 
 ## 4. MECÁNICAS DETALLADAS DEL ROCK HURLER (`boss_rockhurler`)
+
 
 El `boss_rockhurler` posee dos patrones de ataque independientes en `updateZombies()` (Líneas 1214–1260):
 
