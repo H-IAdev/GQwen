@@ -1799,8 +1799,9 @@ function initGameEngine() {
 
 
   const CDN_ZOMBIE_URLS = [
-    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/Zombie/glTF-Binary/Zombie.glb'
+    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/BrainStem/glTF-Binary/BrainStem.glb'
   ];
+
   let cachedZombieGLTF = null, isZombieGLTFLoading = false;
 
 
@@ -2147,11 +2148,48 @@ function initGameEngine() {
       });
     }
     botsEnabled=true;
-    logDiag('Escuadrón Utility AI desplegado: '+BOT_NAMES.join(', '),'ok');
-    loadRobotGLTFForBots();
+  }
+
+  function findNearestEnemy(pos) {
+    let nearest = null;
+    let minDist = Infinity;
+    for (const z of zombies) {
+      if (z.dead) continue;
+      const dist = pos.distanceTo(z.g.position);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = z;
+      }
+    }
+    return nearest ? { enemy: nearest, dist: minDist } : null;
+  }
+
+  function executeBotFire(bot, target, dt) {
+    bot.fireCd -= dt;
+    if (bot.fireCd <= 0) {
+      bot.fireCd = R(0.4, 0.95);
+      if (bot.flash) {
+        bot.flash.visible = true;
+        bot.flash.material.rotation = R(0, 6.28);
+      }
+      if (bot.fLight) bot.fLight.intensity = 45;
+      sfx.shot();
+      if (bot.actions['Punch']) {
+        bot.actions['Punch'].stop().play();
+      }
+      const dist = bot.group.position.distanceTo(target.g.position);
+      const hitChance = Math.max(0.25, 0.88 - (dist * 0.02));
+      if (Math.random() < hitChance && !target.dead) {
+        const isHeadshot = Math.random() < 0.20;
+        const dmg = isHeadshot ? 45 : 20;
+        hurtZombie(target, isHeadshot ? 'head' : 'body', target.g.position, dmg);
+        burst(target.g.position, 'ichor', isHeadshot ? 10 : 5, 2.5);
+      }
+    }
   }
 
   function evaluateBotUtility(bot, dt) {
+
     if (bot.dead || bot.downed) return null;
     const botPos = bot.group.position;
     const playerPos = camera.position;
