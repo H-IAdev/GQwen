@@ -1411,22 +1411,32 @@ function initGameEngine() {
   logDiag('Escenario 3D construido.', 'ok');
 
   /* ===== LUZ Y REGULACIÓN ===== */
-  let B=.66;
-  function applyBrightness(v){B=v/100;
-    if(renderer) renderer.toneMappingExposure=.1+1.35*B;
-    const kM=.03+1.07*B,kE=.3+.7*B;
-    lightsReg.forEach(l=>{l.userData.k=l.userData.emergency?kE:kM;l.intensity=l.userData.base*l.userData.k;});
-    emisReg.forEach(m=>m.emissiveIntensity=m.userData.base*(m.userData.emergency?kE:kM));
-    glowReg.forEach(g=>g.opacity=g.userData.base*(.08+.92*B));
-    setTxt($('#pct'), Math.round(v)+'%');
-    const brEl = $('#bright'); if(brEl) brEl.style.setProperty('--p',v+'%');
-    $('#breakerWarn').classList.toggle('show',B<.4&&playing);
-    updateBreakerHysteresis(v);}
+  let B = 0.85;
+  function applyBrightness(v){
+    v = clamp(v, 5, 100);
+    B = v / 100;
+    if(renderer) renderer.toneMappingExposure = 0.35 + 1.25 * B;
+    if(typeof ambientLight !== 'undefined' && ambientLight) ambientLight.intensity = 0.18 + 0.55 * B;
+    if(typeof hemiLight !== 'undefined' && hemiLight) hemiLight.intensity = 0.20 + 0.60 * B;
+    const kM = .03 + 1.07 * B, kE = .3 + .7 * B;
+    lightsReg.forEach(l => { l.userData.k = l.userData.emergency ? kE : kM; l.intensity = l.userData.base * l.userData.k; });
+    emisReg.forEach(m => m.emissiveIntensity = m.userData.base * (m.userData.emergency ? kE : kM));
+    glowReg.forEach(g => g.opacity = g.userData.base * (.08 + .92 * B));
+    setTxt($('#pct'), Math.round(v) + '%');
+    const brEl = $('#bright');
+    if(brEl){
+      brEl.value = Math.round(v);
+      brEl.style.setProperty('--p', v + '%');
+    }
+    $('#breakerWarn').classList.toggle('show', B < .38 && playing);
+    updateBreakerHysteresis(v);
+  }
   const brightSlider = $('#bright');
   if (brightSlider) {
     brightSlider.addEventListener('input', e => { applyBrightness(+e.target.value); netSend({ type: 'breakers', v: +e.target.value }); });
     brightSlider.addEventListener('change', e => e.target.blur());
   }
+
 
   /* ===== AUDIO ===== */
   let AC=null,master=null,noiseBuf=null;
@@ -1826,6 +1836,9 @@ function initGameEngine() {
 
 
   const CDN_ZOMBIE_URLS = [
+    'src/ZombieKit2024/Characters/glTF/Zombie_Basic.gltf',
+    'src/ZombieKit2024/Characters/glTF/Zombie_Chubby.gltf',
+    'src/3dmodels/skeleton_-_lowpoly_character.glb',
     'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/BrainStem/glTF-Binary/BrainStem.glb'
   ];
 
@@ -1861,10 +1874,16 @@ function initGameEngine() {
               c.userData.part = (box.min.y > 1.25) ? 'head' : 'body';
             }
           });
+
+          // Re-aplicar visibilidad de tipo de zombie inmediatamente para slots activos
+          if(slot.active && slot.type){
+            applyZombieType(slot, slot.type);
+          }
         } catch(e){}
       }
     }
   }
+
 
 
   function loadZombieGLTFAssets(customUrl = null){
@@ -2911,9 +2930,9 @@ function initGameEngine() {
     window.zombieHitboxes=(window.zombieHitboxes||[]).filter(m=>m&&m.userData&&m.userData.z!==slot);
     slot.detailG.traverse(c=>{if(c.isMesh){c.userData.z=slot;window.zombieHitboxes.push(c);}});
     slot.g.visible=true;
-    slot.g.scale.setScalar(0.01); // spawn invisible, fade-in via 6C
-    // NOTA: LOD ya está pre-añadido a la escena desde buildPrebuiltLODForSlot
+    slot.g.scale.setScalar(slot.scale || 1.0); // visibilidad completa desde el spawn
     zombies.push(slot);
+
     // Fase 6C — burst de partículas al spawnear
     burst(slot.g.position,'spark',10,3.0);
     if(type==='boss_juggernaut'){
@@ -3006,13 +3025,12 @@ function initGameEngine() {
         if(z.deathT>2.0)releaseZombieSlot(z);
         continue;
       }
-      /* Fase 6C — Spawning animation: fade-in progresivo desde escala 0.01 */
-      /* CORRECCIÓN DE Y — offset +0.4*escala para que plantas de pies toquen el suelo */
-      if(z.spawning&&z.spawnT>0&&!z.isThrown){
-        z.spawnT-=dt;const sp=1-Math.max(0,z.spawnT/.3),ss=sp*sp*(3-2*sp);
-        z.g.scale.setScalar(z.scale*Math.max(0.01,ss));
-        if(z.spawnT<=0){z.spawning=false;z.g.scale.setScalar(z.scale);z.fade=1.0;}continue;
+      if(z.spawning && !z.isThrown){
+        z.spawnT -= dt;
+        z.g.scale.setScalar(z.scale || 1.0);
+        if(z.spawnT <= 0){ z.spawning = false; z.fade = 1.0; }
       }
+
       if(z.isThrown && !z.dead){
         z.g.position.addScaledVector(z.throwVel,dt);
         z.throwVel.y-=9.8*dt;
