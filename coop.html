@@ -312,8 +312,9 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
 @media (orientation: portrait){
   #stationSign{top:8px;left:8px;transform:scale(0.75);transform-origin:top left}
   #scorePanel{top:8px;right:8px;transform:scale(0.75);transform-origin:top right}
-  #breakers{display:none}
+  #breakers, #breakersPanel{display:none}
   #health{bottom:155px;left:8px;transform:scale(0.78);transform-origin:bottom left}
+
   #ammoPanel{bottom:155px;right:8px;transform:scale(0.78);transform-origin:bottom right}
   #minimap{bottom:auto;top:8px;left:50%;transform:translateX(-50%) scale(0.72)}
   #joyContainer{width:86px;height:86px}
@@ -2190,7 +2191,10 @@ function initGameEngine() {
         activeAction: null,
         scanTimer: 0,
         restTimer: 0,
-        patrolProgress: Math.random()
+        patrolProgress: Math.random(),
+        decisionCd: R(0, 0.5),
+        scanT: R(0, 6),
+        moveMode: 'walk'
       });
     }
     botsEnabled=true;
@@ -2198,7 +2202,16 @@ function initGameEngine() {
     loadRobotGLTFForBots();
   }
 
+  /* Rotación orgánica: zona muerta de ~3.5° + giro limitado en rad/s */
+  function smoothBotYaw(b, desired, dt, maxSpeed){
+    if(!b || !b.group) return;
+    const diff = ((desired - b.group.rotation.y + Math.PI) % (Math.PI*2) + Math.PI*2) % (Math.PI*2) - Math.PI;
+    if(Math.abs(diff) < 0.06) return; // no micro-corregir: elimina el jitter
+    b.group.rotation.y += clamp(diff, -maxSpeed*dt, maxSpeed*dt);
+  }
+
   const BOT_RADIUS = 0.55;
+
 
   function navBotClamp(p){
     const t = closestT(p.x, p.z);
@@ -2279,15 +2292,15 @@ function initGameEngine() {
     const targetY = getFloorY(g.position.x, g.position.z);
     g.position.y = lerp(g.position.y, targetY, dt * 14);
 
-    if(dist > 0.05 && !b.aimingTgt){
-      const moveAng = Math.atan2(dx, dz);
-      g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
+    b.moveMode = speed >= 4.7 ? 'run' : 'walk';
+    if(dist > 0.15 && !b.aimingTgt){
+      smoothBotYaw(b, Math.atan2(dx, dz), dt, b.moveMode === 'run' ? 5.5 : 3.0);
     }
 
     if(!b.downed){
-      b.walk+=dt*speed*2.4;
+      b.walk += dt * speed * 2.4;
       if(b.mixer){
-        const targetAction = speed > 4.5 ? 'Running' : 'Walking';
+        const targetAction = b.moveMode === 'run' ? 'Run' : 'Walk';
         if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
           if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
           b.actions[targetAction].reset().fadeIn(0.18).play();
@@ -2299,6 +2312,7 @@ function initGameEngine() {
         if(b.refs.legL){b.refs.legL.rotation.x=-sw*0.7;b.refs.legR.rotation.x=sw*0.7;}
       }
     }
+
   }
 
   function findNearestEnemy(pos) {
@@ -2351,28 +2365,37 @@ function initGameEngine() {
     const botPos = bot.group.position;
     const playerPos = camera.position;
     const distToPlayer = botPos.distanceTo(playerPos);
-
     const rc = ROLE_CFG[bot.role] || ROLE_CFG.anchor;
 
-    // 1. PERCEPCIÓN DE AMENAZAS EN 110° FOV / 40M RANGO
-    let bestTarget = null;
-    let maxThreat = -1;
-    for (const z of zombies) {
-      if (z.dead) continue;
-      const dist = botPos.distanceTo(z.g.position);
-      if (dist > 40) continue;
-      const dirToZ = _v1.subVectors(z.g.position, botPos).normalize();
-      const botFacing = _v2.set(Math.sin(bot.group.rotation.y), 0, Math.cos(bot.group.rotation.y));
-      const dot = botFacing.dot(dirToZ);
-      if (dot > -0.34 || dist < 5.0) {
-        let threat = (100 / Math.max(1, dist)) * rc.aggro;
-        if (z.type.includes('boss')) threat *= 2.2;
-        if (z.grabbed || z.grabVictim) threat *= 3.0;
-        if (threat > maxThreat) {
-          maxThreat = threat;
-          bestTarget = z;
+    // ── COOLDOWN DE DECISIÓN: 2-3 evaluaciones/seg (elimina jitter 60Hz) ──
+    bot.decisionCd = (bot.decisionCd || 0) - dt;
+    const rethink = bot.decisionCd <= 0 || playerState === 'downed';
+    if (rethink) bot.decisionCd = R(0.3, 0.55);
+
+    let bestTarget = bot._best || null;
+    let maxThreat  = bot._threat || -1;
+
+    if (rethink) {
+      bestTarget = null; maxThreat = -1;
+      for (const z of zombies) {
+        if (z.dead) continue;
+        const dist = botPos.distanceTo(z.g.position);
+        if (dist > 40) continue;
+        const dirToZ = _v1.subVectors(z.g.position, botPos).normalize();
+        const botFacing = _v2.set(Math.sin(bot.group.rotation.y), 0, Math.cos(bot.group.rotation.y));
+        const dot = botFacing.dot(dirToZ);
+        if (dot > -0.34 || dist < 5.0) {
+          let threat = (100 / Math.max(1, dist)) * rc.aggro;
+          if (z.type.includes('boss')) threat *= 2.2;
+          if (z.grabbed || z.grabVictim) threat *= 3.0;
+          // ── COBERTURA POR SECTOR: rebanada de 120° por bot (VEGA izq, RUIZ frente, KIDO der) ──
+          const zAng = Math.atan2(z.g.position.x - playerPos.x, z.g.position.z - playerPos.z);
+          const prefAng = (bot.id - 2) * (Math.PI * 2 / 3);
+          threat *= 1 + 0.45 * Math.cos(zAng - prefAng);
+          if (threat > maxThreat) { maxThreat = threat; bestTarget = z; }
         }
       }
+      bot._best = bestTarget; bot._threat = maxThreat;
     }
     bot.lastThreatScore = maxThreat;
 
@@ -2387,13 +2410,13 @@ function initGameEngine() {
 
     const HYSTERESIS = 0.12;
 
-    // ESTADO A: RESCATE INCONDICIONAL
+    // ESTADO A: RESCATE INCONDICIONAL (urgente = correr)
     if (uRescue > uCombat + HYSTERESIS && uRescue > uSelfPreservation + HYSTERESIS) {
       bot.currentAction = 'rescue';
       bot.targetEnemy = null;
       const pd = botPos.distanceTo(playerPos);
       const aimAng = Math.atan2(playerPos.x - botPos.x, playerPos.z - botPos.z);
-      bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 10);
+      smoothBotYaw(bot, aimAng, dt, 5.0);
       if (pd > 2.0) {
         moveBotTo(bot, playerPos, 7.5, dt);
       } else {
@@ -2414,7 +2437,7 @@ function initGameEngine() {
       return;
     }
 
-    // ESTADO B: RETIRADA TÁCTICA Y CURACIÓN
+    // ESTADO B: RETIRADA TÁCTICA Y CURACIÓN (huida = correr)
     if (uSelfPreservation > uCombat + HYSTERESIS) {
       bot.currentAction = 'retreat';
       if (bestTarget) {
@@ -2432,7 +2455,7 @@ function initGameEngine() {
         );
         moveBotTo(bot, safeDest, bot.baseSpeed * 1.3, dt);
         const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
-        bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 8);
+        smoothBotYaw(bot, aimAng, dt, 4.0);
         if (botPos.distanceTo(bestTarget.g.position) < 12) {
           executeBotFire(bot, bestTarget, dt);
         }
@@ -2443,22 +2466,26 @@ function initGameEngine() {
       return;
     }
 
-    // ESTADO C: COMBATE DIRECTO Y ATAQUE POR EL FLANCO SEGÚN ROL
+    // ESTADO C: COMBATE DIRECTO Y FLANQUEO CON VELOCIDAD TÁCTICA
     if (uCombat > uFormation + HYSTERESIS && bestTarget) {
       bot.currentAction = 'combat';
       bot.aimingTgt = true;
       const distToTarget = botPos.distanceTo(bestTarget.g.position);
       const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
-      bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 10);
+      
+      // Oscilación orgánica de puntería humana (±2.6°)
+      const aimSway = Math.sin(elapsed * 1.7 + bot.id * 2.6) * 0.045;
+      smoothBotYaw(bot, aimAng + aimSway, dt, 3.5);
+
+      const combatSpeed = distToTarget > 14 ? bot.baseSpeed : bot.baseSpeed * 0.55;
 
       if (bot.role === 'flanker') {
-        // FLANKER (KIDO): ataca desde posición lateral perpendicular al enemigo
         const sideDir = _v3.subVectors(bestTarget.g.position, botPos).normalize();
         const perpDir = new THREE.Vector3(-sideDir.z, 0, sideDir.x).multiplyScalar(3.8 * (bot.id % 2 === 0 ? 1 : -1));
         const flankDest = bestTarget.g.position.clone().add(perpDir);
-        moveBotTo(bot, flankDest, bot.baseSpeed, dt);
+        moveBotTo(bot, flankDest, combatSpeed, dt);
       } else if (distToTarget > 9.0) {
-        moveBotTo(bot, bestTarget.g.position, bot.baseSpeed, dt);
+        moveBotTo(bot, bestTarget.g.position, combatSpeed, dt);
       } else if (distToTarget < 3.8 || bot.recentDamageTimer > 0) {
         const retreatDir = new THREE.Vector3().subVectors(botPos, bestTarget.g.position).normalize();
         const retreatTarget = botPos.clone().add(retreatDir.multiplyScalar(3.0));
@@ -2488,10 +2515,9 @@ function initGameEngine() {
         getFloorY(trackP.x, trackP.z),
         trackP.z + trackN.z * bot.latOffset
       );
-      moveBotTo(bot, patrolDest, bot.baseSpeed * 0.75, dt);
+      moveBotTo(bot, patrolDest, bot.baseSpeed * 0.5, dt);
       return;
     }
-
 
     // EVITAR LÍNEA DE FUEGO DEL JUGADOR
     const playerForward = _v3.set(-Math.sin(yaw), 0, -Math.cos(yaw));
@@ -2501,7 +2527,7 @@ function initGameEngine() {
     if (dotToBot > 0.82 && toBot.length() < 7.5 && playerState === 'alive') {
       const sideStep = new THREE.Vector3(-playerForward.z, 0, playerForward.x);
       const sidePos = botPos.clone().add(sideStep.multiplyScalar(2.4));
-      moveBotTo(bot, sidePos, bot.baseSpeed * 1.25, dt);
+      moveBotTo(bot, sidePos, bot.baseSpeed * 0.6, dt);
       return;
     }
 
@@ -2512,13 +2538,17 @@ function initGameEngine() {
       playerPos.z + Math.cos(offsetAngle) * 3.2
     );
 
-    const moveSpeed = distToPlayer > 12 ? bot.baseSpeed * 1.4 : bot.baseSpeed;
+    const moveSpeed = distToPlayer > rc.maxTether * 0.7 ? bot.baseSpeed : bot.baseSpeed * 0.5;
     if (botPos.distanceTo(targetPatrolPos) > 1.2) {
       moveBotTo(bot, targetPatrolPos, moveSpeed, dt);
     } else {
-      bot.group.rotation.y = lerpAngle(bot.group.rotation.y, offsetAngle, dt * 4);
+      // ESCANEO ORGÁNICO: barrido lento de sector en vez de mirada fija
+      bot.scanT += dt;
+      const scanYaw = offsetAngle + Math.sin(bot.scanT * 0.55 + bot.id * 2.1) * 0.65;
+      smoothBotYaw(bot, scanYaw, dt, 1.4);
     }
   }
+
 
 
   function updateBots(dt){
@@ -4383,8 +4413,11 @@ function initGameEngine() {
     if(!_cachedWName) _cachedWName = $('#ammoPanel .wn');
     if(_cachedWName){
       const modeLabels={'auto':'AUTO ●','semi':'SEMI ●','burst':'BURST-3 ●'};
-      setTxt(_cachedWName, 'M-42 "TOKEN" · '+modeLabels[fireMode||'auto']);
+      if(activeWeapon==='gun') setTxt(_cachedWName, 'M-42 "TOKEN" · '+modeLabels[fireMode||'auto']);
+      else if(activeWeapon==='shotgun') setTxt(_cachedWName, 'STRIKER-12 SHOTGUN · 12GA');
+      else setTxt(_cachedWName, 'BARE FISTS — 3D COMBAT');
     }
+
   }
 
   function hudHP() {
