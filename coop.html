@@ -1860,14 +1860,18 @@ function initGameEngine() {
 
 
   function applyGLTFToZombiePool(gltf){
-    if(!gltf || !ZOMBIE_POOL || ZOMBIE_POOL.length === 0) return;
+    if(!gltf || !gltf.scene || !ZOMBIE_POOL || ZOMBIE_POOL.length === 0) return;
+    const srcScene = gltf.scene;
     for(const slot of ZOMBIE_POOL){
       if(slot && slot.detailG){
         try {
           if(slot.mountAnchor){
             while(slot.mountAnchor.children.length > 0) slot.mountAnchor.remove(slot.mountAnchor.children[0]);
           }
-          const zClone = gltf.scene.clone(true);
+          const zClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
+            ? THREE.SkeletonUtils.clone(srcScene)
+            : srcScene.clone(true);
+
           normalizeModel(zClone, 1.8);
           slot.gltfMesh = zClone;
           zClone.visible = false;
@@ -1877,13 +1881,15 @@ function initGameEngine() {
           if(gltf.animations && gltf.animations.length > 0){
             slot.mixer = new THREE.AnimationMixer(zClone);
             const walkClip = gltf.animations.find(a => /walk|run|idle/i.test(a.name)) || gltf.animations[0];
-            slot.mixer.clipAction(walkClip).play();
+            if (walkClip) slot.mixer.clipAction(walkClip).play();
           }
 
           // Registrar sub-meshes en hitboxes para disparos y raycast con etiquetado de cabeza
           zClone.traverse(c => {
             if(c.isMesh){
               c.userData.z = slot;
+              c.castShadow = true;
+              c.frustumCulled = false;
               const box = new THREE.Box3().setFromObject(c);
               c.userData.part = (box.min.y > 1.25) ? 'head' : 'body';
             }
@@ -1897,6 +1903,7 @@ function initGameEngine() {
       }
     }
   }
+
 
 
 
@@ -3176,7 +3183,7 @@ function initGameEngine() {
       const _isSimple=z.type==='walker'||z.type==='runner'||z.type==='brute';
       const _d2cam=_vCam.distanceTo(z.g.position);
       if(_isSimple && _d2cam>20 && z.instIdx>=0){
-        if(z.g.visible){z.g.visible=false;z.loBody.visible=false;z.loHead.visible=false;}
+        if(z.g.visible) z.g.visible=false;
         _instPos.copy(z.g.position);_instPos.y+=z.scale*0.4;
         _instScl.set(z.scale,z.scale,z.scale);
         _instMtx.identity().compose(_instPos,new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(0,1,0)),_instScl);
@@ -3185,10 +3192,13 @@ function initGameEngine() {
         _instMtx.identity().compose(_instPos,new THREE.Quaternion(),_instScl);
         instHead.setMatrixAt(z.instIdx,_instMtx);
       }else if(z.instIdx>=0){
-        if(!z.g.visible){z.g.visible=true;}
+        if(!z.g.visible) z.g.visible=true;
+        if(z.loBody) z.loBody.visible=true;
+        if(z.loHead) z.loHead.visible=true;
         instBody.setMatrixAt(z.instIdx,_instMtx.identity().scale(_instZero));
         instHead.setMatrixAt(z.instIdx,_instMtx.identity().scale(_instZero));
       }
+
       // ===== ROCK HURLER AI =====
       if(z.isHurler && !z.dead){
         z.rockT-=dt; z.grabT-=dt;
@@ -3322,7 +3332,10 @@ function initGameEngine() {
         if(z.head&&z.head.material) z.head.material.emissiveIntensity=0;
       }}
   }
-  instBody.count=zombies.length;instHead.count=zombies.length;
+  instBody.count=zombies.length; instHead.count=zombies.length;
+  if(instBody.instanceMatrix) instBody.instanceMatrix.needsUpdate = true;
+  if(instHead.instanceMatrix) instHead.instanceMatrix.needsUpdate = true;
+
 
   /* ===== ROCK HURLER — PROYECTILES Y GRAB ===== */
   const ROCK_SLOTS=8;
