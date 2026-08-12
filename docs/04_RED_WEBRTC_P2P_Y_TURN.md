@@ -73,6 +73,10 @@ Para garantizar conexiones sin fallos a través de routers 4G/5G estrictos y red
 
 ---
 
-## 5. Registro de Pruebas y Verificación
-- **Prueba 4G/5G**: Conexión P2P exitosa entre dispositivo móvil con datos 4G y escritorio con fibra.
-- **Prueba PTT y Chat**: Transmisión limpia de audio sin interrupción de FPS y libre de conflicto entre la escritura en chat y el movimiento del personaje WASD.
+---
+
+## 6. Directorio Híbrido de Salas P2P en Línea (`GLOBAL_ROOMS_API`)
+- **Descubrimiento Global sin Servidor Dedicado**: El listado de salas abiertas combina la REST API síncrona en tiempo real (`GLOBAL_ROOMS_API`) con la persistencia en `localStorage` como fallback ultrarrápido.
+- **Latidos de Presencia de Sala (`announceRoomPresence`)**: Al hospedar una sala, el host emite latidos periódicos (`PUT` cada 4 s) actualizando el código de sala, nombre de host, número de jugadores (`players`) y marca de tiempo (`ts`).
+- **Escaneo y Limpieza Automática (`renderOpenRooms`)**: Las salas con marcas de tiempo con antigüedad superior a 15 s son removidas automáticamente del listado. Al abandonar o cerrar el proceso (`resetPeer`), el host emite un comando `DELETE` a la REST API de la sala.
+

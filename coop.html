@@ -476,32 +476,20 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
   </div></div>
 </div>
 
-<!-- CARGA CON MÚLTIPLES CDN FALLBACKS -->
+<!-- CARGA CON MÚLTIPLES CDN FALLBACKS DE ALTA DISPONIBILIDAD -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/meshoptimizer@0.20.0/meshopt_decoder.js"></script>
-
-
-<script>
-if (typeof THREE === 'undefined') {
-  document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"><\/script>');
-}
-</script>
-<script>
-if (typeof THREE === 'undefined') {
-  document.write('<script src="https://unpkg.com/three@0.161.0/build/three.min.js"><\/script>');
-}
-</script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 if (typeof Peer === 'undefined') {
-  document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>');
+  document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"><\/script>');
 }
 </script>
+
 
 <script>
 (function(){
@@ -804,9 +792,10 @@ function initGameEngine() {
     floor:'https://image.qwenlm.ai/public_source/f7fd3265-192a-4c78-885a-deee5dc9247d/13aadc97a-7e52-4dbd-9177-d8bbe428a059.png'
   };
   const HDR_URLS=[
-    'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/equirectangular/pedestrian_overpass_1k.hdr',
-    'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/equirectangular/venice_sunset_1k.hdr'
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/equirectangular/venice_sunset_1k.hdr',
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/equirectangular/pedestrian_overpass_1k.hdr'
   ];
+
   function loadImg(url){return new Promise((res,rej)=>{const i=new Image();i.crossOrigin='anonymous';const to=setTimeout(()=>{i.src='';rej(new Error('Timeout'));},1800);i.onload=()=>{clearTimeout(to);res(i);};i.onerror=()=>{clearTimeout(to);rej(new Error('Image load error'));};i.src=url;});}
   function imgToCanvas(img,size){const c=document.createElement('canvas');c.width=c.height=size;const x=c.getContext('2d');x.drawImage(img,0,0,size,size);return c;}
   function normalFromCanvas(src,strength){
@@ -1985,9 +1974,7 @@ function initGameEngine() {
       let mixer = null, actions = {};
       if(cachedSoldierGLTF.animations && cachedSoldierGLTF.animations.length > 0){
         mixer = new THREE.AnimationMixer(soldierClone);
-        cachedSoldierGLTF.animations.forEach(clip => {
-          actions[clip.name] = mixer.clipAction(clip);
-        });
+        actions = mapGLTFAnimationClips(cachedSoldierGLTF.animations, mixer);
         if(actions['Idle']) actions['Idle'].play();
       }
       return {
@@ -2007,6 +1994,30 @@ function initGameEngine() {
       logDiag('Aviso al aplicar Soldier GLTF: ' + e.message, 'err');
       return null;
     }
+  }
+
+  function mapGLTFAnimationClips(animations, mixer) {
+    const actions = {};
+    if (!animations || !animations.length || !mixer) return actions;
+    const STANDARD_KEYS = ['Idle', 'Walk', 'Run', 'Punch', 'Death', 'Wave', 'Dance', 'Sitting'];
+    animations.forEach(clip => {
+      actions[clip.name] = mixer.clipAction(clip);
+      const lower = clip.name.toLowerCase();
+      STANDARD_KEYS.forEach(stdKey => {
+        if (!actions[stdKey] && lower.includes(stdKey.toLowerCase())) {
+          actions[stdKey] = actions[clip.name];
+        }
+      });
+      if (!actions['Idle'] && (lower.includes('stand') || lower.includes('wait'))) actions['Idle'] = actions[clip.name];
+      if (!actions['Walk'] && lower.includes('move')) actions['Walk'] = actions[clip.name];
+      if (!actions['Run'] && lower.includes('sprint')) actions['Run'] = actions[clip.name];
+      if (!actions['Punch'] && (lower.includes('attack') || lower.includes('shoot') || lower.includes('fire') || lower.includes('hit'))) actions['Punch'] = actions[clip.name];
+      if (!actions['Death'] && (lower.includes('die') || lower.includes('down'))) actions['Death'] = actions[clip.name];
+    });
+    if (!actions['Idle'] && animations.length > 0) {
+      actions['Idle'] = mixer.clipAction(animations[0]);
+    }
+    return actions;
   }
 
   function applySoldierToGroup(group){
@@ -2071,13 +2082,11 @@ function initGameEngine() {
 
       if(cachedRobotGLTF.animations && cachedRobotGLTF.animations.length > 0){
         b.mixer = new THREE.AnimationMixer(robotClone);
-        b.actions = {};
-        cachedRobotGLTF.animations.forEach(clip => {
-          b.actions[clip.name] = b.mixer.clipAction(clip);
-        });
+        b.actions = mapGLTFAnimationClips(cachedRobotGLTF.animations, b.mixer);
         if(b.actions['Idle']) b.actions['Idle'].play();
         b.activeAction = 'Idle';
       }
+
       logDiag('Bot ' + b.name + ' actualizado a Robot 3D CDN animado', 'ok');
     } catch(e) {
       logDiag('Aviso al aplicar Robot GLTF a bot: ' + e.message, 'err');
@@ -4405,75 +4414,124 @@ function initGameEngine() {
     if(el){ el.textContent = txt; el.className = cls; }
   }
 
-  /* ===== DIRECTORIO DE SALAS ABIERTAS P2P ===== */
+  /* ===== DIRECTORIO DE SALAS ABIERTAS P2P (HÍBRIDO REST API + LOCAL) ===== */
 
   const OPEN_ROOMS_KEY = 'gqwen_open_p2p_rooms_v46';
+  const GLOBAL_ROOMS_API = window.CUSTOM_ROOMS_API || 'https://lumen-st-loopline-default-rtdb.firebaseio.com/rooms';
   let _roomAnnounceTimer = null;
+  let _currentRoomCode = null;
 
-  function announceRoomPresence(code, numP = 1){
+  async function announceRoomPresence(code, numP = 1){
+    if (!code) return;
+    _currentRoomCode = code;
+    const now = Date.now();
+    const payload = {
+      code: code,
+      host: 'HOST-' + code.slice(-3),
+      players: numP + '/4',
+      ts: now
+    };
+
+    // 1. Fallback local en localStorage
     try {
       let rooms = JSON.parse(localStorage.getItem(OPEN_ROOMS_KEY) || '{}');
-      const now = Date.now();
       for(const k in rooms){
-        if(now - rooms[k].ts > 12000) delete rooms[k];
+        if(now - rooms[k].ts > 15000) delete rooms[k];
       }
-      rooms[code] = {
-        code: code,
-        host: 'HOST-' + code.slice(-3),
-        players: numP + '/4',
-        ts: now
-      };
+      rooms[code] = payload;
       localStorage.setItem(OPEN_ROOMS_KEY, JSON.stringify(rooms));
+    } catch(e){}
+
+    // 2. Anuncio síncrono a API remota de salas (REST API)
+    try {
+      fetch(`${GLOBAL_ROOMS_API}/${code}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
     } catch(e){}
   }
 
-  function renderOpenRooms(){
-    const listEl = $('#openRoomsList');
-    if(!listEl) return;
+  async function removeRoomPresence(code){
+    if (!code) return;
     try {
       let rooms = JSON.parse(localStorage.getItem(OPEN_ROOMS_KEY) || '{}');
-      const now = Date.now();
-      const activeList = [];
-      for(const k in rooms){
-        if(now - rooms[k].ts <= 12000){
-          activeList.push(rooms[k]);
+      delete rooms[code];
+      localStorage.setItem(OPEN_ROOMS_KEY, JSON.stringify(rooms));
+    } catch(e){}
+    try {
+      fetch(`${GLOBAL_ROOMS_API}/${code}.json`, { method: 'DELETE' }).catch(() => {});
+    } catch(e){}
+  }
+
+  async function renderOpenRooms(){
+    const listEl = $('#openRoomsList');
+    if(!listEl) return;
+    const now = Date.now();
+    const roomsMap = {};
+
+    // 1. Cargar directorio local
+    try {
+      let localRooms = JSON.parse(localStorage.getItem(OPEN_ROOMS_KEY) || '{}');
+      for(const k in localRooms){
+        if(now - localRooms[k].ts <= 15000){
+          roomsMap[k] = localRooms[k];
         }
       }
-      if(activeList.length === 0){
-        listEl.innerHTML = '<div style="font-size:10px;color:var(--dim);padding:4px 0;">NO HAY SALAS P2P ABIERTAS EN ESTE MOMENTO. ¡CREA UNA NUEVA!</div>';
-        return;
+    } catch(e){}
+
+    // 2. Consultar directorio de salas global vía REST API
+    try {
+      const res = await fetch(`${GLOBAL_ROOMS_API}.json`);
+      if(res.ok){
+        const remoteData = await res.json();
+        if(remoteData && typeof remoteData === 'object'){
+          Object.values(remoteData).forEach(r => {
+            if(r && r.code && r.ts && (now - r.ts <= 15000)){
+              roomsMap[r.code] = r;
+            }
+          });
+        }
       }
-      listEl.innerHTML = '';
-      activeList.forEach(r => {
-        const item = document.createElement('div');
-        item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#141a22;border-left:3px solid var(--amber);border-radius:2px;font-size:11px;';
-        item.innerHTML = `<div><b style="color:var(--amber2)">SALA ${r.code}</b> <span style="font-size:9px;color:var(--dim);margin-left:6px;">${r.host} · JUGADORES: ${r.players}</span></div>`;
-        const joinB = document.createElement('button');
-        joinB.className = 'go sm';
-        joinB.style.cssText = 'font-size:9px;padding:3px 10px;';
-        joinB.textContent = 'UNIRSE →';
-        joinB.onclick = () => {
-          $('#joinInput').value = r.code;
-          initClient(r.code);
-        };
-        item.appendChild(joinB);
-        listEl.appendChild(item);
-      });
-    } catch(e){
-      listEl.innerHTML = '<div style="font-size:10px;color:var(--dim);">ESCANEANDO SALAS EN LÍNEA...</div>';
+    } catch(e){}
+
+    const activeList = Object.values(roomsMap);
+
+    if(activeList.length === 0){
+      listEl.innerHTML = '<div style="font-size:10px;color:var(--dim);padding:4px 0;">NO HAY SALAS P2P EN LÍNEA ACTIVAS. ¡CREA UNA NUEVA!</div>';
+      return;
     }
+
+    listEl.innerHTML = '';
+    activeList.forEach(r => {
+      const item = document.createElement('div');
+      item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#141a22;border-left:3px solid var(--amber);border-radius:2px;font-size:11px;';
+      item.innerHTML = `<div><b style="color:var(--amber2)">SALA ${r.code}</b> <span style="font-size:9px;color:var(--dim);margin-left:6px;">${r.host} · JUGADORES: ${r.players}</span></div>`;
+      const joinB = document.createElement('button');
+      joinB.className = 'go sm';
+      joinB.style.cssText = 'font-size:9px;padding:3px 10px;';
+      joinB.textContent = 'UNIRSE →';
+      joinB.onclick = () => {
+        $('#joinInput').value = r.code;
+        initClient(r.code);
+      };
+      item.appendChild(joinB);
+      listEl.appendChild(item);
+    });
   }
 
   setInterval(renderOpenRooms, 3000);
   setTimeout(renderOpenRooms, 600);
 
   function resetPeer(){
+    if(_currentRoomCode) { removeRoomPresence(_currentRoomCode); _currentRoomCode = null; }
     if(_roomAnnounceTimer){ clearInterval(_roomAnnounceTimer); _roomAnnounceTimer = null; }
     if(peer){try{peer.destroy();}catch(e){}}
     peer=null;hostConn=null;_iceRoute='—';
     for(const k in remotePlayers)delete remotePlayers[k];
     updatePlayerList();
   }
+
 
   let gameMode = 'solo'; // 'solo' | 'bots' | 'online'
 
