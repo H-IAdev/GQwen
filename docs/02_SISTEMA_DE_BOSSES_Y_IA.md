@@ -141,14 +141,16 @@ Para evitar problemas de desincronización en partidas cooperativas:
 
 ## 7. MOTOR DE INTELIGENCIA DE UTILIDAD PARA BOTS DE ESCUADRÓN (`evaluateBotUtility`)
 
-El escuadrón de acompañantes IA (`bots`: VEGA, RUIZ, KIDO) opera mediante un motor de **Utility AI** determinista de 4 estados con umbral de histéresis ($0.15$):
+El escuadrón de acompañantes IA (`bots`: VEGA, RUIZ, KIDO) opera mediante un motor de **Utility AI** determinista de 4 estados con umbral de histéresis ($0.12$) y acoplamiento de escuadrón (*Squad Tethering*):
 
-1. **Percepción del Entorno**:
-   - FOV cónico de $110^\circ$ (`dot > -0.34`) + detección táctil cercana ($< 4.0\text{m}$).
-   - Threat Score dinámico: $(100 / \text{dist}) \cdot \text{multiplicadores (Bosses 2.5×, Agarre 3.0×)}$.
+1. **Percepción del Entorno y Distancia al Jugador**:
+   - FOV cónico de $110^\circ$ (`dot > -0.34`) + detección omnidireccional cercana ($< 5.0\text{m}$).
+   - Threat Score dinámico: $(100 / \text{dist}) \cdot \text{multiplicadores (Bosses 2.2×, Agarre 3.0×)}$.
+   - Squad Tethering: Si el bot se distancias más de $16\text{m}$ del jugador, la prioridad de formación se eleva a $u = 0.90$ para reunificar al escuadrón.
 
 2. **Estados Evaluados en Tiempo Real**:
-   - **`rescue`** ($u = 0.95$): Prioridad máxima al detectar a un aliado o jugador derribado ($< 15\text{m}$).
-   - **`retreat`** ($u = 0.85$ / $0.80$): Retirada táctica a sprint ($+35\%$ velocidad) cuando $\text{HP} < 30$ o $\text{HP} < 60$ en regeneración pasiva, efectuando *backpedal* y fuego de supresión.
-   - **`combat`** ($u = \min(0.80, \text{threat}/100)$): Avance o retroceso táctico manteniendo distancia idónea de combate y disparo probabilístico.
-   - **`formation`** ($u = 0.20$): Cobertura de ángulos muertos respecto a la mirada del jugador + evasión automática de la línea de fuego del jugador ($\text{dot} > 0.85$).
+   - **`rescue`** ($u = 0.98$): Rescate incondicional del jugador caído sin importar la distancia inicial, avanzando a $7.5\text{m/s}$.
+   - **`retreat`** ($u = 0.85$ / $0.78$): Retirada táctica a sprint ($+30\%$ velocidad) cuando $\text{HP} < 28$ o $\text{HP} < 60$ en regeneración pasiva, efectuando *backpedal* y fuego de supresión.
+   - **`combat`** ($u = \min(0.80, \text{threat}/100)$): Mantener distancia idónea de fuego ($9\text{m}$ avance, $3.8\text{m}$ retroceso).
+   - **`formation`** ($u = 0.20$ o $0.90$ tether): Cobertura de ángulos muertos + evasión suave de la línea de mira del jugador ($\text{dot} > 0.82$).
+

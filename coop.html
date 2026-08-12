@@ -257,34 +257,44 @@ border:1px solid var(--line);margin:20px 0 26px;max-width:420px}
 #pttIndicator{position:absolute;top:76px;left:50%;transform:translateX(-50%);padding:5px 14px;background:rgba(255,75,62,0.95);color:#fff;font-size:10px;font-weight:600;letter-spacing:.18em;border-radius:4px;display:none;align-items:center;gap:6px;z-index:15;box-shadow:0 0 16px rgba(255,75,62,0.6)}
 #pttIndicator.active{display:flex;animation:bp 1.0s infinite}
 
-/* ===== CONTROLES TÁCTILES Y UI MÓVIL ERGONÓMICA COMPACTA ===== */
+/* ===== CONTROLES TÁCTILES Y UI MÓVIL ERGONÓMICA DE ALTA RESPUESTA (DISTRIBUCIÓN 3 ZONAS) ===== */
 #touchHud{position:fixed;inset:0;pointer-events:none;z-index:15;display:none;user-select:none}
 body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:block}
 
-/* Joystick Analógico Izquierdo Compacto (Ø 100px - Ergónomico) */
-#joyContainer{position:absolute;left:16px;bottom:20px;width:100px;height:100px;pointer-events:auto;
-background:rgba(18,22,28,0.42);border:2px solid rgba(255,180,0,0.7);border-radius:50%;touch-action:none;
-box-shadow:0 0 12px rgba(255,180,0,0.2);backdrop-filter:blur(3px);opacity:0.7;transition:opacity 0.2s}
-#joyContainer:active, #joyContainer.active{opacity:0.95}
-#joyKnob{position:absolute;left:50%;top:50%;width:42px;height:42px;margin-left:-21px;margin-top:-21px;
-background:var(--amber);border:2px solid #111;border-radius:50%;pointer-events:none;
-box-shadow:0 0 8px rgba(255,210,87,0.5);transition:transform 0.04s ease-out}
-
 /* Zona de Apuntado Derecho */
-#touchLookZone{position:absolute;right:0;top:0;width:60vw;height:100vh;pointer-events:auto;touch-action:none}
+#touchLookZone{position:absolute;right:0;top:0;width:65vw;height:100vh;pointer-events:auto;touch-action:none}
 
-/* Botonera de Acción Ergonómica Táctil Móvil de Alta Respuesta */
-#touchActions{position:absolute;right:14px;bottom:18px;display:flex;flex-direction:column;gap:10px;
-align-items:flex-end;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
-.tBtn{width:48px;height:48px;border-radius:50%;background:linear-gradient(180deg,rgba(24,30,38,0.88),rgba(12,16,22,0.88));
-border:1.5px solid rgba(255,180,0,0.65);color:var(--amber2);font-family:var(--disp);font-size:9px;font-weight:700;
-display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,0.6);cursor:pointer;touch-action:none;
-backdrop-filter:blur(6px);-webkit-tap-highlight-color:transparent;user-select:none;
-transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-shadow 0.08s}
+/* ZONA IZQUIERDA: Joystick Analógico (Ø 100px) + Linterna + PTT */
+#touchActionsLeft{position:absolute;left:18px;bottom:20px;pointer-events:auto;touch-action:none}
+#joyContainer{width:100px;height:100px;background:rgba(18,22,28,0.45);border:2px solid rgba(255,180,0,0.75);border-radius:50%;touch-action:none;box-shadow:0 0 14px rgba(255,180,0,0.25);backdrop-filter:blur(4px);opacity:0.75;transition:opacity 0.2s}
+#joyContainer:active, #joyContainer.active{opacity:0.98}
+#joyKnob{position:absolute;left:50%;top:50%;width:44px;height:44px;margin-left:-22px;margin-top:-22px;background:var(--amber);border:2px solid #111;border-radius:50%;pointer-events:none;box-shadow:0 0 10px rgba(255,210,87,0.6);transition:transform 0.04s ease-out}
+
+#tBtnFlashlight{position:absolute;left:0px;bottom:118px;width:46px;height:46px}
+#tBtnPtt{position:absolute;left:56px;bottom:118px;width:46px;height:46px}
+
+/* ZONA SUPERIOR DERECHA: Cámara + Pausa */
+#touchActionsTop{position:absolute;right:14px;top:12px;display:flex;gap:10px;pointer-events:auto;touch-action:none}
+#touchActionsTop .tBtn{width:42px;height:42px;font-size:8px}
+
+/* ZONA INFERIOR DERECHA: ARCO ERGONÓMICO DE COMBATE */
+#touchActionsRight{position:absolute;right:18px;bottom:18px;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
+
+.tBtn{width:48px;height:48px;border-radius:50%;background:linear-gradient(180deg,rgba(24,30,38,0.90),rgba(12,16,22,0.90));border:1.5px solid rgba(255,180,0,0.7);color:var(--amber2);font-family:var(--disp);font-size:9px;font-weight:700;display:grid;place-items:center;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,0.65);cursor:pointer;touch-action:none;backdrop-filter:blur(6px);-webkit-tap-highlight-color:transparent;user-select:none;transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-shadow 0.08s}
+.tBtn small{font-size:7px;line-height:1;display:block}
 .tBtn:active, .tBtn.active{background:var(--amber);color:#0a0d10;transform:scale(0.88);box-shadow:0 0 16px rgba(255,180,0,0.85);border-color:#fff}
-#tBtnFire{width:68px;height:68px;border-color:rgba(255,75,62,0.9);color:#ffffff;background:linear-gradient(135deg,rgba(220,38,38,0.92),rgba(153,27,27,0.92));font-size:13px;font-weight:900;box-shadow:0 0 18px rgba(255,75,62,0.55)}
-#tBtnFire:active, #tBtnFire.active{background:linear-gradient(135deg,#ff4d3d,#dc2626);color:#fff;transform:scale(0.90);box-shadow:0 0 22px rgba(255,75,62,0.95)}
-.tRow{display:flex;gap:8px;align-items:center}
+
+/* Distribución del Arco Táctico Derecho */
+#tBtnFire{position:absolute;right:0px;bottom:0px;width:72px;height:72px;border-color:rgba(255,75,62,0.95);color:#ffffff;background:linear-gradient(135deg,rgba(220,38,38,0.95),rgba(153,27,27,0.95));font-size:12px;font-weight:900;box-shadow:0 0 20px rgba(255,75,62,0.6)}
+#tBtnFire:active, #tBtnFire.active{background:linear-gradient(135deg,#ff4d3d,#dc2626);color:#fff;transform:scale(0.90);box-shadow:0 0 24px rgba(255,75,62,0.98)}
+
+#tBtnJump{position:absolute;right:10px;bottom:84px;width:52px;height:52px;font-size:9px}
+#tBtnReload{position:absolute;right:72px;bottom:78px;width:52px;height:52px;font-size:9px}
+#tBtnWeapon{position:absolute;right:84px;bottom:14px;width:52px;height:52px;font-size:9px}
+
+#tBtnGrenade{position:absolute;right:72px;bottom:140px;width:46px;height:46px;border-color:#ff4b3e;color:#ff4b3e}
+#tBtnMode{position:absolute;right:134px;bottom:78px;width:44px;height:44px;font-size:8px}
+#tBtnRevive{position:absolute;right:134px;bottom:134px;width:48px;height:48px;border-color:var(--green);color:var(--green)}
 
 /* Estilos de Cristal Translúcido Ultra-Inmersivo para Paneles HUD */
 .pnl{background:rgba(10,14,18,0.72) !important;backdrop-filter:blur(10px) !important;border:1.5px solid rgba(255,180,0,0.25) !important;box-shadow:0 6px 20px rgba(0,0,0,0.5) !important;border-radius:4px !important}
@@ -292,26 +302,35 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
 @keyframes ammoPulse{0%{box-shadow:0 0 8px rgba(255,75,62,0.3)}100%{box-shadow:0 0 18px rgba(255,75,62,0.85);background:rgba(40,10,12,0.88) !important}}
 #health.low{border-color:rgba(255,75,62,0.85) !important;box-shadow:0 0 16px rgba(255,75,62,0.6) !important}
 
-/* Orientación Vertical (Portrait) */
-@media (orientation: portrait){
-  #stationSign{top:8px;left:8px;transform:scale(0.78);transform-origin:top left}
-  #scorePanel{top:8px;right:8px;transform:scale(0.78);transform-origin:top right}
-  #breakers{display:none}
-  #health{bottom:140px;left:8px;min-width:140px;transform:scale(0.82);transform-origin:bottom left}
-  #ammoPanel{bottom:140px;right:8px;min-width:120px;transform:scale(0.82);transform-origin:bottom right}
-  #minimap{bottom:auto;top:8px;left:50%;transform:translateX(-50%) scale(0.75)}
-  #joyContainer{left:10px;bottom:14px;width:90px;height:90px}
-  #joyKnob{width:36px;height:36px;margin-left:-18px;margin-top:-18px}
-  #touchActions{right:10px;bottom:14px;gap:6px}
-  .tBtn{width:42px;height:42px;font-size:8px}
-  #tBtnFire{width:58px;height:58px;font-size:11px}
-
-  #chatPanel{left:10px;bottom:150px;width:260px;max-width:70vw}
-  #chatBox{max-height:110px;font-size:9px}
-  .cMsg{padding:3px 7px}
-  #chatInput{font-size:10px}
-
+/* HUD Acomodado para Pantallas Móviles */
+@media (max-width: 900px){
+  #health{left:140px;bottom:14px;transform:scale(0.85);transform-origin:bottom left}
+  #ammoPanel{right:160px;bottom:14px;transform:scale(0.85);transform-origin:bottom right}
 }
+
+/* Modo Vertical (Portrait) */
+@media (orientation: portrait){
+  #stationSign{top:8px;left:8px;transform:scale(0.75);transform-origin:top left}
+  #scorePanel{top:8px;right:8px;transform:scale(0.75);transform-origin:top right}
+  #breakers{display:none}
+  #health{bottom:155px;left:8px;transform:scale(0.78);transform-origin:bottom left}
+  #ammoPanel{bottom:155px;right:8px;transform:scale(0.78);transform-origin:bottom right}
+  #minimap{bottom:auto;top:8px;left:50%;transform:translateX(-50%) scale(0.72)}
+  #joyContainer{width:86px;height:86px}
+  #joyKnob{width:36px;height:36px;margin-left:-18px;margin-top:-18px}
+  #tBtnFlashlight{bottom:98px;width:42px;height:42px}
+  #tBtnPtt{left:48px;bottom:98px;width:42px;height:42px}
+  #tBtnFire{width:62px;height:62px;font-size:10px}
+  #tBtnJump{right:6px;bottom:72px;width:46px;height:46px}
+  #tBtnReload{right:58px;bottom:66px;width:46px;height:46px}
+  #tBtnWeapon{right:70px;bottom:10px;width:46px;height:46px}
+  #tBtnGrenade{right:58px;bottom:120px;width:42px;height:42px}
+  #tBtnMode{right:110px;bottom:66px;width:40px;height:40px}
+  #tBtnRevive{right:110px;bottom:114px;width:42px;height:42px}
+  #chatPanel{left:8px;bottom:165px;width:240px;max-width:65vw}
+  #chatBox{max-height:100px;font-size:9px}
+}
+
 </style>
 </head>
 <body>
@@ -343,29 +362,35 @@ transition:transform 0.06s ease-out, background 0.08s, border-color 0.08s, box-s
     <div class="amR"><span id="ammoNum">30</span><span>/</span><span id="ammoRes">120</span> <span style="font-size:12px;margin-left:8px;color:#ffb400" id="grenadeHud">💣 x3</span></div>
     <div class="relBar" id="relBar"><div id="relFill"></div></div><div id="relTxt"></div></div>
   
-  <!-- CONTROLES TÁCTILES MÓVILES -->
+  <!-- CONTROLES TÁCTILES MÓVILES ERGONÓMICOS (DISTRIBUCIÓN 3 ZONAS) -->
   <div id="touchHud">
     <div id="touchLookZone"></div>
-    <div id="joyContainer"><div id="joyKnob"></div></div>
-    <div id="touchActions">
-      <div class="tRow">
-        <div class="tBtn" id="tBtnReload">R<br><small style="font-size:7px">RELOAD</small></div>
-        <div class="tBtn" id="tBtnMode">B<br><small style="font-size:7px">MODE</small></div>
-        <div class="tBtn" id="tBtnGrenade" style="border-color:#ff4b3e;color:#ff4b3e">G<br><small style="font-size:7px">💣 GRANADA</small></div>
-        <div class="tBtn" id="tBtnWeapon">TAB<br><small style="font-size:7px">WEAPON</small></div>
-        <div class="tBtn" id="tBtnCam" style="border-color:var(--cyan);color:var(--cyan)">C<br><small style="font-size:7px">CAM 3D</small></div>
-        <div class="tBtn" id="tBtnFlashlight">F<br><small style="font-size:7px">LIGHT</small></div>
-        <div class="tBtn" id="tBtnPause">PAUSE<br><small style="font-size:7px">⚙️</small></div>
-        <div class="tBtn" id="tBtnPtt">VOZ<br><small style="font-size:7px">PTT</small></div>
-        <div class="tBtn" id="tBtnJump">JUMP</div>
-      </div>
-      <div class="tRow">
-        <div class="tBtn" id="tBtnRevive">E<br><small style="font-size:7px">REVIVE</small></div>
-        <div class="tBtn" id="tBtnFire">FIRE</div>
-      </div>
+    
+    <!-- ZONA IZQUIERDA: MOVIMIENTO & UTILITARIOS -->
+    <div id="touchActionsLeft">
+      <div id="joyContainer"><div id="joyKnob"></div></div>
+      <div class="tBtn" id="tBtnFlashlight">F<br><small>LIGHT</small></div>
+      <div class="tBtn" id="tBtnPtt">VOZ<br><small>PTT</small></div>
     </div>
 
+    <!-- ZONA SUPERIOR DERECHA: CÁMARA & PAUSA -->
+    <div id="touchActionsTop">
+      <div class="tBtn" id="tBtnCam" style="border-color:var(--cyan);color:var(--cyan)">C<br><small>CAM 3D</small></div>
+      <div class="tBtn" id="tBtnPause">⚙️<br><small>PAUSE</small></div>
+    </div>
+
+    <!-- ZONA INFERIOR DERECHA: ARCO DE COMBATE Y ACCIÓN -->
+    <div id="touchActionsRight">
+      <div class="tBtn" id="tBtnMode">B<br><small>MODE</small></div>
+      <div class="tBtn" id="tBtnRevive">E<br><small>REVIVE</small></div>
+      <div class="tBtn" id="tBtnGrenade">💣<br><small>GRANADA</small></div>
+      <div class="tBtn" id="tBtnWeapon">TAB<br><small>ARMAS</small></div>
+      <div class="tBtn" id="tBtnReload">R<br><small>RECARGA</small></div>
+      <div class="tBtn" id="tBtnJump">SALTAR</div>
+      <div class="tBtn" id="tBtnFire">DISPARO</div>
+    </div>
   </div>
+
 
 
   <canvas id="minimap" width="140" height="90"></canvas>
@@ -2124,155 +2149,15 @@ function initGameEngine() {
     botsEnabled=true;
     logDiag('Escuadrón Utility AI desplegado: '+BOT_NAMES.join(', '),'ok');
     loadRobotGLTFForBots();
-    loadSoldierGLTFForPlayers();
-  }
-
-  const BOT_RADIUS = 0.55; // Radio del cilindro de colisión del bot (0.55m)
-
-  function navBotClamp(p){
-    const t = closestT(p.x, p.z);
-    const P = trackPos(t), N = outN(t);
-    const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
-    const st = stationness(t);
-    
-    const minLat = lerp(-3.8, -2.6, st) + BOT_RADIUS;
-    const maxLat = lerp(6.8, 3.6, st) - BOT_RADIUS;
-    
-    if(lat < minLat){
-      const push = minLat - lat;
-      p.x += N.x * push;
-      p.z += N.z * push;
-    } else if(lat > maxLat){
-      const push = maxLat - lat;
-      p.x += N.x * push;
-      p.z += N.z * push;
-    }
-  }
-
-  function applyBotSeparation(b, dt){
-    if(!b.group || b.downed || b.dead) return;
-    const pos = b.group.position;
-    const MIN_SEP = 1.8;
-    let sepX = 0, sepZ = 0;
-
-    for(const ob of bots){
-      if(ob === b || !ob.group || ob.dead) continue;
-      const opos = ob.group.position;
-      const dx = pos.x - opos.x;
-      const dz = pos.z - opos.z;
-      const d = Math.hypot(dx, dz);
-      if(d > 0.001 && d < MIN_SEP){
-        const force = (MIN_SEP - d) / MIN_SEP;
-        sepX += (dx / d) * force * 4.5 * dt;
-        sepZ += (dz / d) * force * 4.5 * dt;
-      }
-    }
-
-    if(camera){
-      const dx = pos.x - camera.position.x;
-      const dz = pos.z - camera.position.z;
-      const d = Math.hypot(dx, dz);
-      if(d > 0.001 && d < MIN_SEP){
-        const force = (MIN_SEP - d) / MIN_SEP;
-        sepX += (dx / d) * force * 5.0 * dt;
-        sepZ += (dz / d) * force * 5.0 * dt;
-      }
-    }
-
-    if(Math.abs(sepX) > 0.0001 || Math.abs(sepZ) > 0.0001){
-      pos.x += sepX;
-      pos.z += sepZ;
-      navBotClamp(pos);
-    }
-  }
-
-  function moveBotTo(b,dest,speed,dt){
-    const g=b.group;
-    if(!g) return;
-    const oldX = g.position.x, oldZ = g.position.z;
-    const dx=dest.x-g.position.x,dz=dest.z-g.position.z;
-    const dist=Math.hypot(dx,dz)||0.001;
-
-    g.position.x += (dx / dist) * speed * dt;
-    g.position.z += (dz / dist) * speed * dt;
-    navBotClamp(g.position);
-    applyBotSeparation(b, dt);
-
-    const actualDx = g.position.x - oldX;
-    const actualDz = g.position.z - oldZ;
-    if(Math.hypot(actualDx, actualDz) < 0.001 && dist > 0.5){
-      b.roamTarget = null;
-      b.patrolPos = null;
-    }
-
-    const targetY = getFloorY(g.position.x, g.position.z);
-    g.position.y = lerp(g.position.y, targetY, dt * 14);
-
-    if(dist > 0.05 && !b.aimingTgt){
-      const moveAng = Math.atan2(dx, dz);
-      g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
-    }
-
-    if(!b.downed){
-      b.walk+=dt*speed*2.4;
-      if(b.mixer){
-        const targetAction = speed > 4.5 ? 'Running' : 'Walking';
-        if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
-          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
-          b.actions[targetAction].reset().fadeIn(0.18).play();
-          b.activeAction = targetAction;
-        }
-      } else {
-        const sw=Math.sin(b.walk);
-        if(b.refs.armL){b.refs.armL.rotation.x=sw*0.6;b.refs.armR.rotation.x=-sw*0.6;}
-        if(b.refs.legL){b.refs.legL.rotation.x=-sw*0.7;b.refs.legR.rotation.x=sw*0.7;}
-      }
-    }
-  }
-
-  function findNearestEnemy(pos) {
-    let nearest = null;
-    let minDist = Infinity;
-    for (const z of zombies) {
-      if (z.dead) continue;
-      const dist = pos.distanceTo(z.g.position);
-      if (dist < minDist) {
-        minDist = dist;
-        nearest = z;
-      }
-    }
-    return nearest ? { enemy: nearest, dist: minDist } : null;
-  }
-
-  function executeBotFire(bot, target, dt) {
-    bot.fireCd -= dt;
-    if (bot.fireCd <= 0) {
-      bot.fireCd = R(0.4, 0.9);
-      if (bot.flash) {
-        bot.flash.visible = true;
-        bot.flash.material.rotation = R(0, 6.28);
-      }
-      if (bot.fLight) bot.fLight.intensity = 45;
-      sfx.shot();
-      if (bot.actions['Punch']) {
-        bot.actions['Punch'].stop().play();
-      }
-      const dist = bot.group.position.distanceTo(target.g.position);
-      const hitChance = Math.max(0.30, 0.95 - (dist * 0.02));
-      if (Math.random() < hitChance && !target.dead) {
-        const isHeadshot = Math.random() < 0.25;
-        const dmg = isHeadshot ? 50 : 22;
-        hurtZombie(target, isHeadshot ? 'head' : 'body', target.g.position, dmg);
-        burst(target.g.position, 'ichor', isHeadshot ? 12 : 6, 2.8);
-      }
-    }
   }
 
   function evaluateBotUtility(bot, dt) {
     if (bot.dead || bot.downed) return null;
     const botPos = bot.group.position;
     const playerPos = camera.position;
+    const distToPlayer = botPos.distanceTo(playerPos);
 
+    // 1. PERCEPCIÓN DE AMENAZAS EN 110° FOV / 40M RANGO
     let bestTarget = null;
     let maxThreat = -1;
     for (const z of zombies) {
@@ -2282,9 +2167,9 @@ function initGameEngine() {
       const dirToZ = _v1.subVectors(z.g.position, botPos).normalize();
       const botFacing = _v2.set(Math.sin(bot.group.rotation.y), 0, Math.cos(bot.group.rotation.y));
       const dot = botFacing.dot(dirToZ);
-      if (dot > -0.34 || dist < 4.0) {
+      if (dot > -0.34 || dist < 5.0) {
         let threat = (100 / Math.max(1, dist));
-        if (z.type.includes('boss')) threat *= 2.5;
+        if (z.type.includes('boss')) threat *= 2.2;
         if (z.grabbed || z.grabVictim) threat *= 3.0;
         if (threat > maxThreat) {
           maxThreat = threat;
@@ -2294,22 +2179,27 @@ function initGameEngine() {
     }
     bot.lastThreatScore = maxThreat;
 
-    const uRescue = (playerState === 'downed' && botPos.distanceTo(playerPos) < 15) ? 0.95 : 0.0;
-    const uSelfPreservation = (bot.hp < 30 && maxThreat > 20) ? 0.85 :
-                              (bot.isRetreatingToHeal && bot.hp < 60) ? 0.80 : 0.0;
-    const uCombat = bestTarget ? Math.min(0.80, maxThreat / 100) : 0.0;
-    const uFormation = 0.20;
+    // 2. CÁLCULO DE UTILIDADES CON SQUAD TETHERING (< 16m DEL JUGADOR)
+    const uRescue = (playerState === 'downed') ? 0.98 : 0.0;
+    const isFarFromPlayer = distToPlayer > 16.0;
+    
+    // Si el bot se aleja a más de 16m del jugador, priorizar volver a la formación de escuadrón
+    const uSelfPreservation = (bot.hp < 28 && maxThreat > 25 && !isFarFromPlayer) ? 0.85 :
+                              (bot.isRetreatingToHeal && bot.hp < 60 && !isFarFromPlayer) ? 0.78 : 0.0;
+    const uCombat = (bestTarget && !isFarFromPlayer) ? Math.min(0.80, maxThreat / 100) : 0.0;
+    const uFormation = isFarFromPlayer ? 0.90 : 0.20;
 
-    const HYSTERESIS = 0.15;
+    const HYSTERESIS = 0.12;
 
+    // ESTADO A: RESCATE INCONDICIONAL
     if (uRescue > uCombat + HYSTERESIS && uRescue > uSelfPreservation + HYSTERESIS) {
       bot.currentAction = 'rescue';
       bot.targetEnemy = null;
       const pd = botPos.distanceTo(playerPos);
       const aimAng = Math.atan2(playerPos.x - botPos.x, playerPos.z - botPos.z);
-      bot.group.rotation.y = aimAng;
+      bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 10);
       if (pd > 2.0) {
-        moveBotTo(bot, playerPos, 7.2, dt);
+        moveBotTo(bot, playerPos, 7.5, dt);
       } else {
         botReviveT += dt;
         if (bot.actions['Wave'] && bot.activeAction !== 'Wave') {
@@ -2317,8 +2207,8 @@ function initGameEngine() {
           bot.actions['Wave'].reset().fadeIn(0.15).play();
           bot.activeAction = 'Wave';
         }
-        if (botReviveT > 3.0) {
-          playerState = 'alive'; hp = 55; hudHP();
+        if (botReviveT > 2.8) {
+          playerState = 'alive'; hp = 60; hudHP();
           feed(bot.name + ' TE REANIMÓ', 'g'); sfx.revive();
           if ($('#downedHud')) $('#downedHud').classList.remove('show');
           netSend({type: 'pstate', state: 'alive'});
@@ -2328,6 +2218,7 @@ function initGameEngine() {
       return;
     }
 
+    // ESTADO B: RETIRADA TÁCTICA Y CURACIÓN
     if (uSelfPreservation > uCombat + HYSTERESIS) {
       bot.currentAction = 'retreat';
       if (bestTarget) {
@@ -2335,7 +2226,7 @@ function initGameEngine() {
         const enemyT = closestT(bestTarget.g.position.x, bestTarget.g.position.z);
         let escapeDir = Math.sign(botT - enemyT);
         if (escapeDir === 0) escapeDir = 1;
-        const safeT = (botT + escapeDir * 0.08 + 1) % 1;
+        const safeT = (botT + escapeDir * 0.06 + 1) % 1;
         const trackP = trackPos(safeT);
         const trackN = outN(safeT);
         const safeDest = new THREE.Vector3(
@@ -2343,31 +2234,29 @@ function initGameEngine() {
           getFloorY(trackP.x, trackP.z),
           trackP.z + trackN.z * (bot.latOffset || 1.8)
         );
-        moveBotTo(bot, safeDest, bot.baseSpeed * 1.35, dt);
+        moveBotTo(bot, safeDest, bot.baseSpeed * 1.3, dt);
         const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
         bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 8);
-        if (botPos.distanceTo(bestTarget.g.position) < 10) {
+        if (botPos.distanceTo(bestTarget.g.position) < 12) {
           executeBotFire(bot, bestTarget, dt);
         }
         if (bot.hp < 28 || (bot.hp < 45 && bot.recentDamageTimer > 1.5)) {
           bot.isRetreatingToHeal = true;
         }
-        if (Math.random() < 0.01) {
-          feed(`🏥 ${bot.name}: ¡REPLEGÁNDOME PARA CURARME!`, 'h');
-        }
       }
       return;
     }
 
+    // ESTADO C: COMBATE DIRECTO Y FUEGO PROBABILÍSTICO
     if (uCombat > uFormation + HYSTERESIS && bestTarget) {
       bot.currentAction = 'combat';
       bot.aimingTgt = true;
       const distToTarget = botPos.distanceTo(bestTarget.g.position);
       const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
       bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 10);
-      if (distToTarget > 8.0) {
+      if (distToTarget > 9.0) {
         moveBotTo(bot, bestTarget.g.position, bot.baseSpeed, dt);
-      } else if (distToTarget < 4.5 || bot.recentDamageTimer > 0) {
+      } else if (distToTarget < 3.8 || bot.recentDamageTimer > 0) {
         const retreatDir = new THREE.Vector3().subVectors(botPos, bestTarget.g.position).normalize();
         const retreatTarget = botPos.clone().add(retreatDir.multiplyScalar(3.0));
         moveBotTo(bot, retreatTarget, bot.baseSpeed * 0.85, dt);
@@ -2382,33 +2271,37 @@ function initGameEngine() {
       return;
     }
 
+    // ESTADO D: FORMACIÓN Y COBERTURA DE ESCUADRÓN
     bot.currentAction = 'formation';
     bot.aimingTgt = false;
 
+    // EVITAR LÍNEA DE FUEGO DEL JUGADOR
     const playerForward = _v3.set(-Math.sin(yaw), 0, -Math.cos(yaw));
     const toBot = _v4.subVectors(botPos, camera.position);
     const dotToBot = playerForward.dot(toBot.normalize());
 
-    if (dotToBot > 0.85 && toBot.length() < 8 && playerState === 'alive') {
+    if (dotToBot > 0.82 && toBot.length() < 7.5 && playerState === 'alive') {
       const sideStep = new THREE.Vector3(-playerForward.z, 0, playerForward.x);
-      const sidePos = botPos.clone().add(sideStep.multiplyScalar(2.5));
-      moveBotTo(bot, sidePos, bot.baseSpeed * 1.2, dt);
+      const sidePos = botPos.clone().add(sideStep.multiplyScalar(2.4));
+      moveBotTo(bot, sidePos, bot.baseSpeed * 1.25, dt);
       return;
     }
 
-    const offsetAngle = yaw + (bot.id === 1 ? Math.PI * 0.5 : bot.id === 2 ? -Math.PI * 0.5 : Math.PI);
+    const offsetAngle = yaw + (bot.id === 1 ? Math.PI * 0.45 : bot.id === 2 ? -Math.PI * 0.45 : Math.PI);
     const targetPatrolPos = new THREE.Vector3(
-      playerPos.x + Math.sin(offsetAngle) * 3.5,
+      playerPos.x + Math.sin(offsetAngle) * 3.2,
       getFloorY(playerPos.x, playerPos.z),
-      playerPos.z + Math.cos(offsetAngle) * 3.5
+      playerPos.z + Math.cos(offsetAngle) * 3.2
     );
 
-    if (botPos.distanceTo(targetPatrolPos) > 1.5) {
-      moveBotTo(bot, targetPatrolPos, bot.baseSpeed, dt);
+    const moveSpeed = distToPlayer > 12 ? bot.baseSpeed * 1.4 : bot.baseSpeed;
+    if (botPos.distanceTo(targetPatrolPos) > 1.2) {
+      moveBotTo(bot, targetPatrolPos, moveSpeed, dt);
     } else {
       bot.group.rotation.y = lerpAngle(bot.group.rotation.y, offsetAngle, dt * 4);
     }
   }
+
 
   function updateBots(dt){
     if(!botsEnabled||!playing)return;
@@ -3985,9 +3878,10 @@ function initGameEngine() {
       flash.scale.setScalar(0.22);flash.position.set(0,0.04,-0.42);flash.visible=false;gun.add(flash);
       const fLight=new THREE.PointLight(0xffb060,0,5,2);fLight.position.set(0,0.04,-0.42);gun.add(fLight);
       g.traverse(o=>{if(o.isMesh)o.castShadow=!isRemote;});
+      g.userData.refs = {armL,armR,legL,legR};
       scene.add(g);
-      if(!isBot && cachedSoldierGLTF) applySoldierToGroup(g);
       return {group:g,gun,flash,fLight,refs:{armL,armR,legL,legR},walk:R(0,6)};
+
 
 
     } catch(err) {
@@ -4871,11 +4765,12 @@ function initGameEngine() {
     document.body.classList.add('playing');
     hudAmmo();hudHP();hudScore();hudWave();playing=true;startTime=elapsed;requestLock();
     if(!localPlayerBodyGroup){
-      localPlayerBodyGroup = new THREE.Group();
+      const pm = buildPlayerMesh(0, false, false);
+      localPlayerBodyGroup = pm.group;
       localPlayerBodyGroup.name = 'localPlayerBody';
-      scene.add(localPlayerBodyGroup);
+      localPlayerBodyGroup.userData.refs = pm.refs;
     }
-    loadSoldierGLTFForPlayers();
+
     /* GQW-VIS-5.0: Spawn AI squad ONLY in dedicated 'bots' mode */
     if(gameMode === 'bots' && typeof spawnBots === 'function'){
       spawnBots();

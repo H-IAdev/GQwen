@@ -88,3 +88,20 @@ JERARQUÍA DE ILUMINACIÓN — GQwen Co-Op 3D (GQW-VIS-6.0)
      - `1ª Persona Inmersiva (Full Body 3D)`: La cámara se sitúa en los ojos del soldado y se oculta la cabeza (`scale = 0.0001`), permitiendo mirar hacia abajo y ver tu torso, chaleco táctico, piernas caminando y el arma en tu mano derecha en 3D real.
      - `3ª Persona (Posterior)`: Cámara jalada $2.5\text{m}$ hacia atrás para ver a tu soldado en tercera persona.
      - `3ª Persona (Frontal)`: Cámara ubicada $2.5\text{m}$ enfrente para inspeccionar tu equipamiento de cara.
+
+---
+
+## 4. DISTRIBUCIÓN ERGONÓMICA DE CONTROLES TÁCTILES MÓVILES (3 ZONAS)
+
+La interfaz táctil en dispositivos móviles sigue el estándar industrial de juegos de disparos en 3D (PUBG / CoD Mobile):
+
+1. **Zona Izquierda (Desplazamiento y Utilitarios)**:
+   - **Joystick Analógico Virtual (`#joyContainer`)**: Diámetro de $100\text{px}$ ubicado en la esquina inferior izquierda.
+   - **Linterna Táctica (`#tBtnFlashlight`) y PTT Voz (`#tBtnPtt`)**: Distribuidos verticalmente sobre el joystick.
+
+2. **Zona Superior Derecha (Sistema)**:
+   - **Pausa (`#tBtnPause`) y Cambio de Cámara 3D (`#tBtnCam`)**: Situados en la esquina superior para evitar interrupciones durante el combate.
+
+3. **Zona Inferior Derecha (Arco Ergonómico de Combate)**:
+   - **Botón de Disparo Principal (`#tBtnFire`)**: Botón rojo prominente de $72\text{px}$ situado en la esquina inferior derecha.
+   - **Arco Táctico Envolvente**: Botones de Salto (`#tBtnJump`), Recarga (`#tBtnReload`), Cambio de Arma (`#tBtnWeapon`), Granada (`#tBtnGrenade`), Modo de Fuego (`#tBtnMode`) y Reanimación (`#tBtnRevive`) organizados en abanico ergonómico natural.
