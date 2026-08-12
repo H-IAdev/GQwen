@@ -402,7 +402,14 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
   <div id="downedHud"><h3>INCAPACITATED</h3><p>WAITING FOR REVIVE...</p><div class="dt" id="downTimer">20</div></div>
   <div id="breakerWarn">⚠ BREAKERS LOW — HOSTILES ENRAGED +30% SPEED ⚠</div>
 
+  <div id="breakersPanel" class="pnl" style="position:absolute;bottom:84px;left:14px;padding:6px 12px;display:flex;align-items:center;gap:8px;z-index:12;pointer-events:auto;">
+    <span style="font-size:9px;color:var(--amber2);font-weight:600;letter-spacing:.1em;">LIGHTS/BREAKERS:</span>
+    <input type="range" id="bright" min="5" max="100" value="66" style="width:90px;cursor:pointer;">
+    <span id="pct">66%</span>
+  </div>
+
   <div id="pttIndicator"><span>🎙 VOZ ACTIVA (PTT)</span></div>
+
   <div id="chatPanel">
     <div id="chatBox"></div>
     <div id="chatInputRow">
@@ -478,7 +485,18 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
 
 <!-- CARGA CON MÚLTIPLES CDN FALLBACKS DE ALTA DISPONIBILIDAD -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+if (typeof THREE === 'undefined') {
+  document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"><\/script>');
+}
+</script>
+<script>
+if (typeof THREE === 'undefined') {
+  document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/utils/SkeletonUtils.js"></script>
@@ -1459,6 +1477,7 @@ function initGameEngine() {
     wave(){tH({type:'square',f0:62,dur:.6,vol:.15});tH({type:'square',f0:93,dur:.6,vol:.12,at:.1});},
     down(){tH({f0:85,f1:28,dur:1,vol:.45});},
     revive(){tH({f0:440,dur:.1,vol:.2});tH({f0:660,dur:.1,vol:.2,at:.12});tH({f0:880,dur:.15,vol:.2,at:.24});},
+    click(){tH({f0:1200,dur:.05,vol:.15});},
     explosion(){nH({dur:.5,vol:.85,f:2200,f1:120,type:'lowpass'});tH({f0:120,f1:30,dur:.6,vol:.95,type:'sawtooth'});tH({f0:60,f1:20,dur:.8,vol:1.0,type:'sine'});}
   };
 
@@ -1585,7 +1604,7 @@ function initGameEngine() {
   }
 
   /* ===== SISTEMA DE ARMAS Y PUÑOS 3D ===== */
-  let activeWeapon='gun'; // 'gun' | 'fists'
+  let activeWeapon='gun'; // 'gun' | 'shotgun' | 'fists'
   let punchSide=0, punchCd=0, punchT=0;
 
 
@@ -1601,6 +1620,23 @@ function initGameEngine() {
    const fs=setTF(box(.007,.018,.007,std({color:0x111111,emissive:0xffb400,emissiveIntensity:2},.2)),[0,.085,-.18]);
    addE(fs.material,2,true);weapon.add(fs);
    weapon.traverse(o=>{if(o.isMesh)o.layers.set(2);});}
+
+  // MODELO 3D DE ESCOPETA EN PRIMERA PERSONA
+  const shotgunGroup = new THREE.Group(); camera.add(shotgunGroup);
+  {
+    const gm = std({color:0x343a40, roughness:.3, metalness:.85}, .5);
+    const gm2 = std({color:0x1a1d20, roughness:.6, metalness:.9}, .4);
+    const wood = std({color:0x4a2e1b, roughness:.8, metalness:.1}, .3);
+    shotgunGroup.add(setTF(box(.07, .08, .36, gm), [0, .01, -.06]));
+    const b1 = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .40, 10), gm2);
+    b1.rotation.x = Math.PI / 2; b1.position.set(-.015, .035, -.24); shotgunGroup.add(b1);
+    const b2 = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .40, 10), gm2);
+    b2.rotation.x = Math.PI / 2; b2.position.set(.015, .035, -.24); shotgunGroup.add(b2);
+    shotgunGroup.add(setTF(box(.065, .06, .14, wood), [0, -.02, -.14]));
+    shotgunGroup.add(setTF(box(.04, .12, .07, gm2), [0, -.08, .08], [-.3, 0, 0]));
+    shotgunGroup.traverse(o => { if(o.isMesh) o.layers.set(2); });
+    shotgunGroup.visible = false;
+  }
 
   // MODELO 3D DE PUÑOS Y BRAZOS DE PRIMERA PERSONA
   const fistsGroup=new THREE.Group();camera.add(fistsGroup);
@@ -1677,8 +1713,9 @@ function initGameEngine() {
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
   /* Linterna Táctica Frontal montada sobre la cámara */
-  const flashlight=new THREE.SpotLight(0xfff5e0,0,45,Math.PI/7,0.35,1.8);
+  const flashlight=new THREE.SpotLight(0xfff5e0,2.5,45,Math.PI/7,0.35,1.8);
   flashlight.position.set(0.2,-0.15,-0.2);flashlight.visible=false;flashlight.layers.set(2);camera.add(flashlight);
+
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
   const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_v4=new THREE.Vector3(),_vHead=new THREE.Vector3(),_vBurst=new THREE.Vector3(),_vFwd=new THREE.Vector3();
 
@@ -2303,12 +2340,19 @@ function initGameEngine() {
     }
   }
 
-  function evaluateBotUtility(bot, dt) {
+  const ROLE_CFG = {
+    scout:   { maxTether: 25.0, aggro: 1.25, leadAhead: 0.045 }, // VEGA: explora adelante por la vía
+    anchor:  { maxTether: 11.0, aggro: 0.85, leadAhead: 0.000 }, // RUIZ: pegado a defender al jugador
+    flanker: { maxTether: 18.0, aggro: 1.05, leadAhead: 0.015 }  // KIDO: maniobra por los flancos
+  };
 
+  function evaluateBotUtility(bot, dt) {
     if (bot.dead || bot.downed) return null;
     const botPos = bot.group.position;
     const playerPos = camera.position;
     const distToPlayer = botPos.distanceTo(playerPos);
+
+    const rc = ROLE_CFG[bot.role] || ROLE_CFG.anchor;
 
     // 1. PERCEPCIÓN DE AMENAZAS EN 110° FOV / 40M RANGO
     let bestTarget = null;
@@ -2321,7 +2365,7 @@ function initGameEngine() {
       const botFacing = _v2.set(Math.sin(bot.group.rotation.y), 0, Math.cos(bot.group.rotation.y));
       const dot = botFacing.dot(dirToZ);
       if (dot > -0.34 || dist < 5.0) {
-        let threat = (100 / Math.max(1, dist));
+        let threat = (100 / Math.max(1, dist)) * rc.aggro;
         if (z.type.includes('boss')) threat *= 2.2;
         if (z.grabbed || z.grabVictim) threat *= 3.0;
         if (threat > maxThreat) {
@@ -2332,15 +2376,14 @@ function initGameEngine() {
     }
     bot.lastThreatScore = maxThreat;
 
-    // 2. CÁLCULO DE UTILIDADES CON SQUAD TETHERING (< 16m DEL JUGADOR)
+    // 2. CÁLCULO DE UTILIDADES CON SQUAD TETHERING SEGÚN ROL
     const uRescue = (playerState === 'downed') ? 0.98 : 0.0;
-    const isFarFromPlayer = distToPlayer > 16.0;
+    const isFarFromPlayer = distToPlayer > rc.maxTether;
     
-    // Si el bot se aleja a más de 16m del jugador, priorizar volver a la formación de escuadrón
     const uSelfPreservation = (bot.hp < 28 && maxThreat > 25 && !isFarFromPlayer) ? 0.85 :
                               (bot.isRetreatingToHeal && bot.hp < 60 && !isFarFromPlayer) ? 0.78 : 0.0;
-    const uCombat = (bestTarget && !isFarFromPlayer) ? Math.min(0.80, maxThreat / 100) : 0.0;
-    const uFormation = isFarFromPlayer ? 0.90 : 0.20;
+    const uCombat = (bestTarget && !isFarFromPlayer) ? Math.min(0.85, maxThreat / 100) : 0.0;
+    const uFormation = isFarFromPlayer ? 0.92 : (bot.role === 'anchor' ? 0.45 : 0.15);
 
     const HYSTERESIS = 0.12;
 
@@ -2361,7 +2404,7 @@ function initGameEngine() {
           bot.activeAction = 'Wave';
         }
         if (botReviveT > 2.8) {
-          playerState = 'alive'; hp = 60; hudHP();
+          playerState = 'alive'; hp = (_cfg && _cfg.player && _cfg.player.maxHp) ? _cfg.player.maxHp * 0.6 : 60; hudHP();
           feed(bot.name + ' TE REANIMÓ', 'g'); sfx.revive();
           if ($('#downedHud')) $('#downedHud').classList.remove('show');
           netSend({type: 'pstate', state: 'alive'});
@@ -2400,14 +2443,21 @@ function initGameEngine() {
       return;
     }
 
-    // ESTADO C: COMBATE DIRECTO Y FUEGO PROBABILÍSTICO
+    // ESTADO C: COMBATE DIRECTO Y ATAQUE POR EL FLANCO SEGÚN ROL
     if (uCombat > uFormation + HYSTERESIS && bestTarget) {
       bot.currentAction = 'combat';
       bot.aimingTgt = true;
       const distToTarget = botPos.distanceTo(bestTarget.g.position);
       const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
       bot.group.rotation.y = lerpAngle(bot.group.rotation.y, aimAng, dt * 10);
-      if (distToTarget > 9.0) {
+
+      if (bot.role === 'flanker') {
+        // FLANKER (KIDO): ataca desde posición lateral perpendicular al enemigo
+        const sideDir = _v3.subVectors(bestTarget.g.position, botPos).normalize();
+        const perpDir = new THREE.Vector3(-sideDir.z, 0, sideDir.x).multiplyScalar(3.8 * (bot.id % 2 === 0 ? 1 : -1));
+        const flankDest = bestTarget.g.position.clone().add(perpDir);
+        moveBotTo(bot, flankDest, bot.baseSpeed, dt);
+      } else if (distToTarget > 9.0) {
         moveBotTo(bot, bestTarget.g.position, bot.baseSpeed, dt);
       } else if (distToTarget < 3.8 || bot.recentDamageTimer > 0) {
         const retreatDir = new THREE.Vector3().subVectors(botPos, bestTarget.g.position).normalize();
@@ -2424,9 +2474,24 @@ function initGameEngine() {
       return;
     }
 
-    // ESTADO D: FORMACIÓN Y COBERTURA DE ESCUADRÓN
+    // ESTADO D: PATRULLAJE Y FORMACIÓN DE ESCUADRÓN
     bot.currentAction = 'formation';
     bot.aimingTgt = false;
+
+    // Patrullaje activo en calma cuando no hay enemigos en pantalla
+    if (!bestTarget && zombies.length === 0 && rc.leadAhead > 0) {
+      const targetT = (playerT + rc.leadAhead + 1) % 1;
+      const trackP = trackPos(targetT);
+      const trackN = outN(targetT);
+      const patrolDest = new THREE.Vector3(
+        trackP.x + trackN.x * bot.latOffset,
+        getFloorY(trackP.x, trackP.z),
+        trackP.z + trackN.z * bot.latOffset
+      );
+      moveBotTo(bot, patrolDest, bot.baseSpeed * 0.75, dt);
+      return;
+    }
+
 
     // EVITAR LÍNEA DE FUEGO DEL JUGADOR
     const playerForward = _v3.set(-Math.sin(yaw), 0, -Math.cos(yaw));
@@ -2760,7 +2825,8 @@ function initGameEngine() {
 
     slot.type=type;
   }
-  const MIN_SPAWN_DIST = 26; // metros mínimos a cualquier unidad viva
+  const MIN_SPAWN_DIST = 18; // metros mínimos a cualquier unidad viva (antes 26)
+
   function pickSpawnParams(){
     const units = typeof getAlivePlayers === 'function' ? getAlivePlayers() : [];
     const cands = [];
@@ -2963,7 +3029,11 @@ function initGameEngine() {
       const dist=Math.abs(dir)*TRACK_LEN;
       // LOD: ocultar animación de zombies lejanos (>45m) — solo mover posición a velocidad constante
       if(dist>45){if(z.g.visible)z.g.visible=false;z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;z.t=((z.t%1)+1)%1;continue;}
-      if(!z.g.visible&&!z.frustumHidden)z.g.visible=true; // Fase 6D: respetar frustum culling
+      // FIX INVISIBILIDAD: garantizar visibilidad de zombies vivos en rango de cámara
+      if(!z.g.visible && !z.spawning && !z.dead){
+        if(_vCam.distanceTo(z.g.position) < 45) z.g.visible = true;
+      }
+
       // Distancia 3D real entre zombie y target
       const tp=trackPos(z.t),tn3d=outN(z.t);
       const z3dPos={x:tp.x+tn3d.x*z.lat,y:0,z:tp.z+tn3d.z*z.lat};
@@ -3626,11 +3696,12 @@ function initGameEngine() {
       e.preventDefault(); throwGrenade();
     }
     if((e.code==='KeyF'||e.key==='f'||e.key==='F')&&playing){
-
-      flashlight.visible=!flashlight.visible;
+      flashlight.visible = !flashlight.visible;
+      flashlight.intensity = flashlight.visible ? 2.5 : 0;
       sfx.click();
       feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
     }
+
     if(e.code==='Enter'){if(!$('#over').classList.contains('gone'))resetGame();}
   });
   window.addEventListener('keyup',e=>{
@@ -4974,7 +5045,9 @@ function initGameEngine() {
     for(const[,rz]of remoteZombies)scene.remove(rz.mesh);remoteZombies.clear();
     pickups.forEach(p=>scene.remove(p.m));pickups.length=0;
     queue=[];clearing=true;clearT=2.5;
-    hp=100;ammoGun=30;reserveGun=120;ammoShotgun=6;reserveShotgun=36;ammo=MAG;reserve=reserveGun;wave=0;score=0;kills=0;headshots=0;
+    hp = (_cfg && _cfg.player && _cfg.player.maxHp) ? _cfg.player.maxHp : 100;
+    ammoGun=30;reserveGun=120;ammoShotgun=6;reserveShotgun=36;ammo=MAG;reserve=reserveGun;wave=0;score=0;kills=0;headshots=0;
+
     grenades=3;hudGrenades();if(typeof activeGrenades!=='undefined'&&Array.isArray(activeGrenades)){activeGrenades.forEach(g=>{if(g.mesh)scene.remove(g.mesh);});activeGrenades.length=0;}
     reloading=false;fireCd=0;firing=false;wKick=0;dmgFlash=0;shake=0;
 
@@ -5408,7 +5481,7 @@ function initGameEngine() {
         if(!z.dead&&z.g&&z.g.update)z.g.update(camera);
         if(z.aura)z.aura.intensity=4+3*Math.sin(elapsed*1.5+z.id);
       }
-      /* Fase 6D — Frustum culling: ocultar zombies fuera del cono de visión +10m buffer */
+      /* Fase 6D — Diagnóstico informativo de frustum (Three.js realiza culling automático per-mesh) */
       camera.updateMatrixWorld(true); // asegura matrixWorldInverse actualizada
       _projScreenMatrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);
       _frustum.setFromProjectionMatrix(_projScreenMatrix);
@@ -5416,8 +5489,6 @@ function initGameEngine() {
         if(z.dead||!z.g)continue;
         _frustumSphere.center.copy(z.g.position);
         z.frustumHidden=!_frustum.intersectsSphere(_frustumSphere);
-        if(z.frustumHidden&&z.g.visible)z.g.visible=false;
-        // Si estaba oculto y ahora visible, la IA lo re-muestra (frustumHidden=false)
       }
       updateRemotePlayers(dt);
       updateCulling();
@@ -5429,6 +5500,11 @@ function initGameEngine() {
         weapon.position.set(.22, -.2 - downDip + Math.sin(bobT) * .004, -.42 + wKick * .08);
         weapon.rotation.set(wKick * .15 - dip - downDip, 0, wKick * .02);
       }
+      if(shotgunGroup){
+        shotgunGroup.position.set(.22, -.2 - downDip + Math.sin(bobT) * .004, -.42 + wKick * .08);
+        shotgunGroup.rotation.set(wKick * .15 - dip - downDip, 0, wKick * .02);
+      }
+
       
       const pOff = Math.sin(Math.min(1, punchT) * Math.PI) * 0.38;
       if(fistsGroup && fistsGroup.children.length >= 2){
@@ -5683,9 +5759,14 @@ function initGameEngine() {
   bindTouchBtn('#tBtnCam', () => { if(playing) toggleCamMode(); });
 
   bindTouchBtn('#tBtnFlashlight', () => {
-
-    if(flashlight){ flashlight.visible = !flashlight.visible; feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h'); }
+    if(flashlight){
+      flashlight.visible = !flashlight.visible;
+      flashlight.intensity = flashlight.visible ? 2.5 : 0;
+      sfx.click();
+      feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
+    }
   });
+
   bindTouchBtn('#tBtnRevive', () => { keys['KeyE'] = true; }, () => { keys['KeyE'] = false; });
   bindTouchBtn('#tBtnPtt', () => { setPTTState(true); }, () => { setPTTState(false); });
 
