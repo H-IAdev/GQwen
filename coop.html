@@ -4417,7 +4417,7 @@ function initGameEngine() {
   /* ===== DIRECTORIO DE SALAS ABIERTAS P2P (HÍBRIDO REST API + LOCAL) ===== */
 
   const OPEN_ROOMS_KEY = 'gqwen_open_p2p_rooms_v46';
-  const GLOBAL_ROOMS_API = window.CUSTOM_ROOMS_API || 'https://lumen-st-loopline-default-rtdb.firebaseio.com/rooms';
+  const GLOBAL_ROOMS_API = window.CUSTOM_ROOMS_API || null;
   let _roomAnnounceTimer = null;
   let _currentRoomCode = null;
 
@@ -4442,14 +4442,16 @@ function initGameEngine() {
       localStorage.setItem(OPEN_ROOMS_KEY, JSON.stringify(rooms));
     } catch(e){}
 
-    // 2. Anuncio síncrono a API remota de salas (REST API)
-    try {
-      fetch(`${GLOBAL_ROOMS_API}/${code}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(() => {});
-    } catch(e){}
+    // 2. Anuncio síncrono a API remota de salas (REST API activa solo si se configura CUSTOM_ROOMS_API)
+    if(GLOBAL_ROOMS_API){
+      try {
+        fetch(`${GLOBAL_ROOMS_API}/${code}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch(e){}
+    }
   }
 
   async function removeRoomPresence(code){
@@ -4459,9 +4461,11 @@ function initGameEngine() {
       delete rooms[code];
       localStorage.setItem(OPEN_ROOMS_KEY, JSON.stringify(rooms));
     } catch(e){}
-    try {
-      fetch(`${GLOBAL_ROOMS_API}/${code}.json`, { method: 'DELETE' }).catch(() => {});
-    } catch(e){}
+    if(GLOBAL_ROOMS_API){
+      try {
+        fetch(`${GLOBAL_ROOMS_API}/${code}.json`, { method: 'DELETE' }).catch(() => {});
+      } catch(e){}
+    }
   }
 
   async function renderOpenRooms(){
@@ -4480,22 +4484,25 @@ function initGameEngine() {
       }
     } catch(e){}
 
-    // 2. Consultar directorio de salas global vía REST API
-    try {
-      const res = await fetch(`${GLOBAL_ROOMS_API}.json`);
-      if(res.ok){
-        const remoteData = await res.json();
-        if(remoteData && typeof remoteData === 'object'){
-          Object.values(remoteData).forEach(r => {
-            if(r && r.code && r.ts && (now - r.ts <= 15000)){
-              roomsMap[r.code] = r;
-            }
-          });
+    // 2. Consultar directorio de salas global vía REST API solo si se ha configurado la URL
+    if(GLOBAL_ROOMS_API){
+      try {
+        const res = await fetch(`${GLOBAL_ROOMS_API}.json`);
+        if(res.ok){
+          const remoteData = await res.json();
+          if(remoteData && typeof remoteData === 'object'){
+            Object.values(remoteData).forEach(r => {
+              if(r && r.code && r.ts && (now - r.ts <= 15000)){
+                roomsMap[r.code] = r;
+              }
+            });
+          }
         }
-      }
-    } catch(e){}
+      } catch(e){}
+    }
 
     const activeList = Object.values(roomsMap);
+
 
     if(activeList.length === 0){
       listEl.innerHTML = '<div style="font-size:10px;color:var(--dim);padding:4px 0;">NO HAY SALAS P2P EN LÍNEA ACTIVAS. ¡CREA UNA NUEVA!</div>';
