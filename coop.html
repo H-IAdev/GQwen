@@ -2148,9 +2148,115 @@ function initGameEngine() {
       });
     }
     botsEnabled=true;
+    logDiag('Escuadrón Utility AI desplegado: '+BOT_NAMES.join(', '),'ok');
+    loadRobotGLTFForBots();
+  }
+
+  const BOT_RADIUS = 0.55;
+
+  function navBotClamp(p){
+    const t = closestT(p.x, p.z);
+    const P = trackPos(t), N = outN(t);
+    const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
+    const st = stationness(t);
+    
+    const minLat = lerp(-3.8, -2.6, st) + BOT_RADIUS;
+    const maxLat = lerp(6.8, 3.6, st) - BOT_RADIUS;
+    
+    if(lat < minLat){
+      const push = minLat - lat;
+      p.x += N.x * push;
+      p.z += N.z * push;
+    } else if(lat > maxLat){
+      const push = maxLat - lat;
+      p.x += N.x * push;
+      p.z += N.z * push;
+    }
+  }
+
+  function applyBotSeparation(b, dt){
+    if(!b.group || b.downed || b.dead) return;
+    const pos = b.group.position;
+    const MIN_SEP = 1.8;
+    let sepX = 0, sepZ = 0;
+
+    for(const ob of bots){
+      if(ob === b || !ob.group || ob.dead) continue;
+      const opos = ob.group.position;
+      const dx = pos.x - opos.x;
+      const dz = pos.z - opos.z;
+      const d = Math.hypot(dx, dz);
+      if(d > 0.001 && d < MIN_SEP){
+        const force = (MIN_SEP - d) / MIN_SEP;
+        sepX += (dx / d) * force * 4.5 * dt;
+        sepZ += (dz / d) * force * 4.5 * dt;
+      }
+    }
+
+    if(camera){
+      const dx = pos.x - camera.position.x;
+      const dz = pos.z - camera.position.z;
+      const d = Math.hypot(dx, dz);
+      if(d > 0.001 && d < MIN_SEP){
+        const force = (MIN_SEP - d) / MIN_SEP;
+        sepX += (dx / d) * force * 5.0 * dt;
+        sepZ += (dz / d) * force * 5.0 * dt;
+      }
+    }
+
+    if(Math.abs(sepX) > 0.0001 || Math.abs(sepZ) > 0.0001){
+      pos.x += sepX;
+      pos.z += sepZ;
+      navBotClamp(pos);
+    }
+  }
+
+  function moveBotTo(b,dest,speed,dt){
+    const g=b.group;
+    if(!g) return;
+    const oldX = g.position.x, oldZ = g.position.z;
+    const dx=dest.x-g.position.x,dz=dest.z-g.position.z;
+    const dist=Math.hypot(dx,dz)||0.001;
+
+    g.position.x += (dx / dist) * speed * dt;
+    g.position.z += (dz / dist) * speed * dt;
+    navBotClamp(g.position);
+    applyBotSeparation(b, dt);
+
+    const actualDx = g.position.x - oldX;
+    const actualDz = g.position.z - oldZ;
+    if(Math.hypot(actualDx, actualDz) < 0.001 && dist > 0.5){
+      b.roamTarget = null;
+      b.patrolPos = null;
+    }
+
+    const targetY = getFloorY(g.position.x, g.position.z);
+    g.position.y = lerp(g.position.y, targetY, dt * 14);
+
+    if(dist > 0.05 && !b.aimingTgt){
+      const moveAng = Math.atan2(dx, dz);
+      g.rotation.y = lerpAngle(g.rotation.y, moveAng, dt * 10);
+    }
+
+    if(!b.downed){
+      b.walk+=dt*speed*2.4;
+      if(b.mixer){
+        const targetAction = speed > 4.5 ? 'Running' : 'Walking';
+        if(b.actions[targetAction] && b.activeAction !== targetAction && b.activeAction !== 'Punch' && b.activeAction !== 'Death' && b.activeAction !== 'Sitting'){
+          if(b.actions[b.activeAction]) b.actions[b.activeAction].fadeOut(0.18);
+          b.actions[targetAction].reset().fadeIn(0.18).play();
+          b.activeAction = targetAction;
+        }
+      } else {
+        const sw=Math.sin(b.walk);
+        if(b.refs.armL){b.refs.armL.rotation.x=sw*0.6;b.refs.armR.rotation.x=-sw*0.6;}
+        if(b.refs.legL){b.refs.legL.rotation.x=-sw*0.7;b.refs.legR.rotation.x=sw*0.7;}
+      }
+    }
   }
 
   function findNearestEnemy(pos) {
+
     let nearest = null;
     let minDist = Infinity;
     for (const z of zombies) {
