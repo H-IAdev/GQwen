@@ -403,11 +403,7 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
   <div id="downedHud"><h3>INCAPACITATED</h3><p>WAITING FOR REVIVE...</p><div class="dt" id="downTimer">20</div></div>
   <div id="breakerWarn">⚠ BREAKERS LOW — HOSTILES ENRAGED +30% SPEED ⚠</div>
 
-  <div id="breakersPanel" class="pnl" style="position:absolute;bottom:84px;left:14px;padding:6px 12px;display:flex;align-items:center;gap:8px;z-index:12;pointer-events:auto;">
-    <span style="font-size:9px;color:var(--amber2);font-weight:600;letter-spacing:.1em;">LIGHTS/BREAKERS:</span>
-    <input type="range" id="bright" min="5" max="100" value="66" style="width:90px;cursor:pointer;">
-    <span id="pct">66%</span>
-  </div>
+
 
   <div id="pttIndicator"><span>🎙 VOZ ACTIVA (PTT)</span></div>
 
@@ -1733,9 +1729,15 @@ function initGameEngine() {
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
-  /* Linterna Táctica Frontal montada sobre la cámara */
-  const flashlight=new THREE.SpotLight(0xfff5e0,2.5,45,Math.PI/7,0.35,1.8);
-  flashlight.position.set(0.2,-0.15,-0.2);flashlight.visible=false;flashlight.layers.set(2);camera.add(flashlight);
+  /* Linterna Táctica Frontal montada sobre la cámara y apuntando exactamente al frente */
+  const flashlight = new THREE.SpotLight(0xfff5e0, 2.5, 45, Math.PI / 6, 0.35, 1.8);
+  flashlight.position.set(0.12, -0.1, -0.1);
+  flashlight.target.position.set(0, 0, -10);
+  flashlight.visible = false;
+  flashlight.layers.set(2);
+  camera.add(flashlight);
+  camera.add(flashlight.target);
+
 
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
   const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3(),_v4=new THREE.Vector3(),_vHead=new THREE.Vector3(),_vBurst=new THREE.Vector3(),_vFwd=new THREE.Vector3();
@@ -1880,9 +1882,14 @@ function initGameEngine() {
 
           if(gltf.animations && gltf.animations.length > 0){
             slot.mixer = new THREE.AnimationMixer(zClone);
-            const walkClip = gltf.animations.find(a => /walk|run|idle/i.test(a.name)) || gltf.animations[0];
-            if (walkClip) slot.mixer.clipAction(walkClip).play();
+            slot.actions = mapGLTFAnimationClips(gltf.animations, slot.mixer);
+            const walkAction = slot.actions['Walk'] || slot.actions['Run'] || slot.actions['Idle'] || (gltf.animations[0] ? slot.mixer.clipAction(gltf.animations[0]) : null);
+            if (walkAction) {
+              walkAction.play();
+              slot.activeAction = walkAction._clip ? walkAction._clip.name : 'Walk';
+            }
           }
+
 
           // Registrar sub-meshes en hitboxes para disparos y raycast con etiquetado de cabeza
           zClone.traverse(c => {
@@ -3131,6 +3138,11 @@ function initGameEngine() {
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
+        if(z.actions && z.actions['Punch'] && z.activeAction !== 'Punch'){
+          if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.15);
+          z.actions['Punch'].reset().fadeIn(0.15).play();
+          z.activeAction = 'Punch';
+        }
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
         }
@@ -3140,9 +3152,10 @@ function initGameEngine() {
         if(z.windup<=0){
           z.cool = z.type==='boss_juggernaut'?3.6:z.type==='boss_stalker'?3.2:z.type==='boss_rockhurler'?3.0:z.type==='brute'?2.8:z.type==='runner'?1.8:2.2;
           if(dist3D<meleeR){
+            burst(z.g.position, 'ichor', 6, 2.5);
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
-                nearest.bot.hp-=z.dmg;burst(z.g.position,'ichor',5,2);
+                nearest.bot.hp-=z.dmg;
                 if(nearest.bot.hp<=0){nearest.bot.downed=true;nearest.bot.downT=15;nearest.bot.hp=0;
                   feed(nearest.bot.name+' HA CAÍDO','k');}
               }
@@ -3153,6 +3166,12 @@ function initGameEngine() {
       }else if(dist3D>stopR){
         z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;
         const s=Math.sin(z.animT);
+        if(z.actions && (z.actions['Walk'] || z.actions['Run']) && z.activeAction !== 'Walk' && z.activeAction !== 'Run'){
+          const walkAct = z.actions['Walk'] || z.actions['Run'];
+          if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.2);
+          walkAct.reset().fadeIn(0.2).play();
+          z.activeAction = walkAct._clip ? walkAct._clip.name : 'Walk';
+        }
         if(z.lL&&z.lL.p&&z.lR&&z.lR.p){
           z.lL.p.rotation.x=s*.7;z.lR.p.rotation.x=-s*.7;
         }
@@ -3162,10 +3181,16 @@ function initGameEngine() {
         if(z.head) z.head.rotation.z=Math.sin(z.animT*1.2)*.14;
       }else if(z.cool<=0){z.windup=windupMax;sfx.moan(2);}
       else{
+        if(z.actions && z.actions['Idle'] && z.activeAction !== 'Idle' && z.activeAction !== 'Punch'){
+          if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.2);
+          z.actions['Idle'].reset().fadeIn(0.2).play();
+          z.activeAction = 'Idle';
+        }
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.animT*0.8)*.05;
         }
       }
+
 
 
 
