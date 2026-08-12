@@ -4519,11 +4519,13 @@ function initGameEngine() {
         const endpoint = GLOBAL_ROOMS_API.endsWith('/') ? `${GLOBAL_ROOMS_API}rooms/${code}` : `${GLOBAL_ROOMS_API}/rooms/${code}`;
         fetch(endpoint, {
           method: 'PUT',
+          mode: 'cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).catch(() => {
           fetch(GLOBAL_ROOMS_API, {
             method: 'POST',
+            mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           }).catch(() => {});
@@ -4542,7 +4544,7 @@ function initGameEngine() {
     if(GLOBAL_ROOMS_API){
       try {
         const endpoint = GLOBAL_ROOMS_API.endsWith('/') ? `${GLOBAL_ROOMS_API}rooms/${code}` : `${GLOBAL_ROOMS_API}/rooms/${code}`;
-        fetch(endpoint, { method: 'DELETE' }).catch(() => {});
+        fetch(endpoint, { method: 'DELETE', mode: 'cors' }).catch(() => {});
       } catch(e){}
     }
   }
@@ -4567,9 +4569,9 @@ function initGameEngine() {
     if(GLOBAL_ROOMS_API){
       try {
         const endpoint = GLOBAL_ROOMS_API.endsWith('/') ? `${GLOBAL_ROOMS_API}rooms` : `${GLOBAL_ROOMS_API}/rooms`;
-        const res = await fetch(endpoint);
-        if(res.ok){
-          const text = await res.text();
+        const res = await fetch(endpoint, { mode: 'cors' }).catch(() => null);
+        if(res && res.ok){
+          const text = await res.text().catch(() => '');
           try {
             const remoteData = JSON.parse(text);
             if(remoteData && typeof remoteData === 'object'){
@@ -4586,6 +4588,7 @@ function initGameEngine() {
     }
 
     const activeList = Object.values(roomsMap);
+
 
 
 
