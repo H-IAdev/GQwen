@@ -1908,26 +1908,35 @@ function initGameEngine() {
     if(isZombieGLTFLoading) return;
     const loader = getCDNLoader();
     if(!loader) return;
-    const urlList = customUrl ? [customUrl, ...CDN_ZOMBIE_URLS] : CDN_ZOMBIE_URLS;
+
+    const isFile = window.location.protocol === 'file:';
+    let rawList = customUrl ? [customUrl, ...CDN_ZOMBIE_URLS] : CDN_ZOMBIE_URLS;
+    // Si se ejecuta desde el protocolo file://, omitir rutas relativas locales (src/...) para evitar ruido de CORS en la consola del navegador
+    if(isFile){
+      rawList = rawList.filter(u => u.startsWith('http://') || u.startsWith('https://'));
+    }
+
     isZombieGLTFLoading = true;
 
     (function attempt(idx){
-      if(idx >= urlList.length){
+      if(idx >= rawList.length){
         isZombieGLTFLoading = false;
-        logDiag('Malla CDN externa no alcanzada (ejecutando motor ligero procedural resiliente).', 'info');
+        logDiag('Malla 3D externa no alcanzada (ejecutando motor procedural resiliente).', 'info');
         return;
       }
-      loader.load(urlList[idx], (gltf) => {
+      const targetUrl = rawList[idx];
+      loader.load(targetUrl, (gltf) => {
         cachedZombieGLTF = gltf;
         isZombieGLTFLoading = false;
-        logDiag('✓ Modelo GLTF CDN cargado exitosamente: ' + urlList[idx].split('/').pop(), 'ok');
+        logDiag('✓ Modelo GLTF 3D cargado exitosamente: ' + targetUrl.split('/').pop(), 'ok');
         applyGLTFToZombiePool(gltf);
       }, undefined, (err) => {
-        logDiag('CDN Zombie (' + (urlList[idx].split('/').pop() || 'GLTF') + ') no disponible, evaluando alternativa...', 'info');
+        logDiag('Modelo 3D (' + (targetUrl.split('/').pop() || 'GLTF') + ') no disponible (CORS/404), evaluando alternativa...', 'info');
         attempt(idx + 1);
       });
     })(0);
   }
+
 
 
 
