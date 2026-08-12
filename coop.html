@@ -4414,10 +4414,10 @@ function initGameEngine() {
     if(el){ el.textContent = txt; el.className = cls; }
   }
 
-  /* ===== DIRECTORIO DE SALAS ABIERTAS P2P (HÍBRIDO REST API + LOCAL) ===== */
+  /* ===== DIRECTORIO DE SALAS ABIERTAS P2P (CLOUDFLARE WORKER + LOCAL) ===== */
 
   const OPEN_ROOMS_KEY = 'gqwen_open_p2p_rooms_v46';
-  const GLOBAL_ROOMS_API = window.CUSTOM_ROOMS_API || null;
+  const GLOBAL_ROOMS_API = window.CUSTOM_ROOMS_API || 'https://lumen-rooms-api.ihuayhuaq.workers.dev';
   let _roomAnnounceTimer = null;
   let _currentRoomCode = null;
 
@@ -4442,14 +4442,21 @@ function initGameEngine() {
       localStorage.setItem(OPEN_ROOMS_KEY, JSON.stringify(rooms));
     } catch(e){}
 
-    // 2. Anuncio síncrono a API remota de salas (REST API activa solo si se configura CUSTOM_ROOMS_API)
+    // 2. Anuncio síncrono a Cloudflare Worker P2P Room API
     if(GLOBAL_ROOMS_API){
       try {
-        fetch(`${GLOBAL_ROOMS_API}/${code}.json`, {
+        const endpoint = GLOBAL_ROOMS_API.endsWith('/') ? `${GLOBAL_ROOMS_API}rooms/${code}` : `${GLOBAL_ROOMS_API}/rooms/${code}`;
+        fetch(endpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).catch(() => {});
+        }).catch(() => {
+          fetch(GLOBAL_ROOMS_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(() => {});
+        });
       } catch(e){}
     }
   }
@@ -4463,7 +4470,8 @@ function initGameEngine() {
     } catch(e){}
     if(GLOBAL_ROOMS_API){
       try {
-        fetch(`${GLOBAL_ROOMS_API}/${code}.json`, { method: 'DELETE' }).catch(() => {});
+        const endpoint = GLOBAL_ROOMS_API.endsWith('/') ? `${GLOBAL_ROOMS_API}rooms/${code}` : `${GLOBAL_ROOMS_API}/rooms/${code}`;
+        fetch(endpoint, { method: 'DELETE' }).catch(() => {});
       } catch(e){}
     }
   }
@@ -4484,24 +4492,30 @@ function initGameEngine() {
       }
     } catch(e){}
 
-    // 2. Consultar directorio de salas global vía REST API solo si se ha configurado la URL
+    // 2. Consultar directorio de salas global vía Cloudflare Worker REST API
     if(GLOBAL_ROOMS_API){
       try {
-        const res = await fetch(`${GLOBAL_ROOMS_API}.json`);
+        const endpoint = GLOBAL_ROOMS_API.endsWith('/') ? `${GLOBAL_ROOMS_API}rooms` : `${GLOBAL_ROOMS_API}/rooms`;
+        const res = await fetch(endpoint);
         if(res.ok){
-          const remoteData = await res.json();
-          if(remoteData && typeof remoteData === 'object'){
-            Object.values(remoteData).forEach(r => {
-              if(r && r.code && r.ts && (now - r.ts <= 15000)){
-                roomsMap[r.code] = r;
-              }
-            });
-          }
+          const text = await res.text();
+          try {
+            const remoteData = JSON.parse(text);
+            if(remoteData && typeof remoteData === 'object'){
+              const list = Array.isArray(remoteData) ? remoteData : Object.values(remoteData);
+              list.forEach(r => {
+                if(r && r.code && r.ts && (now - r.ts <= 15000)){
+                  roomsMap[r.code] = r;
+                }
+              });
+            }
+          } catch(jsonErr){}
         }
       } catch(e){}
     }
 
     const activeList = Object.values(roomsMap);
+
 
 
     if(activeList.length === 0){
