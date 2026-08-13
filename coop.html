@@ -31,6 +31,15 @@ background:radial-gradient(ellipse,transparent 42%,rgba(160,10,5,.55));transitio
 #lowhp{position:fixed;inset:0;z-index:9;pointer-events:none;opacity:0;
 background:radial-gradient(ellipse,transparent 48%,rgba(140,8,4,.5))}
 body.hurt #lowhp{animation:lp 1.1s ease-in-out infinite}
+
+/* ── MODO ALERTA MÁXIMA & VISIÓN TÚNEL DE PÁNICO (ESTILO CÓMIC MORDAZ) ── */
+#panicOverlay{position:fixed;inset:0;z-index:9;pointer-events:none;opacity:0;
+background:radial-gradient(ellipse at center, transparent 38%, rgba(220,10,40,0.65) 100%);
+transition:opacity .25s ease-out}
+body.panic #panicOverlay{opacity:1;animation:panicBeat .85s ease-in-out infinite alternate}
+body.panic #app{filter:contrast(1.22) saturate(1.15) sepia(0.18)}
+@keyframes panicBeat{0%{opacity:.45;transform:scale(1)}100%{opacity:.95;transform:scale(1.02)}}
+
 /* ── LOADING SCREEN (desde Enemigos HD v4.8) ── */
 #load{position:fixed;inset:0;z-index:200;background:#030508;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
 #load .ld{font-family:var(--mono);font-size:.7rem;letter-spacing:.3em;color:var(--dim);text-transform:uppercase}
@@ -349,7 +358,8 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
 <div id="load"><div class="badge">L</div><div class="ld" id="loadTxt">INITIALIZING ENGINE…</div><div class="bar"><i id="loadBar"></i></div></div>
 
 <div id="app"></div>
-<div id="vignette"></div><div id="grain"></div><div id="dmg"></div><div id="lowhp"></div>
+<div id="vignette"></div><div id="grain"></div><div id="dmg"></div><div id="lowhp"></div><div id="panicOverlay"></div>
+
 
 <div id="hud">
   <div id="stationSign" class="pnl"><div class="bullet">L</div>
@@ -1543,8 +1553,11 @@ function initGameEngine() {
     click(){tH({f0:1200,dur:.05,vol:.15});},
     radioOn(){tH({f0:880,dur:.03,vol:.15});tH({f0:1320,dur:.04,vol:.18,at:.03});},
     radioOff(){tH({f0:1200,dur:.03,vol:.15});tH({f0:660,dur:.04,vol:.18,at:.03});},
+    heartbeat(){tH({f0:80,f1:35,dur:.12,vol:.35,type:'sine'});tH({f0:95,f1:40,dur:.14,vol:.38,at:.16,type:'sine'});},
+    boneCrack(){nH({dur:.08,vol:.55,f:800,f1:200,type:'bandpass',q:3});tH({f0:240,f1:70,dur:.08,vol:.45});},
     explosion(){nH({dur:.5,vol:.85,f:2200,f1:120,type:'lowpass'});tH({f0:120,f1:30,dur:.6,vol:.95,type:'sawtooth'});tH({f0:60,f1:20,dur:.8,vol:1.0,type:'sine'});}
   };
+
 
 
   /* ===== SISTEMA DE GRANADAS EXPLOSIVAS 3D (AoE 6.5M) ===== */
@@ -1804,7 +1817,14 @@ function initGameEngine() {
   function fireTracer(a,b){const t=tracers[trIdx++%24];t.m.position.lerpVectors(a,b,.5);t.m.lookAt(b);
     t.m.scale.set(.018,.018,Math.max(.1,a.distanceTo(b)));t.m.visible=true;t.life=.065;t.m.material.opacity=.9;}
   const pGeo=new THREE.TetrahedronGeometry(.04);
-  const pMats={ichor:new THREE.MeshBasicMaterial({color:0x7aa03c}),spark:new THREE.MeshBasicMaterial({color:0xffc870,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}),stone:new THREE.MeshBasicMaterial({color:0xd4763a})};
+  const pMats={
+    ichor: new THREE.MeshBasicMaterial({color:0xff0044, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}),
+    blood: new THREE.MeshBasicMaterial({color:0xd90429, transparent:true, opacity:0.9}),
+    bone: new THREE.MeshBasicMaterial({color:0xfff0f5}),
+    spark: new THREE.MeshBasicMaterial({color:0xffc870, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false}),
+    stone: new THREE.MeshBasicMaterial({color:0xd4763a})
+  };
+
   const parts=[];let pIdx=0;
   function burst(pos,key,n,spd){
     const effectiveN = IS_TOUCH ? Math.max(2, Math.floor(n * 0.45)) : n;
@@ -1940,16 +1960,26 @@ function initGameEngine() {
           }
 
 
-          // Registrar sub-meshes en hitboxes para disparos y raycast con etiquetado de cabeza
+          // Registrar sub-meshes en hitboxes para disparos y raycast con etiquetado anatómico
           zClone.traverse(c => {
             if(c.isMesh){
               c.userData.z = slot;
               c.castShadow = true;
               c.frustumCulled = false;
+              const name = (c.name || '').toLowerCase();
               const box = new THREE.Box3().setFromObject(c);
-              c.userData.part = (box.min.y > 1.25) ? 'head' : 'body';
+              if(name.includes('head') || box.min.y > 1.25){
+                c.userData.part = 'head';
+              } else if(name.includes('leg') || name.includes('thigh') || name.includes('foot') || box.max.y < 0.65){
+                c.userData.part = (box.min.x > 0) ? 'legR' : 'legL';
+              } else if(name.includes('arm') || name.includes('hand') || name.includes('shoulder')){
+                c.userData.part = (box.min.x > 0) ? 'armR' : 'armL';
+              } else {
+                c.userData.part = 'torso';
+              }
             }
           });
+
 
           // Re-aplicar visibilidad de tipo de zombie inmediatamente para slots activos
           if(slot.active && slot.type){
@@ -2923,9 +2953,14 @@ function initGameEngine() {
     const loBody=mkMesh(GEO_POOL.loBody,defCloth);loBody.position.y=1.0;lo.add(loBody);
     const loHead=mkMesh(GEO_POOL.loHead,defSkin);loHead.position.y=1.5;lo.add(loHead);
     lod.addLevel(lo,22);
-    // Hitboxes: solo set part (spawnZombie registra en pool con userData.z actualizado)
-    g.traverse(c=>{if(c.isMesh){c.userData.part='body';c.userData.z=null;}});
-    head.userData.part='head';jaw.userData.part='head';
+    // Hitboxes: etiquetado detallado para Gore Físico Táctico
+    g.traverse(c=>{if(c.isMesh){c.userData.part='torso';c.userData.z=null;}});
+    head.userData.part='head'; jaw.userData.part='head';
+    if(aL.f) aL.f.userData.part='armL';
+    if(aR.f) aR.f.userData.part='armR';
+    if(lL.s) lL.s.userData.part='legL';
+    if(lR.s) lR.s.userData.part='legR';
+
     // Guardar TODAS las referencias en el slot
     slot.g=lod;slot.detailG=g;slot.mountAnchor=mountAnchor;
     slot.torso=torso;slot.torJugMesh=torJug;slot.coreMesh=coreJug;
@@ -3133,16 +3168,58 @@ function initGameEngine() {
   }
   function gTraverseNull(g){if(!g)return;g.traverse(c=>{if(c.isMesh)c.userData.z=null;});}
   function hurtZombie(z,part,pt,customDmg=null){
-    if(z.dead)return;const hs=part==='head';
-    const rawDmg = customDmg !== null ? customDmg : (hs ? 50 : 25);
+    if(z.dead)return;
+    const hs = (part === 'head');
+    const isLeg = (part === 'legL' || part === 'legR');
+    const isArm = (part === 'armL' || part === 'armR');
+
+    let rawDmg = customDmg !== null ? customDmg : (hs ? 55 : (isLeg ? 20 : 25));
+    if(hs) rawDmg *= 1.4; // Gran bonificación de headshot estilo cómic
+    
     const armor = ZDEF[z.type]?.armor || 0;
     const dmg = Math.max(1, Math.round(rawDmg * (1 - armor)));
-    z.hp-=dmg;z.hitT=.22;
-    burst(pt,'ichor',hs?12:7,2.8);
-    if(z.hp<=0)killZombie(z,hs);else{hitmark(hs);sfx.flesh();}
+    z.hp -= dmg; z.hitT = .22;
+    
+    // Sangre neón fluorescente + partículas de hueso
+    burst(pt, 'ichor', hs ? 16 : 8, 3.2);
+    if(hs || isLeg || isArm) burst(pt, 'bone', 4, 2.5);
+
+    // ── GORE FÍSICO CON PROPÓSITO: DESMEMBRAMIENTO Y MUTACIÓN TÁCTICA ──
+    if(z.hp > 0 && !z.type.startsWith('boss_') && !z.type.startsWith('mini_')){
+      // 1. Impacto en piernas -> Pérdida de extremidad y modo Gateo (Crawl)
+      if(isLeg && !z.isCrawling){
+        z.legDmg = (z.legDmg || 0) + dmg;
+        if(z.legDmg >= 18 || dmg >= 30){
+          z.isCrawling = true;
+          if(part === 'legL' && z.lL && z.lL.p) z.lL.p.visible = false;
+          else if(part === 'legR' && z.lR && z.lR.p) z.lR.p.visible = false;
+          else if(z.lR && z.lR.p) z.lR.p.visible = false;
+          sfx.boneCrack();
+          burst(pt, 'ichor', 16, 3.8);
+          feed('💥 PIERNA CERCENADA — ZOMBIE EN GATEO', 'h');
+        }
+      }
+      // 2. Impacto en brazos -> Pérdida de extremidad y modo Mordida (Bite)
+      if(isArm && !z.isBiting){
+        z.armDmg = (z.armDmg || 0) + dmg;
+        if(z.armDmg >= 18 || dmg >= 30){
+          z.isBiting = true;
+          if(part === 'armR' && z.aR && z.aR.p) z.aR.p.visible = false;
+          else if(part === 'armL' && z.aL && z.aL.p) z.aL.p.visible = false;
+          else if(z.aR && z.aR.p) z.aR.p.visible = false;
+          sfx.boneCrack();
+          burst(pt, 'ichor', 14, 3.5);
+          feed('💥 BRAZO DESTRUIDO — MODO MORDIDA', 'k');
+        }
+      }
+    }
+
+    if(z.hp<=0) killZombie(z,hs);
+    else { hitmark(hs); sfx.flesh(); }
     netSend({type:'zhit',id:z.id,dmg});
     netSend({type:'zhit_fx',pos:{x:pt.x,y:pt.y,z:pt.z},hs});
   }
+
   function getFloorY(x,z){
     // Escalera Sur (z = -12 a -4)
     if(z>=-12 && z<=-4 && x>=0.5 && x<=4.5){
@@ -3252,7 +3329,12 @@ function initGameEngine() {
         }
         if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
       }
-      z.curSpd = lerp(z.curSpd || (z.speed * 0.25), z.speed, dt * 2.2);
+      // Modificador de velocidad y postura para Crawlers y Biters
+      let effectiveBaseSpd = z.speed;
+      if(z.isCrawling){
+        effectiveBaseSpd = z.speed * 0.45; // -55% velocidad al gatear
+      }
+      z.curSpd = lerp(z.curSpd || (effectiveBaseSpd * 0.25), effectiveBaseSpd, dt * 2.2);
       z.fade=Math.min(1,z.fade+dt*2);z.g.scale.setScalar(z.scale*(.5+.5*z.fade));
       z.cool-=dt;z.hitT-=dt;
       let nearest=null,nearD=Infinity;
@@ -3272,32 +3354,38 @@ function initGameEngine() {
       const dx = z.g.position.x - targetPos.x;
       const dz = z.g.position.z - targetPos.z;
       const dist3D = Math.hypot(dx, dz);
-      const meleeR = 1.95 * (z.scale || 1.0);
+      const meleeR = (z.isCrawling ? 1.45 : (z.isBiting ? 1.55 : 1.95)) * (z.scale || 1.0);
       const stopR = meleeR * 0.75;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      const windupMax = z.type.includes('juggernaut')?1.25:z.type.includes('stalker')?1.10:z.type.includes('rockhurler')?1.00:z.type==='brute'?0.95:z.type==='runner'?0.65:0.75;
+      let windupMax = z.type.includes('juggernaut')?1.25:z.type.includes('stalker')?1.10:z.type.includes('rockhurler')?1.00:z.type==='brute'?0.95:z.type==='runner'?0.65:0.75;
+      if(z.isBiting) windupMax = 0.42; // Ataque rápido de mordida
+      if(z.isCrawling) windupMax = 0.85;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
-        if(z.actions && z.actions['Punch'] && z.activeAction !== 'Punch'){
+        if(z.actions && z.actions['Punch'] && z.activeAction !== 'Punch' && !z.isBiting){
           if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.15);
           z.actions['Punch'].reset().fadeIn(0.15).play();
           z.activeAction = 'Punch';
         }
-        if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+        if(z.isBiting && z.head && z.jaw){
+          z.head.rotation.x = Math.sin(w * Math.PI * 4) * 0.35;
+          z.jaw.position.y = 1.35 + Math.sin(w * Math.PI * 4) * 0.08;
+        } else if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
         }
         if(z.type.includes('stalker')&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.35 : 0.50;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const waveTier = Math.floor((wave - 1) / 2);
-          const baseCool = z.type.includes('juggernaut')?3.5:z.type.includes('stalker')?3.0:z.type.includes('rockhurler')?2.8:z.type==='brute'?2.6:z.type==='runner'?1.7:2.1;
-          z.cool = baseCool / (1 + Math.min(0.15, waveTier * 0.03));
+          const finalWaveBoost = (wave === 10) ? 0.92 : (wave >= 8 ? 0.95 : 1.0);
+          const baseCool = z.isBiting ? 1.4 : (z.type.includes('juggernaut')?3.5:z.type.includes('stalker')?3.0:z.type.includes('rockhurler')?2.8:z.type==='brute'?2.6:z.type==='runner'?1.7:2.1);
+          z.cool = baseCool * finalWaveBoost;
 
           if(dist3D < meleeR){
-            burst(z.g.position, 'ichor', 6, 2.5);
+            burst(z.g.position, 'ichor', 8, 2.8);
+            if(z.isBiting) sfx.flesh();
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
                 nearest.bot.hp-=z.dmg;
@@ -3311,27 +3399,27 @@ function initGameEngine() {
       }else if(dist3D > stopR){
         z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;
         const s=Math.sin(z.animT);
-        if(z.actions && (z.actions['Walk'] || z.actions['Run']) && z.activeAction !== 'Walk' && z.activeAction !== 'Run'){
+        if(z.actions && (z.actions['Walk'] || z.actions['Run']) && z.activeAction !== 'Walk' && z.activeAction !== 'Run' && !z.isCrawling){
           const walkAct = z.actions['Walk'] || z.actions['Run'];
           if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.2);
           walkAct.reset().fadeIn(0.2).play();
           z.activeAction = walkAct._clip ? walkAct._clip.name : 'Walk';
         }
-        if(z.lL&&z.lL.p&&z.lR&&z.lR.p){
+        if(!z.isCrawling && z.lL&&z.lL.p&&z.lR&&z.lR.p){
           z.lL.p.rotation.x=s*.7;z.lR.p.rotation.x=-s*.7;
         }
-        if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+        if(!z.isCrawling && z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=-1.1+Math.sin(z.animT*1.8+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.animT*1.8)*.12;
         }
         if(z.head) z.head.rotation.z=Math.sin(z.animT*1.2)*.14;
       }else if(z.cool<=0){z.windup=windupMax;sfx.moan(2);}
       else{
-        if(z.actions && z.actions['Idle'] && z.activeAction !== 'Idle' && z.activeAction !== 'Punch'){
+        if(z.actions && z.actions['Idle'] && z.activeAction !== 'Idle' && z.activeAction !== 'Punch' && !z.isCrawling){
           if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.2);
           z.actions['Idle'].reset().fadeIn(0.2).play();
           z.activeAction = 'Idle';
         }
-        if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
+        if(!z.isCrawling && z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-1.05+Math.sin(z.animT*0.8)*.05;
         }
       }
@@ -3342,7 +3430,17 @@ function initGameEngine() {
 
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
-      const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : floorY;
+      let targetPosY = floorY;
+      if(z.isCrawling){
+        targetPosY = floorY + 0.16;
+        z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, -Math.PI * 0.42, dt * 8);
+        if(z.aL && z.aL.p) z.aL.p.rotation.x = Math.sin(z.animT * 3.5) * 0.8 - 1.2;
+        if(z.aR && z.aR.p) z.aR.p.rotation.x = -Math.sin(z.animT * 3.5) * 0.8 - 1.2;
+      } else {
+        z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, 0, dt * 8);
+      }
+      const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
+
 
 
       z.g.position.set(p.x+n.x*z.lat, currentY, p.z+n.z*z.lat);
@@ -4702,15 +4800,19 @@ function initGameEngine() {
 
   }
 
+  let _heartbeatTimer = 0;
   function hudHP() {
     const hn = $('#hpNum'), hf = $('#hpFill');
     setTxt(hn, Math.ceil(hp));
     if (hf) hf.style.width = Math.max(0, Math.min(100, hp)) + '%';
+    const isLow = hp < 30 && playerState === 'alive' && playing;
     const healthEl = $('#health');
-    if (healthEl) healthEl.classList.toggle('low', hp < 30);
+    if (healthEl) healthEl.classList.toggle('low', isLow);
+    document.body.classList.toggle('panic', isLow);
     const hrEl = $('#hpRegen');
     if (hrEl) hrEl.style.opacity = 0;
   }
+
 
   function hudScore() {
     const sn = $('#scoreNum'), kn = $('#killNum'), wn = $('#waveNum');
@@ -5562,6 +5664,15 @@ function initGameEngine() {
         const floorY = getFloorY(p.x, p.z);
         const eyeH = playerState === 'downed' ? .5 : playerState === 'dead' ? .3 : 1.7;
         p.y = floorY + eyeH + jumpY + bob;
+
+        if(hp < 30 && playing && playerState === 'alive'){
+          _heartbeatTimer = (_heartbeatTimer || 0) - dt;
+          if(_heartbeatTimer <= 0){
+            _heartbeatTimer = 0.85;
+            sfx.heartbeat();
+          }
+        }
+
 
         if(localPlayerBodyGroup){
           const isDeadOrDowned = (playerState === 'downed' || playerState === 'dead');
