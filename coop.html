@@ -603,18 +603,15 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 25, spd: [0.95, 1.30], dmg: 10, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 18, spd: [1.60, 2.05], dmg: 8, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 60, spd: [0.85, 1.15], dmg: 15, score: 30, sc: 1.35, armor: 0 },
-      mini_stalker: { hp: 120, spd: [1.25, 1.55], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
-      mini_rockhurler: { hp: 160, spd: [0.75, 1.00], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
-      mini_juggernaut: { hp: 220, spd: [0.80, 1.05], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
-      boss_juggernaut: { hp: 550, spd: [0.85, 1.10], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 280, spd: [1.45, 1.80], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 380, spd: [0.80, 1.05], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
-
-
-
+      walker: { hp: 45, spd: [1.15, 1.25], dmg: 10, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 32, spd: [1.75, 1.95], dmg: 8, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 95, spd: [0.95, 1.10], dmg: 15, score: 30, sc: 1.35, armor: 0 },
+      mini_stalker: { hp: 160, spd: [1.35, 1.55], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
+      mini_rockhurler: { hp: 220, spd: [0.75, 0.95], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
+      mini_juggernaut: { hp: 300, spd: [0.85, 1.05], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
+      boss_juggernaut: { hp: 750, spd: [0.90, 1.10], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 380, spd: [1.50, 1.75], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 480, spd: [0.80, 1.00], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
     },
 
 
@@ -1262,22 +1259,33 @@ function initGameEngine() {
       wg.setIndex(wi);wg.computeVertexNormals();
       g.add(new THREE.Mesh(wg,st>.3?M.tile:M.tileDk));
 
-      // Pared interior con mapeo UV cerámico
+      // ARQUERÍAS Y COLUMNATAS MONUMENTALES ABIERTAS HACIA LA GRAN ESTACIÓN CENTRAL
       {
-        const iw=[],ii=[],iuv=[];
-        for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-          const x=p.x+n.x*-5.5,z=p.z+n.z*-5.5;iw.push(x,0,z, x,wH,z);
-          const u=t*36, v1=wH/2.2;
-          iuv.push(u,0, u,v1);}
-        for(let i=0;i<SPS;i++){const a=i*2;ii.push(a,a+1,a+2,a+1,a+3,a+2);}
-        const ig=new THREE.BufferGeometry();
-        ig.setAttribute('position',new THREE.Float32BufferAttribute(iw,3));
-        ig.setAttribute('uv',new THREE.Float32BufferAttribute(iuv,2));
-        ig.setIndex(ii);ig.computeVertexNormals();
-        const innerSolidMesh=new THREE.Mesh(ig,M.tile);
-        innerSolidMesh.castShadow=true;innerSolidMesh.receiveShadow=true;
-        g.add(innerSolidMesh);
+        const colCount = 4;
+        const colGeo = new THREE.CylinderGeometry(0.38, 0.44, wH, 12);
+        const archTopGeo = new THREE.BoxGeometry(0.9, 1.4, 5.5);
+        for(let ci2 = 0; ci2 < colCount; ci2++){
+          const ct2 = t0 + (t1 - t0) * (ci2 / colCount);
+          const cp2 = trackPos(ct2), cn2 = outN(ct2);
+          const colMesh = new THREE.Mesh(colGeo, M.tile);
+          colMesh.position.set(cp2.x + cn2.x * -5.5, wH / 2, cp2.z + cn2.z * -5.5);
+          colMesh.castShadow = true; colMesh.receiveShadow = true;
+          g.add(colMesh);
+
+          // Anillos metálicos decorativos en columnas
+          const ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.20, 12), M.dark);
+          ringMesh.position.set(cp2.x + cn2.x * -5.5, 2.2, cp2.z + cn2.z * -5.5);
+          g.add(ringMesh);
+        }
+        // Viga de arquería superior (deja el paso inferior de 0 a 5.0m completamente abierto hacia la plaza)
+        const archBeam = new THREE.Mesh(archTopGeo, M.tile);
+        const midT = (t0 + t1) / 2;
+        const midP = trackPos(midT), midN = outN(midT), midTn = trackTan(midT);
+        archBeam.position.set(midP.x + midN.x * -5.5, wH - 0.7, midP.z + midN.z * -5.5);
+        archBeam.rotation.y = Math.atan2(midTn.x, midTn.z);
+        g.add(archBeam);
       }
+
       // SECTOR 4 / 5 CONCOURSE PASSAGE — 100% UNOBSTRUCTED AND CLEAR
 
       // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
@@ -1415,6 +1423,146 @@ function initGameEngine() {
     lb.rotation.y=Math.atan2(lt2.x,lt2.z);scene.add(lb);
   }
   buildLoop();
+
+  /* ═══════════════════════════════════════════════════════════════════
+     CONSTRUCCIÓN EXPANSIVA: GRAN ESTACIÓN CENTRAL (GRAND CENTRAL CONCOURSE)
+     Suelo cerámico continuo PBR (~3,800 m²), Entresuelo elevado, Paneles LED y Coberturas
+     ═══════════════════════════════════════════════════════════════════ */
+  function buildGrandCentralConcourse(){
+    const g = new THREE.Group();
+    g.name = 'grandCentralConcourse';
+    scene.add(g);
+
+    // 1. GRAN SUELO CERÁMICO PBR CONTINUO (ELIPSE CENTRAL ~3,800 m²)
+    const RINGS = 12, SEGS = 48;
+    const fp = [], fi = [], fuv = [];
+    const TA_IN = 49.5, TB_IN = 24.8;
+    
+    // Vértice central
+    fp.push(0, 0, 0); fuv.push(0, 0);
+    
+    for(let r = 1; r <= RINGS; r++){
+      const radFrac = r / RINGS;
+      const rx = TA_IN * radFrac;
+      const rz = TB_IN * radFrac;
+      for(let s = 0; s < SEGS; s++){
+        const ang = (s / SEGS) * Math.PI * 2;
+        const x = Math.sin(ang) * rx;
+        const z = -Math.cos(ang) * rz;
+        fp.push(x, 0, z);
+        fuv.push(x / 2.8, z / 2.8);
+      }
+    }
+    // Índices centro a primer anillo
+    for(let s = 0; s < SEGS; s++){
+      const next = (s + 1) % SEGS;
+      fi.push(0, 1 + s, 1 + next);
+    }
+    // Índices entre anillos
+    for(let r = 1; r < RINGS; r++){
+      const rowA = 1 + (r - 1) * SEGS;
+      const rowB = 1 + r * SEGS;
+      for(let s = 0; s < SEGS; s++){
+        const next = (s + 1) % SEGS;
+        const a1 = rowA + s, a2 = rowA + next;
+        const b1 = rowB + s, b2 = rowB + next;
+        fi.push(a1, b1, a2, a2, b1, b2);
+      }
+    }
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3));
+    fg.setAttribute('uv', new THREE.Float32BufferAttribute(fuv, 2));
+    fg.setIndex(fi); fg.computeVertexNormals();
+    const concourseFloor = new THREE.Mesh(fg, M.floor);
+    concourseFloor.receiveShadow = true;
+    g.add(concourseFloor);
+
+    // 2. ENTRESUELO ELEVADO CENTRAL (MEZZANINE PLATFORM Y TRANSBORDO)
+    const mezzW = 28, mezzD = 12, mezzH = 1.40;
+    const mezzBase = box(mezzW, mezzH, mezzD, M.floor);
+    mezzBase.position.set(0, mezzH / 2, 0);
+    mezzBase.receiveShadow = true; mezzBase.castShadow = true;
+    g.add(mezzBase);
+
+    // Borde perimetral del entresuelo
+    const mezzBorder = box(mezzW + 0.3, 0.15, mezzD + 0.3, M.dark);
+    mezzBorder.position.set(0, mezzH, 0);
+    g.add(mezzBorder);
+
+    // Barandillas de cristal y acero
+    const railMat = std({color: 0x222830, metalness: 0.8, roughness: 0.3}, .2);
+    const rFront1 = box(mezzW - 10, 0.9, 0.1, railMat); rFront1.position.set(0, mezzH + 0.45, -mezzD / 2); g.add(rFront1);
+    const rFront2 = box(mezzW - 10, 0.9, 0.1, railMat); rFront2.position.set(0, mezzH + 0.45,  mezzD / 2); g.add(rFront2);
+    const rSide1 = box(0.1, 0.9, mezzD - 6, railMat); rSide1.position.set(-mezzW / 2, mezzH + 0.45, 0); g.add(rSide1);
+    const rSide2 = box(0.1, 0.9, mezzD - 6, railMat); rSide2.position.set( mezzW / 2, mezzH + 0.45, 0); g.add(rSide2);
+
+    // 4 Escalinatas de acceso suave
+    const stairS = box(8, mezzH, 4, M.floor); stairS.position.set(0, mezzH / 2, -mezzD / 2 - 2); g.add(stairS);
+    const stairN = box(8, mezzH, 4, M.floor); stairN.position.set(0, mezzH / 2,  mezzD / 2 + 2); g.add(stairN);
+    const stairW = box(4, mezzH, 6, M.floor); stairW.position.set(-mezzW / 2 - 2, mezzH / 2, 0); g.add(stairW);
+    const stairE = box(4, mezzH, 6, M.floor); stairE.position.set( mezzW / 2 + 2, mezzH / 2, 0); g.add(stairE);
+
+    // 3. PANTALLA CENTRAL SUSPENDIDA DE INFORMACIÓN LED (DEPARTURES / ARRIVALS)
+    const ledInfoMat = std({map: mk(T.led), emissiveMap: mk(T.led), emissive: 0xffffff, emissiveIntensity: 2.2, roughness: .2}, .3);
+    addE(ledInfoMat, 2.2, true);
+    const infoBoard = box(8.0, 2.2, 0.6, ledInfoMat);
+    infoBoard.position.set(0, 4.6, 0);
+    g.add(infoBoard);
+    const cableMat = std({color: 0x111317, metalness: 0.9, roughness: 0.2});
+    for(let cx of [-3.5, 3.5]){
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 3.0, 6), cableMat);
+      cable.position.set(cx, 6.1, 0); g.add(cable);
+    }
+
+    // 4. QUIOSCOS, PUESTOS DE BILLETES Y BANCOS TÁCTICOS (COBERTURA EN LA PLAZA)
+    const kioskMat = std({color: 0x1c2128, metalness: 0.5, roughness: 0.6});
+    const benchMat = std({color: 0x3d3024, metalness: 0.2, roughness: 0.7});
+    
+    // Quioscos de Prensa / Billetaje
+    const k1 = box(3.2, 2.4, 2.2, kioskMat); k1.position.set(-26, 1.2, -10); k1.castShadow = true; k1.receiveShadow = true; g.add(k1);
+    const k2 = box(3.2, 2.4, 2.2, kioskMat); k2.position.set( 26, 1.2,  10); k2.castShadow = true; k2.receiveShadow = true; g.add(k2);
+    const k3 = box(3.2, 2.4, 2.2, kioskMat); k3.position.set(-26, 1.2,  10); k3.castShadow = true; k3.receiveShadow = true; g.add(k3);
+    const k4 = box(3.2, 2.4, 2.2, kioskMat); k4.position.set( 26, 1.2, -10); k4.castShadow = true; k4.receiveShadow = true; g.add(k4);
+
+    // Bancos de espera distribuidos
+    for(let bx of [-12, -6, 6, 12]){
+      for(let bz of [-15, 15]){
+        const bMesh = box(2.6, 0.48, 0.7, benchMat);
+        bMesh.position.set(bx, 0.24, bz); bMesh.castShadow = true; g.add(bMesh);
+      }
+    }
+
+    // Máquinas expendedoras
+    const vendMat = std({color: 0x8a1515, emissive: 0x220505, roughness: 0.4});
+    const v1 = box(1.1, 1.9, 0.85, vendMat); v1.position.set(-29, 0.95, -2); g.add(v1);
+    const v2 = box(1.1, 1.9, 0.85, vendMat); v2.position.set( 29, 0.95,  2); g.add(v2);
+
+    // 5. CLARABOYA Y CERCHAS DE TECHO INDUSTRIAL (DOME TRUSS)
+    const trussMat = std({color: 0x252a33, metalness: 0.7, roughness: 0.4});
+    for(let tx = -36; tx <= 36; tx += 12){
+      const archTruss = new THREE.Mesh(new THREE.TorusGeometry(15, 0.16, 6, 24, Math.PI), trussMat);
+      archTruss.position.set(tx, 4.2, 0);
+      archTruss.rotation.set(0, Math.PI / 2, 0);
+      g.add(archTruss);
+    }
+
+    // 6. ILUMINACIÓN CENITAL HALÓGENA DE LA PLAZA CENTRAL
+    for(let lx of [-22, 0, 22]){
+      for(let lz of [-8, 8]){
+        const cLight = new THREE.PointLight(0xffeedd, 2.2, 22, 1.6);
+        cLight.position.set(lx, 5.8, lz);
+        g.add(cLight);
+        addL(cLight, 2.2);
+
+        const spotGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.45
+        }));
+        spotGlow.scale.set(3.2, 3.2, 3.2); spotGlow.position.set(lx, 5.8, lz); g.add(spotGlow); addG(spotGlow, 0.45);
+      }
+    }
+  }
+  buildGrandCentralConcourse();
+
   
   /* ── SISTEMA DE VAPOR EN ESTACIONES ── */
   function buildSteamSystems(){
@@ -3295,20 +3443,29 @@ function initGameEngine() {
   }
 
   function getFloorY(x,z){
-    // Escalera Sur (z = -12 a -4)
-    if(z>=-12 && z<=-4 && x>=0.5 && x<=4.5){
-      return Math.min(3.5, Math.max(0, (-4 - z) * 0.44));
+    // Plataforma central de entresuelo (mezzanine)
+    if(Math.abs(x) <= 14 && Math.abs(z) <= 6){
+      return 1.40;
     }
-    // Escalera Norte (z = 4 a 12)
-    if(z>=4 && z<=12 && x>=0.5 && x<=4.5){
-      return Math.min(3.5, Math.max(0, (z - 4) * 0.44));
+    // Escalinata Sur (z = -10 a -6, |x| <= 4)
+    if(z >= -10 && z <= -6 && Math.abs(x) <= 4){
+      return Math.min(1.40, Math.max(0, (z + 10) * 0.35));
     }
-    // Balcón de Mezzanine Central (z = -4 a 4)
-    if(z>-4 && z<4 && x>=0.2 && x<=4.8){
-      return 3.5;
+    // Escalinata Norte (z = 6 a 10, |x| <= 4)
+    if(z >= 6 && z <= 10 && Math.abs(x) <= 4){
+      return Math.min(1.40, Math.max(0, (10 - z) * 0.35));
+    }
+    // Escalinata Oeste (x = -18 a -14, |z| <= 3)
+    if(x >= -18 && x <= -14 && Math.abs(z) <= 3){
+      return Math.min(1.40, Math.max(0, (x + 18) * 0.35));
+    }
+    // Escalinata Este (x = 14 a 18, |z| <= 3)
+    if(x >= 14 && x <= 18 && Math.abs(z) <= 3){
+      return Math.min(1.40, Math.max(0, (18 - x) * 0.35));
     }
     return 0;
   }
+
   function getAlivePlayers(){
     const list=[];
     if(playerState==='alive') list.push({isLocal:true,trackT:playerT,trackLat:playerLat,pos:camera.position,id:peer?.id||'local'});
@@ -3403,8 +3560,20 @@ function initGameEngine() {
         }
         if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
       }
+      // Mecánica de Sprint Temporal Periódico (Surge Frenzy)
+      z.sprintCd = (z.sprintCd || R(3, 7)) - dt;
+      if(z.sprintCd <= 0 && dist3D > 4.5 && dist3D < 18 && !z.isCrawling && !z.dead){
+        z.sprintT = R(1.8, 2.5); // 2 segundos de sprint acelerado
+        z.sprintCd = R(7, 12);  // Cooldown de 7 a 12 segundos
+      }
+      let sprintBoost = 1.0;
+      if(z.sprintT > 0){
+        z.sprintT -= dt;
+        sprintBoost = z.type === 'runner' ? 1.45 : 1.35; // +35-45% velocidad durante el sprint temporal
+      }
+
       // Modificador de velocidad y postura para Crawlers y Biters
-      let effectiveBaseSpd = z.speed;
+      let effectiveBaseSpd = z.speed * sprintBoost;
       if(z.isCrawling){
         effectiveBaseSpd = z.speed * 0.45; // -55% velocidad al gatear
       }
@@ -3432,13 +3601,13 @@ function initGameEngine() {
       const stopR = meleeR * 0.75;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      let windupMax = z.type.includes('juggernaut') ? 1.35 :
-                      z.type.includes('stalker') ? 1.20 :
-                      z.type.includes('rockhurler') ? 1.15 :
-                      z.type === 'brute' ? 1.30 :
-                      z.type === 'runner' ? 0.90 : 1.10;
-      if(z.isBiting) windupMax = 0.70; // Ataque ágil de mordida
-      if(z.isCrawling) windupMax = 1.15;
+      let windupMax = z.type.includes('juggernaut') ? 1.30 :
+                      z.type.includes('stalker') ? 1.15 :
+                      z.type.includes('rockhurler') ? 1.10 :
+                      z.type === 'brute' ? 1.25 :
+                      z.type === 'runner' ? 0.85 : 1.05;
+      if(z.isBiting) windupMax = 0.65; // Ataque ágil de mordida
+      if(z.isCrawling) windupMax = 1.10;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -3457,14 +3626,14 @@ function initGameEngine() {
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.35 : 0.50;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const finalWaveBoost = (wave === 10) ? 0.92 : (wave >= 8 ? 0.95 : 1.0);
-          const baseCool = z.isBiting ? 2.2 :
-                           z.type.includes('juggernaut') ? 3.8 :
-                           z.type.includes('stalker') ? 3.4 :
-                           z.type.includes('rockhurler') ? 3.2 :
-                           z.type === 'brute' ? 3.2 :
-                           z.type === 'runner' ? 2.4 : 2.8;
-          z.cool = baseCool * finalWaveBoost;
+          const baseCool = z.isBiting ? 2.0 :
+                           z.type.includes('juggernaut') ? 3.6 :
+                           z.type.includes('stalker') ? 3.2 :
+                           z.type.includes('rockhurler') ? 3.0 :
+                           z.type === 'brute' ? 3.0 :
+                           z.type === 'runner' ? 2.2 : 2.6;
+          z.cool = baseCool;
+
 
 
           if(dist3D < meleeR){
@@ -4126,8 +4295,9 @@ function initGameEngine() {
     
     // Progresión calibrada de vitalidad enemiga por ola con resistencia de armadura en niveles altos
     hpMul = (1 + (n >= 8 ? 0.35 : (n >= 5 ? 0.18 : 0))) * (1 + 0.15 * (N - 1));
-    spMul = (n === 10) ? 1.07 : (n >= 8 ? 1.04 : 1.0);
+    spMul = 1.0; // Velocidad estándar constante: la aceleración es una mecánica de sprint temporal orgánico
     spawnInt = Math.max(1.8, 3.2 - (n >= 8 ? 0.6 : (n >= 5 ? 0.3 : 0))); spawnT = 1.0;
+
 
 
 
@@ -5745,9 +5915,15 @@ function initGameEngine() {
         playerLat = (p.x - tp.x) * tn.x + (p.z - tp.z) * tn.z;
         const st = stationness(playerT);
         
-        const minLat = -5.1, maxLat = 8.3;
-        if(playerLat < minLat){ const push = minLat - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = minLat; }
-        else if(playerLat > maxLat){ const push = maxLat - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = maxLat; }
+        // Navegación libre 360° en la Gran Estación Central y vías perimetrales
+        if(playerLat > 8.3){ const push = 8.3 - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = 8.3; }
+        const outerNormSq = (p.x / 56.5) * (p.x / 56.5) + (p.z / 31.5) * (p.z / 31.5);
+        if(outerNormSq > 1.0){
+          const normFactor = 1.0 / Math.sqrt(outerNormSq);
+          p.x *= normFactor;
+          p.z *= normFactor;
+        }
+
         
         if(keys['Space'] && jumpY <= 0 && playerState === 'alive') vy = 4.6;
         vy -= 13 * dt;
