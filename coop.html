@@ -576,9 +576,13 @@ function initGameEngine() {
       walker: { hp: 25, spd: [1.2, 1.7], dmg: 10, score: 10, sc: 1.0, armor: 0 },
       runner: { hp: 18, spd: [2.3, 2.9], dmg: 8, score: 15, sc: 0.88, armor: 0 },
       brute: { hp: 60, spd: [1.1, 1.5], dmg: 15, score: 30, sc: 1.35, armor: 0 },
+      mini_stalker: { hp: 120, spd: [1.8, 2.2], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
+      mini_rockhurler: { hp: 160, spd: [1.0, 1.3], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
+      mini_juggernaut: { hp: 220, spd: [1.1, 1.4], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
       boss_juggernaut: { hp: 550, spd: [1.2, 1.6], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
       boss_stalker: { hp: 280, spd: [2.0, 2.5], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
       boss_rockhurler: { hp: 380, spd: [1.0, 1.4], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
+
     },
 
 
@@ -2492,6 +2496,7 @@ function initGameEngine() {
     if (uRescue > uCombat + HYSTERESIS && uRescue > uSelfPreservation + HYSTERESIS) {
       bot.currentAction = 'rescue';
       bot.targetEnemy = null;
+      bot.isExploring = false;
       const pd = botPos.distanceTo(playerPos);
       const aimAng = Math.atan2(playerPos.x - botPos.x, playerPos.z - botPos.z);
       smoothBotYaw(bot, aimAng, dt, 5.0);
@@ -2518,6 +2523,7 @@ function initGameEngine() {
     // ESTADO B: RETIRADA TÁCTICA Y CURACIÓN (huida = correr)
     if (uSelfPreservation > uCombat + HYSTERESIS) {
       bot.currentAction = 'retreat';
+      bot.isExploring = false;
       if (bestTarget) {
         const botT = closestT(botPos.x, botPos.z);
         const enemyT = closestT(bestTarget.g.position.x, bestTarget.g.position.z);
@@ -2548,6 +2554,7 @@ function initGameEngine() {
     if (uCombat > uFormation + HYSTERESIS && bestTarget) {
       bot.currentAction = 'combat';
       bot.aimingTgt = true;
+      bot.isExploring = false;
       const distToTarget = botPos.distanceTo(bestTarget.g.position);
       const aimAng = Math.atan2(bestTarget.g.position.x - botPos.x, bestTarget.g.position.z - botPos.z);
       
@@ -2579,22 +2586,67 @@ function initGameEngine() {
       return;
     }
 
-    // ESTADO D: PATRULLAJE Y FORMACIÓN DE ESCUADRÓN
+    // ESTADO D: CURIOSIDAD, EXPLORACIÓN AUTÓNOMA E INTERACCIÓN DE ESCUADRÓN
     bot.currentAction = 'formation';
     bot.aimingTgt = false;
 
-    // Patrullaje activo en calma cuando no hay enemigos en pantalla
-    if (!bestTarget && zombies.length === 0 && rc.leadAhead > 0) {
-      const targetT = (playerT + rc.leadAhead + 1) % 1;
-      const trackP = trackPos(targetT);
-      const trackN = outN(targetT);
-      const patrolDest = new THREE.Vector3(
-        trackP.x + trackN.x * bot.latOffset,
-        getFloorY(trackP.x, trackP.z),
-        trackP.z + trackN.z * bot.latOffset
-      );
-      moveBotTo(bot, patrolDest, bot.baseSpeed * 0.5, dt);
+    // ── CELEBRACIÓN DE VICTORIA TRAS SUPERAR UNA OLA ──
+    if (clearing && bot.actions['Dance'] && bot.activeAction !== 'Dance' && !bestTarget) {
+      if (bot.actions[bot.activeAction]) bot.actions[bot.activeAction].fadeOut(0.2);
+      bot.actions['Dance'].reset().fadeIn(0.2).play();
+      bot.activeAction = 'Dance';
       return;
+    }
+
+    // ── MECÁNICA DE EXPLORACIÓN CURIOSA (Puntos de Interés: Cajas, Miradores, Avanzada) ──
+    bot.exploreTimer = (bot.exploreTimer || R(2, 6)) - dt;
+    if (!bestTarget && !isFarFromPlayer) {
+      if (bot.exploreTimer <= 0 && !bot.explorePos) {
+        bot.exploreTimer = R(5.0, 9.0);
+        // Buscar POI cercano: Caja de granadas, caja de munición o punto adelantado
+        let poi = null;
+        if (window.grenadeCrates && Math.random() < 0.40) {
+          const gCr = window.grenadeCrates.find(c => c.active && botPos.distanceTo(c.g.position) < 18);
+          if (gCr) poi = gCr.g.position.clone();
+        }
+        if (!poi && window.ammoCrates && Math.random() < 0.45) {
+          const aCr = window.ammoCrates.find(c => c.active && botPos.distanceTo(c.g.position) < 18);
+          if (aCr) poi = aCr.g.position.clone();
+        }
+        if (!poi) {
+          // Explorar flanco o avanzada en la vía
+          const advT = (playerT + R(-0.02, 0.06) + 1) % 1;
+          const tp = trackPos(advT), tn = outN(advT);
+          poi = new THREE.Vector3(tp.x + tn.x * (bot.latOffset * R(0.8, 1.6)), getFloorY(tp.x, tp.z), tp.z + tn.z * (bot.latOffset * R(0.8, 1.6)));
+        }
+        bot.explorePos = poi;
+        bot.inspectT = R(2.0, 3.5);
+      }
+
+      if (bot.explorePos) {
+        const dPoi = botPos.distanceTo(bot.explorePos);
+        if (dPoi > 1.2) {
+          moveBotTo(bot, bot.explorePos, bot.baseSpeed * 0.60, dt);
+          return;
+        } else {
+          // Llegó al punto de interés: inspeccionar con gestos (Wave, Sitting, Idle scan)
+          bot.inspectT -= dt;
+          if (bot.inspectT > 0) {
+            const emote = (bot.id === 1) ? 'Wave' : (bot.id === 2 ? 'Sitting' : 'Idle');
+            if (bot.actions[emote] && bot.activeAction !== emote && bot.activeAction !== 'Punch') {
+              if (bot.actions[bot.activeAction]) bot.actions[bot.activeAction].fadeOut(0.2);
+              bot.actions[emote].reset().fadeIn(0.2).play();
+              bot.activeAction = emote;
+            }
+            smoothBotYaw(bot, bot.group.rotation.y + Math.sin(elapsed * 0.8) * 0.02, dt, 1.2);
+            return;
+          } else {
+            bot.explorePos = null;
+          }
+        }
+      }
+    } else {
+      bot.explorePos = null;
     }
 
     // EVITAR LÍNEA DE FUEGO DEL JUGADOR
@@ -2624,7 +2676,13 @@ function initGameEngine() {
       bot.scanT += dt;
       const scanYaw = offsetAngle + Math.sin(bot.scanT * 0.55 + bot.id * 2.1) * 0.65;
       smoothBotYaw(bot, scanYaw, dt, 1.4);
+      if (bot.actions['Idle'] && bot.activeAction !== 'Idle' && bot.activeAction !== 'Punch') {
+        if (bot.actions[bot.activeAction]) bot.actions[bot.activeAction].fadeOut(0.2);
+        bot.actions['Idle'].reset().fadeIn(0.2).play();
+        bot.activeAction = 'Idle';
+      }
     }
+
   }
 
 
@@ -2885,10 +2943,11 @@ function initGameEngine() {
     z.frustumHidden=false;z.spawning=false;z.isThrown=false;z.grabVictim=null;
   }
   /* Intercambiar materiales en un slot pre-construido según el tipo de zombie */
+  /* Intercambiar materiales en un slot pre-construido según el tipo de zombie */
   function applyZombieType(slot,type){
-    const isJuggernaut=type==='boss_juggernaut';
-    const isStalker=type==='boss_stalker';
-    const isRockHurler=type==='boss_rockhurler';
+    const isJuggernaut = type === 'boss_juggernaut' || type === 'mini_juggernaut';
+    const isStalker = type === 'boss_stalker' || type === 'mini_stalker';
+    const isRockHurler = type === 'boss_rockhurler' || type === 'mini_rockhurler';
     const skinColor=isJuggernaut?0x0c120e:isStalker?0x2e0828:isRockHurler?0x38322c:pick(SKINS);
     const clothColor=isJuggernaut?0x05070a:isStalker?0x180516:isRockHurler?0x1c1714:pick(CLOTH);
     const newSkin=std({color:skinColor,roughness:.8},.1);
@@ -2971,8 +3030,8 @@ function initGameEngine() {
     slot.spawning=true;slot.spawnT=.3;
     slot.frustumHidden=false;
     slot.isThrown=false;slot.grabbed=null;slot.grabVictim=null;slot.throwVel=undefined;
-    if(type==='boss_rockhurler'){
-      slot.isHurler=true;slot.rockT=R(2,4);slot.grabT=R(3,5);slot.chargeT=0;
+    if(type==='boss_rockhurler' || type==='mini_rockhurler'){
+      slot.isHurler=true;slot.rockT=R(2.5,4.5);slot.grabT=R(3.5,6);slot.chargeT=0;
       slot.charging=false;slot.grabbed=null;slot.grabAnimT=0;slot.grabVictim=null;
     }
     const d2=ZDEF[type] || ZDEF.walker;
@@ -2995,19 +3054,29 @@ function initGameEngine() {
     // Fase 6C — burst de partículas al spawnear
     burst(slot.g.position,'spark',10,3.0);
     if(type==='boss_juggernaut'){
-      feed('🚨 BOSS SPAWNED: ALPHA JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
+      feed('🚨 BOSS: ALPHA JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
+      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_juggernaut'});
+    }else if(type==='mini_juggernaut'){
+      feed('🚨 ELITE: MINI JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
       sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_juggernaut'});
     }else if(type==='boss_stalker'){
-      feed('⚡ BOSS SPAWNED: NEON STALKER ('+Math.round(slot.hp)+' HP)','k');
+      feed('⚡ BOSS: NEON STALKER ('+Math.round(slot.hp)+' HP)','k');
+      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_stalker'});
+    }else if(type==='mini_stalker'){
+      feed('⚡ ELITE: MINI STALKER ('+Math.round(slot.hp)+' HP)','k');
       sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_stalker'});
     }else if(type==='boss_rockhurler'){
-      feed('🪨 BOSS SPAWNED: ROCK HURLER ('+Math.round(slot.hp)+' HP)','k');
+      feed('🪨 BOSS: ROCK HURLER ('+Math.round(slot.hp)+' HP)','k');
+      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_rockhurler'});
+    }else if(type==='mini_rockhurler'){
+      feed('🪨 ELITE: MINI HURLER ('+Math.round(slot.hp)+' HP)','k');
       sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_rockhurler'});
     }else if(Math.random()<.5){
       sfx.moan(6); if(isHost) netSend({type:'zsound', sound:'moan'});
     }
     return slot;
   }
+
   function killZombie(z,hs){
     z.dead=true;z.deathT=0;kills++;headshots+=hs?1:0;score+=z.score+(hs?15:0);
     if(z.chargeRockMesh){scene.remove(z.chargeRockMesh);z.chargeRockMesh=null;}
@@ -3064,15 +3133,18 @@ function initGameEngine() {
   }
   function getAlivePlayers(){
     const list=[];
-    if(playerState==='alive')list.push({isLocal:true,trackT:playerT,trackLat:playerLat,id:peer?.id||'local'});
-    for(const[id,rp]of Object.entries(remotePlayers))
-      if(rp.state==='alive')list.push({trackT:rp.trackT,trackLat:rp.trackLat,id,conn:rp.conn});
+    if(playerState==='alive') list.push({isLocal:true,trackT:playerT,trackLat:playerLat,pos:camera.position,id:peer?.id||'local'});
+    for(const[id,rp] of Object.entries(remotePlayers)){
+      if(rp.state==='alive') list.push({trackT:rp.trackT,trackLat:rp.trackLat,pos:rp.mesh?rp.mesh.position:trackPos(rp.trackT),id,conn:rp.conn});
+    }
     // Los bots también son objetivos para los zombies
     if(botsEnabled){
       for(const b of bots){
-        if(b.downed||b.dead)continue;
+        if(b.downed||b.dead||!b.group) continue;
         const t=closestT(b.group.position.x,b.group.position.z);
-        list.push({isBot:true,id:'bot_'+b.id,bot:b,trackT:t,trackLat:3});
+        const p=trackPos(t),n=outN(t);
+        const lat=(b.group.position.x-p.x)*n.x + (b.group.position.z-p.z)*n.z;
+        list.push({isBot:true,id:'bot_'+b.id,bot:b,trackT:t,trackLat:clamp(lat,-5.1,8.3),pos:b.group.position});
       }
     }
     return list;
@@ -3083,21 +3155,31 @@ function initGameEngine() {
     const boost = (1.0 + Math.max(0, (0.4 - B) * 0.25)) * enrageMul;
     const targets=getAlivePlayers();
 
-
     for(let i=zombies.length-1;i>=0;i--){
       const z=zombies[i];
       if(z.mixer){
         if(z.dead || _vCam.distanceTo(z.g.position) < 42) z.mixer.update(dt);
       }
-      if(z.dead){z.deathT+=dt;const p=Math.min(1,z.deathT/.5),e=p*p*(3-2*p);
-        z.g.rotation.x=z.fallDir*-1.4*e;
+      if(z.dead){
+        z.deathT+=dt;
+        if(z.actions && z.actions['Death'] && z.activeAction !== 'Death'){
+          if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.15);
+          z.actions['Death'].reset().fadeIn(0.15).setLoop(THREE.LoopOnce, 1);
+          z.actions['Death'].clampWhenFinished = true;
+          z.actions['Death'].play();
+          z.activeAction = 'Death';
+        }
+        const p=Math.min(1,z.deathT/.5),e=p*p*(3-2*p);
+        if(!z.actions || !z.actions['Death']){
+          z.g.rotation.x=z.fallDir*-1.4*e;
+        }
         if(!z.loosened&&z.deathT>.1){z.loosened=true;
           if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
             z.aL.p.rotation.set(R(-.3,.5),0,R(-1,.2));z.aR.p.rotation.set(R(-.3,.5),0,R(-.2,1));
           }
         }
-        if(z.deathT>1.2)z.g.position.y=-(z.deathT-1.2)*.5;
-        if(z.deathT>2.0)releaseZombieSlot(z);
+        if(z.deathT>1.6)z.g.position.y=-(z.deathT-1.6)*.5;
+        if(z.deathT>2.4)releaseZombieSlot(z);
         continue;
       }
       if(z.spawning && !z.isThrown){
@@ -3106,7 +3188,6 @@ function initGameEngine() {
         if(z.spawnT <= 0){ z.spawning = false; z.fade = 1.0; }
         continue;
       }
-
 
       if(z.isThrown && !z.dead){
         z.g.position.addScaledVector(z.throwVel,dt);
@@ -3117,7 +3198,7 @@ function initGameEngine() {
         }
         camera.getWorldPosition(_vCam);const camPos2=_vCam;
         // Impacto contra jugador local
-        if(z.g.position.distanceTo(camPos2)<1.2 && playerState==='alive'){
+        if(z.g.position.distanceTo(camPos2)<1.4 && playerState==='alive'){
           damagePlayer(z.thrownDmg||30);
           burst(z.g.position,'ichor',16,4.0);
           feed('ZOMBIE IMPACTO — -'+z.thrownDmg+' HP','k');
@@ -3159,18 +3240,16 @@ function initGameEngine() {
         if(_vCam.distanceTo(z.g.position) < 45) z.g.visible = true;
       }
 
-      // Distancia 3D real entre zombie y target
-      const tp=trackPos(z.t),tn3d=outN(z.t);
-      const z3dPos={x:tp.x+tn3d.x*z.lat,y:0,z:tp.z+tn3d.z*z.lat};
-      const t3dPos=trackPos(nearest.trackT);const t3dN=outN(nearest.trackT);
-      t3dPos.x+=t3dN.x*(nearest.trackLat!==undefined?nearest.trackLat:3);t3dPos.y=0;t3dPos.z+=t3dN.z*(nearest.trackLat!==undefined?nearest.trackLat:3);
-      const dx=z3dPos.x-t3dPos.x,dz=z3dPos.z-t3dPos.z;
+      // Distancia 3D directa y precisa entre zombie y target
+      const targetPos = nearest.pos || _vCam;
+      const dx = z.g.position.x - targetPos.x;
+      const dz = z.g.position.z - targetPos.z;
       const dist3D = Math.hypot(dx, dz);
-      const meleeR = 1.35 * (z.scale || 1);
-      const stopR = meleeR * 0.7;
+      const meleeR = 1.95 * (z.scale || 1.0);
+      const stopR = meleeR * 0.75;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      const windupMax = z.type==='boss_juggernaut'?1.30:z.type==='boss_stalker'?1.15:z.type==='boss_rockhurler'?1.00:z.type==='brute'?0.95:z.type==='runner'?0.70:0.80;
+      const windupMax = z.type.includes('juggernaut')?1.25:z.type.includes('stalker')?1.10:z.type.includes('rockhurler')?1.00:z.type==='brute'?0.95:z.type==='runner'?0.65:0.75;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -3182,14 +3261,15 @@ function initGameEngine() {
         if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
         }
-        if(z.type==='boss_stalker'&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
-        const windupMoveSpd = z.type.startsWith('boss_') ? 0.30 : 0.45;
-        z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN; // windup: marcha despacio dando tiempo a reaccionar
+        if(z.type.includes('stalker')&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
+        const windupMoveSpd = z.type.startsWith('boss_') ? 0.35 : 0.50;
+        z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const baseCool = z.type==='boss_juggernaut'?3.5:z.type==='boss_stalker'?3.0:z.type==='boss_rockhurler'?2.8:z.type==='brute'?2.6:z.type==='runner'?1.7:2.1;
-          z.cool = baseCool / (1 + Math.min(0.15, (wave - 1) * 0.012));
+          const waveTier = Math.floor((wave - 1) / 2);
+          const baseCool = z.type.includes('juggernaut')?3.5:z.type.includes('stalker')?3.0:z.type.includes('rockhurler')?2.8:z.type==='brute'?2.6:z.type==='runner'?1.7:2.1;
+          z.cool = baseCool / (1 + Math.min(0.15, waveTier * 0.03));
 
-          if(dist3D<meleeR){
+          if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 6, 2.5);
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
@@ -3201,7 +3281,7 @@ function initGameEngine() {
             else netSend({type:'pdmg',dmg:z.dmg,target:nearest.id});
           }
         }
-      }else if(dist3D>stopR){
+      }else if(dist3D > stopR){
         z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;
         const s=Math.sin(z.animT);
         if(z.actions && (z.actions['Walk'] || z.actions['Run']) && z.activeAction !== 'Walk' && z.activeAction !== 'Run'){
@@ -3229,16 +3309,14 @@ function initGameEngine() {
         }
       }
 
-
-
-
       z.t=((z.t%1)+1)%1;
       const targetLat=nearest.trackLat!==undefined?nearest.trackLat:3;
-      z.lat+=(targetLat-z.lat)*dt*1.6;z.lat=clamp(z.lat,-5.1,8.3);
+      z.lat+=(targetLat-z.lat)*dt*2.8;z.lat=clamp(z.lat,-5.1,8.3);
 
       const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
       const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
       const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : floorY;
+
 
       z.g.position.set(p.x+n.x*z.lat, currentY, p.z+n.z*z.lat);
       z.g.rotation.y=Math.atan2(tn.x*Math.sign(dir),tn.z*Math.sign(dir));
@@ -3816,34 +3894,40 @@ function initGameEngine() {
 
   const MAX_WAVES=10;
   const WAVE_PLAN=[
-    {c:6,  boss:null},
-    {c:8,  boss:null},
-    {c:9,  boss:'boss_stalker'},
-    {c:10, boss:null,               brutes:2},
-    {c:11, boss:'boss_rockhurler'},
-    {c:12, boss:null,               brutes:3},
-    {c:13, boss:'boss_stalker',     brutes:2},
-    {c:14, boss:'boss_rockhurler',  brutes:2},
-    {c:15, boss:'boss_stalker',     brutes:3},
-    {c:12, boss:'boss_juggernaut',  brutes:2},   // FINAL WAVE
+    {c:6,  boss:null,              minis:[]},
+    {c:7,  boss:null,              minis:['mini_stalker']},
+    {c:8,  boss:null,              brutes:1, minis:['mini_rockhurler']},
+    {c:9,  boss:null,              brutes:2, minis:['mini_juggernaut']},
+    {c:10, boss:'boss_stalker',    brutes:1, minis:['mini_stalker']},
+    {c:11, boss:null,              brutes:3, minis:['mini_stalker','mini_rockhurler']},
+    {c:12, boss:'boss_rockhurler', brutes:2, minis:['mini_stalker']},
+    {c:13, boss:null,              brutes:3, minis:['mini_juggernaut','mini_stalker']},
+    {c:14, boss:'boss_stalker',    brutes:3, minis:['mini_rockhurler']},
+    {c:12, boss:'boss_juggernaut', brutes:2, minis:['mini_stalker']},   // FINAL WAVE
   ];
 
   function startWave(n){
     wave=n;hudWave();queue=[];const N=numPlayers();
     const plan=WAVE_PLAN[Math.min(n,WAVE_PLAN.length)-1];
-    hpMul=(1+(n-1)*0.14)*(1+0.20*(N-1));
-    spMul=1+Math.min(0.12,(n-1)*0.012); // Balance calibrado: progresión fluida sin velocidad desmedida
-    spawnInt=Math.max(1.8,3.6-n*0.16);spawnT=1.0;
-
+    
+    // Progresión cada 2 olas (Tier 0 a 4)
+    const waveTier = Math.floor((n - 1) / 2);
+    hpMul = (1 + waveTier * 0.16) * (1 + 0.18 * (N - 1));
+    spMul = 1 + Math.min(0.10, waveTier * 0.022); // Progresión suave cada 2 olas
+    spawnInt = Math.max(1.8, 3.6 - waveTier * 0.35); spawnT = 1.0;
 
     for(let i=0;i<plan.c;i++){const r=Math.random();queue.push(r<.55?'walker':(r<.85?'runner':'brute'));}
     for(let i=0;i<(plan.brutes||0);i++)queue.push('brute');
+    if(plan.minis && Array.isArray(plan.minis)){
+      plan.minis.forEach(m => queue.push(m));
+    }
     if(plan.boss)queue.push(plan.boss);
     queue.sort(()=>Math.random()-.5);
     if(n===MAX_WAVES) banner('FINAL WAVE','ALPHA JUGGERNAUT — SEAL THE LOOP FOREVER',true,5000);
-    else banner('WAVE '+String(n).padStart(2,'0')+' / '+MAX_WAVES,'HOLD THE LOOP LINE',!!plan.boss,2800);
+    else banner('WAVE '+String(n).padStart(2,'0')+' / '+MAX_WAVES,'HOLD THE LOOP LINE',!!(plan.boss || plan.minis?.length),2800);
     sfx.wave();hudScore();netSend({type:'wave',n});
   }
+
 
 
   /* ===== CONTROLES WASD Y MOUSE ===== */
@@ -5488,16 +5572,24 @@ function initGameEngine() {
 
           if(userData.mixer){
             userData.mixer.update(dt);
+            const isDeadOrDowned = (playerState === 'downed' || playerState === 'dead');
             const isMoving = vel.lengthSq() > 0.1;
-            const targetAct = isMoving ? (keys['ShiftLeft'] ? 'Run' : 'Walk') : 'Idle';
+            const targetAct = isDeadOrDowned ? 'Death' : (isMoving ? (keys['ShiftLeft'] ? 'Run' : 'Walk') : 'Idle');
             const actions = userData.actions;
             let activeAct = userData.activeAction;
             if(actions && actions[targetAct] && activeAct !== targetAct){
               if(actions[activeAct]) actions[activeAct].fadeOut(0.18);
-              if(actions[targetAct]) actions[targetAct].reset().fadeIn(0.18).play();
+              if(targetAct === 'Death'){
+                actions['Death'].reset().fadeIn(0.18).setLoop(THREE.LoopOnce, 1);
+                actions['Death'].clampWhenFinished = true;
+                actions['Death'].play();
+              } else {
+                actions[targetAct].reset().fadeIn(0.18).play();
+              }
               userData.activeAction = targetAct;
             }
           }
+
         }
 
         
@@ -5809,27 +5901,36 @@ function initGameEngine() {
         const _origCamPos = camera.position.clone();
         const _origCamRotY = camera.rotation.y;
 
-        if(camMode === 'fps_body' && playing && playerState === 'alive'){
+        if(camMode === 'fps_body' && playing){
           if(camera.near !== 0.05){ camera.near = 0.05; camera.updateProjectionMatrix(); }
           if(localPlayerBodyGroup){
             localPlayerBodyGroup.visible = true;
-            if(localPlayerBodyGroup.userData && localPlayerBodyGroup.userData.headBone){
+            if(localPlayerBodyGroup.userData && localPlayerBodyGroup.userData.headBone && playerState === 'alive'){
               localPlayerBodyGroup.userData.headBone.getWorldPosition(_vHead);
               _vHead.y = Math.max(getFloorY(_vHead.x, _vHead.z) + 1.52, _vHead.y);
               camera.position.copy(_vHead);
             }
           }
-        } else {
+          if(weapon) weapon.visible = false;
+        } else if(camMode === 'tps_back' || camMode === 'tps_front'){
           if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
+          if(localPlayerBodyGroup) localPlayerBodyGroup.visible = (playing);
+          if(weapon) weapon.visible = false;
           if(camMode === 'tps_back'){
-            const _back = new THREE.Vector3(0, 0.45, 2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+            const _back = new THREE.Vector3(0.35, 0.45, 2.6).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
             camera.position.add(_back);
           } else if(camMode === 'tps_front'){
-            const _front = new THREE.Vector3(0, 0.45, -2.5).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+            const _front = new THREE.Vector3(0, 0.35, -2.6).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
             camera.position.add(_front);
             camera.rotation.y += Math.PI;
+            camera.rotation.x = -pitch;
           }
+        } else {
+          if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
+          if(localPlayerBodyGroup) localPlayerBodyGroup.visible = false;
+          if(weapon) weapon.visible = (playing && playerState === 'alive');
         }
+
 
         renderer.render(scene,camera);
 
