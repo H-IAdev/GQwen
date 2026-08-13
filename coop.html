@@ -2212,6 +2212,13 @@ function initGameEngine() {
   }
 
 
+  const SOLDIER_GLB_URLS = [
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
+    'src/ZombieKit2024/Characters/glTF/Characters_Shaun.gltf',
+    'src/ZombieKit2024/Characters/glTF/Characters_Matt.gltf',
+    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
+  ];
+
   function loadSoldierGLTFForPlayers(){
     if(cachedSoldierGLTF){
       for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
@@ -2222,18 +2229,34 @@ function initGameEngine() {
     const loader = getCDNLoader();
     if(!loader) return;
     isSoldierLoading = true;
-    logDiag('Cargando Soldier.glb desde CDN para Jugadores Humanos...','info');
-    loader.load(SOLDIER_GLB_URL, (gltf) => {
-      cachedSoldierGLTF = gltf;
-      isSoldierLoading = false;
-      logDiag('✓ Modelo Soldado CDN (Soldier.glb) cargado para jugadores (' + gltf.animations.length + ' animaciones)','ok');
-      for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
-      if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
-    }, undefined, (err) => {
-      isSoldierLoading = false;
-      logDiag('Aviso al cargar Soldier.glb (usando fallback procedimental): ' + err.message, 'info');
-    });
+    
+    const isFile = window.location.protocol === 'file:';
+    let urlList = SOLDIER_GLB_URLS;
+    if(isFile){
+      urlList = urlList.filter(u => u.startsWith('http://') || u.startsWith('https://'));
+    }
+
+    (function attempt(idx){
+      if(idx >= urlList.length){
+        isSoldierLoading = false;
+        logDiag('Modelo de Soldado externo no alcanzado (usando modelo táctico procedimental enriquecido).', 'info');
+        return;
+      }
+      const url = urlList[idx];
+      loader.load(url, (gltf) => {
+        cachedSoldierGLTF = gltf;
+        isSoldierLoading = false;
+        logDiag('✓ Modelo Soldado 3D cargado: ' + url.split('/').pop() + ' (' + (gltf.animations ? gltf.animations.length : 0) + ' animaciones)', 'ok');
+        for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
+        if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
+      }, undefined, (err) => {
+        attempt(idx + 1);
+      });
+    })(0);
   }
+
+  try { loadSoldierGLTFForPlayers(); } catch(e){}
+
 
 
   const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
@@ -3087,11 +3110,22 @@ function initGameEngine() {
     slot.t=sp.t; slot.lat=sp.lat; slot.speed=1;slot.dmg=5;slot.score=10;
 
     slot.dead=false;slot.deathT=0;slot.loosened=false;
+    slot.isCrawling=false;slot.isBiting=false;slot.legDmg=0;slot.armDmg=0;
     slot.cool=R(.5,1.5);slot.windup=0;slot.hitT=0;slot.fade=1.0; // fade=1 por si viene de pool
     slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(2,4);slot.grabT=R(4,6);
     slot.spawning=true;slot.spawnT=.3;
     slot.frustumHidden=false;
     slot.isThrown=false;slot.grabbed=null;slot.grabVictim=null;slot.throwVel=undefined;
+
+    // Restaurar visibilidad de todas las extremidades desmembradas del pool
+    if(slot.lL && slot.lL.p) slot.lL.p.visible = !slot.gltfMesh;
+    if(slot.lR && slot.lR.p) slot.lR.p.visible = !slot.gltfMesh;
+    if(slot.aL && slot.aL.p) slot.aL.p.visible = !slot.gltfMesh;
+    if(slot.aR && slot.aR.p) slot.aR.p.visible = !slot.gltfMesh;
+    if(slot.gltfMesh){
+      slot.gltfMesh.traverse(c => { if(c.isMesh) c.visible = true; });
+    }
+
     if(type==='boss_rockhurler' || type==='mini_rockhurler'){
       slot.isHurler=true;slot.rockT=R(2.5,4.5);slot.grabT=R(3.5,6);slot.chargeT=0;
       slot.charging=false;slot.grabbed=null;slot.grabAnimT=0;slot.grabVictim=null;
@@ -3102,6 +3136,7 @@ function initGameEngine() {
 
     // Resetear rotación (muerte deja el zombie caído — g.rotation.x != 0)
     slot.g.rotation.set(0,0,0);
+
     // Posicionar (LOD ya está en la escena, solo mover y mostrar)
     const p2=trackPos(slot.t),n2=outN(slot.t);
     const _y0=getFloorY(p2.x+n2.x*slot.lat,p2.z+n2.z*slot.lat);
@@ -5500,6 +5535,12 @@ function initGameEngine() {
       localPlayerBodyGroup.name = 'localPlayerBody';
       localPlayerBodyGroup.userData.refs = pm.refs;
     }
+    if(cachedSoldierGLTF){
+      applySoldierToGroup(localPlayerBodyGroup);
+    } else {
+      try { loadSoldierGLTFForPlayers(); } catch(e){}
+    }
+
 
     /* GQW-VIS-5.0: Spawn AI squad ONLY in dedicated 'bots' mode */
     if(gameMode === 'bots' && typeof spawnBots === 'function'){
