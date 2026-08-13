@@ -2260,7 +2260,12 @@ function initGameEngine() {
 
 
 
-  const ROBOT_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
+  const ROBOT_GLB_URLS = [
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
+    'src/ZombieKit2024/Characters/glTF/Characters_Lis.glTF',
+    'src/ZombieKit2024/Characters/glTF/Characters_Sam.gltf',
+    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
+  ];
   let cachedRobotGLTF = null, isRobotLoading = false;
 
   function applyRobotGLTFToBot(b){
@@ -2284,7 +2289,7 @@ function initGameEngine() {
         b.activeAction = 'Idle';
       }
 
-      logDiag('Bot ' + b.name + ' actualizado a Robot 3D CDN animado', 'ok');
+      logDiag('Bot ' + b.name + ' actualizado a Modelo 3D animado', 'ok');
     } catch(e) {
       logDiag('Aviso al aplicar Robot GLTF a bot: ' + e.message, 'err');
     }
@@ -2299,17 +2304,33 @@ function initGameEngine() {
     const loader = getCDNLoader();
     if(!loader) return;
     isRobotLoading = true;
-    logDiag('Cargando RobotExpressive.glb para Bots desde CDN...','info');
-    loader.load(ROBOT_GLB_URL, (gltf) => {
-      cachedRobotGLTF = gltf;
-      isRobotLoading = false;
-      logDiag('✓ RobotExpressive.glb cargado con éxito para escuadrón bot (' + gltf.animations.length + ' animaciones)','ok');
-      bots.forEach(b => applyRobotGLTFToBot(b));
-    }, undefined, (err) => {
-      isRobotLoading = false;
-      logDiag('Aviso al cargar RobotExpressive.glb: ' + err.message, 'info');
-    });
+    
+    const isFile = window.location.protocol === 'file:';
+    let urlList = ROBOT_GLB_URLS;
+    if(isFile){
+      urlList = urlList.filter(u => u.startsWith('http://') || u.startsWith('https://'));
+    }
+
+    (function attempt(idx){
+      if(idx >= urlList.length){
+        isRobotLoading = false;
+        logDiag('Modelo 3D externo de bots no alcanzado (usando modelo bot táctico procedimental enriquecido).', 'info');
+        return;
+      }
+      const url = urlList[idx];
+      loader.load(url, (gltf) => {
+        cachedRobotGLTF = gltf;
+        isRobotLoading = false;
+        logDiag('✓ Modelo 3D de Bots cargado: ' + url.split('/').pop() + ' (' + (gltf.animations ? gltf.animations.length : 0) + ' animaciones)', 'ok');
+        bots.forEach(b => applyRobotGLTFToBot(b));
+      }, undefined, (err) => {
+        attempt(idx + 1);
+      });
+    })(0);
   }
+
+  try { loadRobotGLTFForBots(); } catch(e){}
+
 
   function spawnBots(){
     bots.forEach(b=>{if(b.group)scene.remove(b.group);});
@@ -2319,6 +2340,8 @@ function initGameEngine() {
       { role: 'anchor', name: 'RUIZ', leadOffset: -0.035, latOffset: 1.8, speed: 5.6 },
       { role: 'flanker', name: 'KIDO', leadOffset: 0.005, latOffset: -0.6, speed: 5.8 }
     ];
+    const botWaveBonusHp = (wave >= 4) ? (wave - 3) * 18 : 0;
+    const botWaveArmor = (wave >= 4) ? Math.min(0.28, (wave - 3) * 0.04) : 0;
     for(let i=0;i<3;i++){
       const m=buildPlayerMesh(i+1, false, true);
       m.group.position.copy(camera.position).add(BOT_OFFSETS[i] || new THREE.Vector3());
@@ -2327,12 +2350,14 @@ function initGameEngine() {
         ...m,
         id: i+1,
         name: roles[i].name,
-        hp: 100,
-        maxHp: 100,
+        hp: 100 + botWaveBonusHp,
+        maxHp: 100 + botWaveBonusHp,
+        armor: botWaveArmor,
         role: roles[i].role,
         leadOffset: roles[i].leadOffset,
         latOffset: roles[i].latOffset,
         baseSpeed: roles[i].speed,
+
         
         recentDamageTimer: 0,
         isRetreatingToHeal: false,
@@ -3132,7 +3157,9 @@ function initGameEngine() {
       slot.charging=false;slot.grabbed=null;slot.grabAnimT=0;slot.grabVictim=null;
     }
     const d2=ZDEF[type] || ZDEF.walker;
+    const waveArmor = (wave >= 4) ? Math.min(0.25, (wave - 3) * 0.035) : 0;
     slot.hp=d2.hp*hpMul;slot.speed=R(...d2.spd)*spMul;slot.curSpd=slot.speed*0.25;slot.dmg=d2.dmg;slot.score=d2.score;
+    slot.armor = (d2.armor || 0) + waveArmor;
     slot.scale=d2.sc||1;
 
     // Resetear rotación (muerte deja el zombie caído — g.rotation.x != 0)
@@ -3209,16 +3236,27 @@ function initGameEngine() {
     const isLeg = (part === 'legL' || part === 'legR');
     const isArm = (part === 'armL' || part === 'armR');
 
-    let rawDmg = customDmg !== null ? customDmg : (hs ? 55 : (isLeg ? 20 : 25));
-    if(hs) rawDmg *= 1.4; // Gran bonificación de headshot estilo cómic
+    let rawDmg = customDmg !== null ? customDmg : (hs ? 42 : (isLeg ? 20 : 25));
     
-    const armor = ZDEF[z.type]?.armor || 0;
+    // Zoned Headshot: Los bosses y brutes tienen casco/armadura craneal
+    const isBossOrElite = z.type.startsWith('boss_') || z.type.startsWith('mini_') || z.type === 'brute';
+    if(hs){
+      if(isBossOrElite){
+        rawDmg *= 1.35; // Multiplicador táctico a zona craneal en bosses/brutes
+        burst(pt, 'spark', 8, 3.0); // Chispas de impacto en blindaje/cráneo reforzado
+      } else {
+        rawDmg *= 1.85; // Crítico craneal en walkers y runners
+      }
+    }
+    
+    const armor = (z.armor !== undefined ? z.armor : (ZDEF[z.type]?.armor || 0));
     const dmg = Math.max(1, Math.round(rawDmg * (1 - armor)));
     z.hp -= dmg; z.hitT = .22;
     
     // Sangre neón fluorescente + partículas de hueso
-    burst(pt, 'ichor', hs ? 16 : 8, 3.2);
+    burst(pt, 'ichor', hs ? 14 : 8, 3.0);
     if(hs || isLeg || isArm) burst(pt, 'bone', 4, 2.5);
+
 
     // ── GORE FÍSICO CON PROPÓSITO: DESMEMBRAMIENTO Y MUTACIÓN TÁCTICA ──
     if(z.hp > 0 && !z.type.startsWith('boss_') && !z.type.startsWith('mini_')){
@@ -3434,12 +3472,15 @@ function initGameEngine() {
             if(z.isBiting) sfx.flesh();
             if(nearest.isBot){
               if(nearest.bot&&!nearest.bot.downed){
-                nearest.bot.hp-=z.dmg;
+                const bArmor = nearest.bot.armor || 0;
+                const effectiveDmg = Math.max(1, Math.round(z.dmg * (1 - bArmor)));
+                nearest.bot.hp -= effectiveDmg;
                 if(nearest.bot.hp<=0){nearest.bot.downed=true;nearest.bot.downT=15;nearest.bot.hp=0;
                   feed(nearest.bot.name+' HA CAÍDO','k');}
               }
             }else if(nearest.isLocal)damagePlayer(z.dmg);
             else netSend({type:'pdmg',dmg:z.dmg,target:nearest.id});
+
           }
         }
       }else if(dist3D > stopR){
@@ -4023,7 +4064,9 @@ function initGameEngine() {
   let playerT=0,playerLat=3;
 
   function damagePlayer(d){if(playerState!=='alive'||reviveInvuln>0)return;
-    hp-=d;lastHit=elapsed;dmgFlash=Math.min(1,dmgFlash+.7);
+    const playerArmor = (wave >= 4) ? Math.min(0.25, (wave - 3) * 0.035) : 0;
+    const effectiveDmg = Math.max(1, Math.round(d * (1 - playerArmor)));
+    hp -= effectiveDmg; lastHit=elapsed; dmgFlash=Math.min(1,dmgFlash+.7);
     shake=Math.max(shake,REDUCED?.01:.05);sfx.hurt();hudHP();
     if(hp<=0){
       hp=0;
@@ -4081,10 +4124,11 @@ function initGameEngine() {
     wave=n;hudWave();queue=[];const N=numPlayers();
     const plan=WAVE_PLAN[Math.min(n,WAVE_PLAN.length)-1];
     
-    // Progresión calibrada: sin incrementos continuos, solo ligero repunte táctico en olas finales
-    hpMul = (1 + (n >= 8 ? 0.22 : (n >= 5 ? 0.12 : 0))) * (1 + 0.15 * (N - 1));
+    // Progresión calibrada de vitalidad enemiga por ola con resistencia de armadura en niveles altos
+    hpMul = (1 + (n >= 8 ? 0.35 : (n >= 5 ? 0.18 : 0))) * (1 + 0.15 * (N - 1));
     spMul = (n === 10) ? 1.07 : (n >= 8 ? 1.04 : 1.0);
     spawnInt = Math.max(1.8, 3.2 - (n >= 8 ? 0.6 : (n >= 5 ? 0.3 : 0))); spawnT = 1.0;
+
 
 
     for(let i=0;i<plan.c;i++){const r=Math.random();queue.push(r<.55?'walker':(r<.85?'runner':'brute'));}
