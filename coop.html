@@ -1215,9 +1215,67 @@ function initGameEngine() {
     new Promise(r=>setTimeout(()=>{setLoad(85,'Texturas HD: timeout');logDiag('Texturas HD: timeout 12s.');r();},12000))
   ]);
 
-  /* ===== MAPA 3D ===== */
+  /* ===== MAPA 3D & SISTEMA DE COLISIONES ===== */
   const sectorGroups=[];
   const box=(w,h,d,m)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
+
+  // Catálogo de Obstáculos Sólidos (Quioscos, Máquinas, Barreras)
+  const OBSTACLES = [
+    { x: -26, z: -11, hw: 1.9, hd: 1.3 },
+    { x:  26, z:  11, hw: 1.9, hd: 1.3 },
+    { x: -26, z:  11, hw: 1.9, hd: 1.3 },
+    { x:  26, z: -11, hw: 1.9, hd: 1.3 },
+    { x: -30, z: -2, hw: 0.7, hd: 0.55 },
+    { x:  30, z:  2, hw: 0.7, hd: 0.55 }
+  ];
+
+  function resolveWorldCollisions(p, radius = 0.45){
+    // 1. Límite perimetral elíptico exterior
+    const normSq = (p.x / 55.5) * (p.x / 55.5) + (p.z / 30.5) * (p.z / 30.5);
+    if(normSq > 1.0){
+      const factor = 1.0 / Math.sqrt(normSq);
+      p.x *= factor;
+      p.z *= factor;
+    }
+
+    // 2. Colisión AABB con quioscos y máquinas
+    for(const obs of OBSTACLES){
+      const dx = p.x - obs.x;
+      const dz = p.z - obs.z;
+      const ox = (obs.hw + radius) - Math.abs(dx);
+      const oz = (obs.hd + radius) - Math.abs(dz);
+      if(ox > 0 && oz > 0){
+        if(ox < oz){
+          p.x += Math.sign(dx) * ox;
+        } else {
+          p.z += Math.sign(dz) * oz;
+        }
+      }
+    }
+
+    // 3. Colisión con vagones de metro (salvo en las puertas abiertas)
+    if(window.trainCars && window.trainCars.length){
+      for(const tc of window.trainCars){
+        const dx = p.x - tc.cx;
+        const dz = p.z - tc.cz;
+        const lx = dx * tc.cosA + dz * tc.sinA;
+        const lz = -dx * tc.sinA + dz * tc.cosA;
+        const endPenZ = (tc.halfL + radius) - Math.abs(lz);
+        const endPenX = (tc.halfW + radius) - Math.abs(lx);
+        if(endPenZ > 0 && endPenX > 0){
+          const isDoor = (Math.abs(lz) >= 2.0 && Math.abs(lz) <= 4.0);
+          if(!isDoor && Math.abs(lx) > tc.halfW - 0.25){
+            const pushX = (tc.halfW + radius) - Math.abs(lx);
+            if(pushX > 0 && pushX < 0.8){
+              p.x += Math.sign(lx) * pushX * tc.cosA;
+              p.z += Math.sign(lx) * pushX * tc.sinA;
+            }
+          }
+        }
+      }
+    }
+  }
+
   function buildLoop(){
     const SPS=10;
     for(let s=0;s<SECTORS;s++){
@@ -2868,23 +2926,8 @@ function initGameEngine() {
 
 
   function navBotClamp(p){
-    const t = closestT(p.x, p.z);
-    const P = trackPos(t), N = outN(t);
-    const lat = (p.x - P.x) * N.x + (p.z - P.z) * N.z;
-    const st = stationness(t);
-    
-    const minLat = lerp(-3.8, -2.6, st) + BOT_RADIUS;
-    const maxLat = lerp(6.8, 3.6, st) - BOT_RADIUS;
-    
-    if(lat < minLat){
-      const push = minLat - lat;
-      p.x += N.x * push;
-      p.z += N.z * push;
-    } else if(lat > maxLat){
-      const push = maxLat - lat;
-      p.x += N.x * push;
-      p.z += N.z * push;
-    }
+    // Navegación 360° libre en toda la Gran Estación Central con resolución de colisiones
+    resolveWorldCollisions(p, BOT_RADIUS);
   }
 
   function applyBotSeparation(b, dt){
@@ -3176,19 +3219,31 @@ function initGameEngine() {
     if (!bestTarget && !isFarFromPlayer) {
       if (bot.exploreTimer <= 0 && !bot.explorePos) {
         bot.exploreTimer = R(5.0, 9.0);
-        // Buscar POI cercano: Caja de granadas, caja de munición o punto adelantado
+        // Buscar POI cercano: Cajas de suministros, Quioscos, Entresuelo, o Vagones de tren
         let poi = null;
-        if (window.grenadeCrates && Math.random() < 0.40) {
-          const gCr = window.grenadeCrates.find(c => c.active && botPos.distanceTo(c.g.position) < 18);
+        const rChoice = Math.random();
+
+        if (rChoice < 0.25 && window.trainCars && window.trainCars.length) {
+          const tc = pick(window.trainCars);
+          poi = new THREE.Vector3(tc.cx + R(-0.5, 0.5), getFloorY(tc.cx, tc.cz), tc.cz + R(-3, 3));
+        } else if (rChoice < 0.45 && typeof OBSTACLES !== 'undefined' && OBSTACLES.length) {
+          const obs = pick(OBSTACLES);
+          const approachDir = (Math.random() < 0.5 ? 1 : -1);
+          poi = new THREE.Vector3(obs.x + approachDir * 2.2, getFloorY(obs.x, obs.z), obs.z + approachDir * 1.8);
+        } else if (rChoice < 0.65) {
+          // Explorar el entresuelo elevado central
+          const mezX = R(-8, 8), mezZ = R(-4, 4);
+          poi = new THREE.Vector3(mezX, getFloorY(mezX, mezZ), mezZ);
+        } else if (window.grenadeCrates && Math.random() < 0.5) {
+          const gCr = window.grenadeCrates.find(c => c.active && botPos.distanceTo(c.g.position) < 22);
           if (gCr) poi = gCr.g.position.clone();
-        }
-        if (!poi && window.ammoCrates && Math.random() < 0.45) {
-          const aCr = window.ammoCrates.find(c => c.active && botPos.distanceTo(c.g.position) < 18);
+        } else if (window.ammoCrates) {
+          const aCr = window.ammoCrates.find(c => c.active && botPos.distanceTo(c.g.position) < 22);
           if (aCr) poi = aCr.g.position.clone();
         }
+
         if (!poi) {
-          // Explorar flanco o avanzada en la vía
-          const advT = (playerT + R(-0.02, 0.06) + 1) % 1;
+          const advT = (playerT + R(-0.04, 0.08) + 1) % 1;
           const tp = trackPos(advT), tn = outN(advT);
           poi = new THREE.Vector3(tp.x + tn.x * (bot.latOffset * R(0.8, 1.6)), getFloorY(tp.x, tp.z), tp.z + tn.z * (bot.latOffset * R(0.8, 1.6)));
         }
@@ -4045,6 +4100,7 @@ function initGameEngine() {
 
 
       z.g.position.set(p.x+n.x*z.lat, currentY, p.z+n.z*z.lat);
+      resolveWorldCollisions(z.g.position, 0.45);
       z.g.rotation.y=Math.atan2(tn.x*Math.sign(dir),tn.z*Math.sign(dir));
       /* InstancedMesh: walkers/runners >20m usan instancia (menos draw calls) */
       const _isSimple=z.type==='walker'||z.type==='runner'||z.type==='brute';
@@ -5222,14 +5278,17 @@ function initGameEngine() {
       if(sectorGroups[i]) sectorGroups[i].visible = d <= 2;
     }
     const sEl = $('#sectorId');
-        if(lightsReg && lightsReg.length && camera){
+    if(lightsReg && lightsReg.length && camera){
       lightsReg.forEach(l => {
         if(!l) return;
         const distToCam = camera.position.distanceTo(l.position);
-        const fade = clamp(1.0 - (distToCam - 14.0) / 24.0, 0.08, 1.0);
-        const base = l.userData.base || 1.0;
-        const k = (l.userData.k !== undefined) ? l.userData.k : 1.0;
-        l.intensity = base * k * fade;
+        l.visible = (distToCam < 38.0);
+        if(l.visible){
+          const fade = clamp(1.0 - (distToCam - 14.0) / 24.0, 0.08, 1.0);
+          const base = l.userData.base || 1.0;
+          const k = (l.userData.k !== undefined) ? l.userData.k : 1.0;
+          l.intensity = base * k * fade;
+        }
       });
     }
     if(sEl) sEl.textContent = 'S' + (pS + 1);
@@ -5242,92 +5301,180 @@ function initGameEngine() {
     const w = canvas.width, h = canvas.height;
     c.clearRect(0, 0, w, h);
 
-    // Fondo oscuro translúcido
-    c.fillStyle = 'rgba(4,6,9,0.88)';
+    // 1. Fondo radar táctico
+    c.fillStyle = 'rgba(6,9,14,0.92)';
     c.fillRect(0, 0, w, h);
 
-    // Carril elíptico exterior — trazo fino amber
-    c.strokeStyle = 'rgba(255,180,0,0.22)';
-    c.lineWidth = 1;
+    // Coordenadas mundo (X: [-56, 56], Z: [-31, 31]) -> Minimapa Canvas (W, H)
+    const toMap = (wx, wz) => ({
+      x: (wx / 56.0) * (w * 0.44) + w / 2,
+      y: (wz / 31.0) * (h * 0.44) + h / 2
+    });
+
+    // 2. Anillo elíptico exterior de túneles y andenes
+    c.strokeStyle = 'rgba(255,180,0,0.30)';
+    c.lineWidth = 1.2;
     c.beginPath();
-    c.ellipse(w/2, h/2, w*0.46, h*0.42, 0, 0, Math.PI*2);
+    c.ellipse(w/2, h/2, w * 0.44, h * 0.44, 0, 0, Math.PI * 2);
     c.stroke();
 
-    // Carril elíptico interior — guía central
-    c.strokeStyle = 'rgba(255,180,0,0.45)';
-    c.lineWidth = 2;
-    c.setLineDash([4, 3]);
+    // Vías férreas perimetrales
+    c.strokeStyle = 'rgba(80,100,125,0.35)';
+    c.lineWidth = 3;
     c.beginPath();
-    c.ellipse(w/2, h/2, w*0.40, h*0.36, 0, 0, Math.PI*2);
+    c.ellipse(w/2, h/2, w * 0.40, h * 0.40, 0, 0, Math.PI * 2);
     c.stroke();
-    c.setLineDash([]);
 
-    // Jugador local — punto dorado con glow
-    const pa = 2 * Math.PI * playerT;
-    const px = w/2 + Math.sin(pa)*w*0.40;
-    const py = h/2 - Math.cos(pa)*h*0.36;
-    c.shadowColor = '#ffb400';
-    c.shadowBlur = 6;
-    c.fillStyle = '#' + (myColor || PCOLORS[0]).toString(16).padStart(6,'0');
+    // 3. Gran Plaza Central (Concourse Floor)
+    c.fillStyle = 'rgba(18,24,34,0.75)';
     c.beginPath();
-    c.arc(px, py, 4, 0, Math.PI*2);
+    c.ellipse(w/2, h/2, w * 0.35, h * 0.35, 0, 0, Math.PI * 2);
     c.fill();
-    c.shadowBlur = 0;
-
-    // Dirección del jugador (pequeña línea)
-    c.strokeStyle = 'rgba(255,210,87,0.8)';
+    c.strokeStyle = 'rgba(255,180,0,0.50)';
     c.lineWidth = 1;
-    c.beginPath();
-    c.moveTo(px, py);
-    c.lineTo(px + Math.sin(pa)*6, py - Math.cos(pa)*6);
     c.stroke();
 
-    // Jugadores remotos — puntos con color de equipo
+    // 4. Entresuelo central elevado (Mezzanine: 28m x 12m)
+    const mw = (28 / 112) * w * 0.88;
+    const mh = (12 / 62) * h * 0.88;
+    c.fillStyle = 'rgba(38,48,64,0.90)';
+    c.fillRect(w/2 - mw/2, h/2 - mh/2, mw, mh);
+    c.strokeStyle = 'rgba(255,210,87,0.85)';
+    c.lineWidth = 1.2;
+    c.strokeRect(w/2 - mw/2, h/2 - mh/2, mw, mh);
+
+    // Escalinatas de acceso al entresuelo (4 direcciones)
+    c.fillStyle = 'rgba(255,180,0,0.75)';
+    c.fillRect(w/2 - mw*0.25, h/2 - mh/2 - 3.5, mw*0.5, 3.5); // Norte
+    c.fillRect(w/2 - mw*0.25, h/2 + mh/2,       mw*0.5, 3.5); // Sur
+    c.fillRect(w/2 - mw/2 - 3.5, h/2 - mh*0.25, 3.5, mh*0.5); // Oeste
+    c.fillRect(w/2 + mw/2,       h/2 - mh*0.25, 3.5, mh*0.5); // Este
+
+    // 5. Vagones de Metro Abandonados en Vías (Norte y Sur)
+    if(window.trainCars && window.trainCars.length){
+      for(const tc of window.trainCars){
+        const mp = toMap(tc.cx, tc.cz);
+        c.save();
+        c.translate(mp.x, mp.y);
+        c.rotate(tc.angle);
+        const tw = (tc.halfW * 2 / 56.0) * (w * 0.44);
+        const tl = (tc.halfL * 2 / 31.0) * (h * 0.44);
+        c.fillStyle = 'rgba(30,120,220,0.70)';
+        c.fillRect(-tw/2, -tl/2, tw, tl);
+        c.strokeStyle = '#ffd257';
+        c.lineWidth = 1;
+        c.strokeRect(-tw/2, -tl/2, tw, tl);
+        c.restore();
+      }
+    }
+
+    // 6. Quioscos y Máquinas Expendedoras
+    if(typeof OBSTACLES !== 'undefined'){
+      c.fillStyle = 'rgba(70,85,105,0.85)';
+      for(const obs of OBSTACLES){
+        const mp = toMap(obs.x, obs.z);
+        const ow = (obs.hw * 2 / 56.0) * (w * 0.44);
+        const od = (obs.hd * 2 / 31.0) * (h * 0.44);
+        c.fillRect(mp.x - ow/2, mp.y - od/2, ow, od);
+      }
+    }
+
+    // 7. Rejillas de Alcantarillado / Spawns de Emboscada
+    if(window.ambushGratePositions){
+      c.fillStyle = '#ff7020';
+      for(const gl of window.ambushGratePositions){
+        const mp = toMap(gl.x, gl.z);
+        c.fillRect(mp.x - 1.5, mp.y - 1.5, 3, 3);
+      }
+    }
+
+    // 8. Cajas de Suministros (Munición y Granadas)
+    if(window.ammoCrates){
+      c.fillStyle = '#ffb400';
+      for(const cr of window.ammoCrates){
+        if(!cr.active) continue;
+        const mp = toMap(cr.g.position.x, cr.g.position.z);
+        c.fillRect(mp.x - 2, mp.y - 2, 4, 4);
+      }
+    }
+    if(window.grenadeCrates){
+      c.fillStyle = '#00ff88';
+      for(const cr of window.grenadeCrates){
+        if(!cr.active) continue;
+        const mp = toMap(cr.g.position.x, cr.g.position.z);
+        c.fillRect(mp.x - 2, mp.y - 2, 4, 4);
+      }
+    }
+
+    // 9. Jugadores Remotos
     for(const [,rp] of Object.entries(remotePlayers)){
       if(!rp) continue;
-      const ra = 2 * Math.PI * (rp.trackT || 0);
+      const rx = rp.x !== undefined ? rp.x : (rp.mesh ? rp.mesh.position.x : 0);
+      const rz = rp.z !== undefined ? rp.z : (rp.mesh ? rp.mesh.position.z : 0);
+      const mp = toMap(rx, rz);
       const col = '#' + (rp.color || 0x3f8cff).toString(16).padStart(6,'0');
-      c.shadowColor = col;
-      c.shadowBlur = 4;
+      c.shadowColor = col; c.shadowBlur = 4;
       c.fillStyle = col;
-      c.beginPath();
-      c.arc(w/2 + Math.sin(ra)*w*0.40, h/2 - Math.cos(ra)*h*0.36, 3, 0, Math.PI*2);
-      c.fill();
+      c.beginPath(); c.arc(mp.x, mp.y, 3.5, 0, Math.PI*2); c.fill();
       c.shadowBlur = 0;
     }
 
-    // Bots Sintéticos — seguimiento en tiempo real 100% preciso con ángulo de visión
+    // 10. Bots Sintéticos con Indicador de Rumbo y Estado
     for(const b of bots){
       if(b.dead || !b.group) continue;
-      const botT = closestT(b.group.position.x, b.group.position.z);
-      const ba = 2 * Math.PI * botT;
-      const bx = w/2 + Math.sin(ba)*w*0.40;
-      const by = h/2 - Math.cos(ba)*h*0.36;
+      const mp = toMap(b.group.position.x, b.group.position.z);
       const col = b.downed ? '#ff4b3e' : '#00ffaa';
-      c.shadowColor = col;
-      c.shadowBlur = b.downed ? 8 : 4;
+      c.shadowColor = col; c.shadowBlur = b.downed ? 8 : 4;
       c.fillStyle = col;
-      c.beginPath();
-      c.arc(bx, by, b.downed ? 4.5 : 3.5, 0, Math.PI*2);
-      c.fill();
+      c.beginPath(); c.arc(mp.x, mp.y, b.downed ? 4.5 : 3.5, 0, Math.PI*2); c.fill();
       c.shadowBlur = 0;
-      // Indicador de dirección de visión en tiempo real (b.group.rotation.y)
-      const facingAng = b.group.rotation.y || 0;
+      const facing = b.group.rotation.y || 0;
       c.strokeStyle = col; c.lineWidth = 1.4;
-      c.beginPath(); c.moveTo(bx, by);
-      c.lineTo(bx + Math.sin(facingAng)*6, by - Math.cos(facingAng)*6); c.stroke();
+      c.beginPath(); c.moveTo(mp.x, mp.y);
+      c.lineTo(mp.x - Math.sin(facing) * 6, mp.y - Math.cos(facing) * 6); c.stroke();
     }
 
-    // Zombies — puntos rojos pequeños
-    c.fillStyle = 'rgba(255,75,62,0.9)';
+    // 11. Zombies y Jefes
     const allZ = isHost ? zombies : [...remoteZombies.values()];
     for(const z of allZ){
       if(z.dead) continue;
-      const zt = isHost ? z.t : (z.ty || 0);
-      const za = 2 * Math.PI * zt;
+      const zx = z.g ? z.g.position.x : (z.x || 0);
+      const zz = z.g ? z.g.position.z : (z.z || 0);
+      const mp = toMap(zx, zz);
+      const isBoss = (z.type && (z.type.startsWith('boss_') || z.type.startsWith('mini_')));
+
+      if(isBoss){
+        c.fillStyle = '#a855f7';
+        c.shadowColor = '#a855f7'; c.shadowBlur = 6;
+        c.beginPath();
+        c.arc(mp.x, mp.y, 4.5, 0, Math.PI*2);
+        c.fill();
+        c.shadowBlur = 0;
+      } else {
+        c.fillStyle = 'rgba(255,75,62,0.9)';
+        c.beginPath();
+        c.arc(mp.x, mp.y, 2.0, 0, Math.PI*2);
+        c.fill();
+      }
+    }
+
+    // 12. Jugador Local (Flecha Dorada Orientada en Tiempo Real)
+    if(camera){
+      const mp = toMap(camera.position.x, camera.position.z);
+      c.save();
+      c.translate(mp.x, mp.y);
+      c.rotate(yaw);
+      c.shadowColor = '#ffb400'; c.shadowBlur = 8;
+      c.fillStyle = '#' + (myColor || PCOLORS[0]).toString(16).padStart(6,'0');
       c.beginPath();
-      c.arc(w/2 + Math.sin(za)*w*0.40, h/2 - Math.cos(za)*h*0.36, 1.5, 0, Math.PI*2);
+      c.moveTo(0, -6);
+      c.lineTo(4.5, 4.5);
+      c.lineTo(0, 2.5);
+      c.lineTo(-4.5, 4.5);
+      c.closePath();
       c.fill();
+      c.shadowBlur = 0;
+      c.restore();
     }
   }
 
@@ -6260,14 +6407,8 @@ function initGameEngine() {
         playerLat = (p.x - tp.x) * tn.x + (p.z - tp.z) * tn.z;
         const st = stationness(playerT);
         
-        // Navegación libre 360° en la Gran Estación Central y vías perimetrales
-        if(playerLat > 8.3){ const push = 8.3 - playerLat; p.x += tn.x * push; p.z += tn.z * push; playerLat = 8.3; }
-        const outerNormSq = (p.x / 56.5) * (p.x / 56.5) + (p.z / 31.5) * (p.z / 31.5);
-        if(outerNormSq > 1.0){
-          const normFactor = 1.0 / Math.sqrt(outerNormSq);
-          p.x *= normFactor;
-          p.z *= normFactor;
-        }
+        // Navegación libre 360° en la Gran Estación Central y colisión sólida con obstáculos
+        resolveWorldCollisions(p, 0.45);
 
         
         if(keys['Space'] && jumpY <= 0 && playerState === 'alive') vy = 4.6;
