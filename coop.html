@@ -537,9 +537,9 @@ if (typeof Peer === 'undefined') {
 
 
 <script>
-(function(){
 const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
 var isTouchDevice = IS_TOUCH;
+
 const $=s=>document.querySelector(s);
 const diagLog=$('#diagLog');
 
@@ -1183,13 +1183,8 @@ function initGameEngine() {
   const M={};
   M.tile     = pbrMat((x,S)=>paintTile(x,S,true) ,{ns:1.4,rough:[.35,.35],env:.35}); M.tile.side = THREE.DoubleSide;
   M.tileDk   = pbrMat((x,S)=>paintTile(x,S,false),{ns:1.2,rough:[.5,.3],env:.2}); M.tileDk.side = THREE.DoubleSide;
-  /* Suelo de Estación Industrial Limpio (Sin Efecto de Agua) */
-  M.floor = new THREE.MeshStandardMaterial({
-    color: 0x22262c,
-    roughness: 0.55,
-    metalness: 0.15,
-    envMapIntensity: 0.35
-  });
+  /* Suelo cerámico reflectivo PBR con normal map de losas y DoubleSide garantizado */
+  M.floor    = pbrMat(paintRefFloor, {ns: 0.9, rough: [.35, .35], env: .55}); M.floor.side = THREE.DoubleSide;
   M.steel    = pbrMat(paintSteel,{ns:.6,rough:[.32,.25],met:.85,env:.8});
   M.ceil     = std({color:0x181b1f,roughness:.95},.08); M.ceil.side = THREE.DoubleSide;
   M.dark     = std({color:0x131518,roughness:.8,metalness:.4},.15);
@@ -1207,7 +1202,7 @@ function initGameEngine() {
         const rebuild=(key,texKey,opts)=>{
           const ts=sets[texKey||key];if(!ts)return;
           M[key].dispose();M[key]=pbrMat(null,{...opts,texSet:ts});
-          if(key==='tile'||key==='tileDk')M[key].side=THREE.DoubleSide;
+          if(key==='tile'||key==='tileDk'||key==='floor')M[key].side=THREE.DoubleSide;
         };
         rebuild('tile','tile',{ns:1.4,rough:[.35,.35],env:.35});
         rebuild('tileDk','tile',{ns:1.2,rough:[.5,.3],env:.2});
@@ -1261,32 +1256,56 @@ function initGameEngine() {
 
       // ARQUERÍAS Y COLUMNATAS MONUMENTALES ABIERTAS HACIA LA GRAN ESTACIÓN CENTRAL
       {
-        const colCount = 4;
-        const colGeo = new THREE.CylinderGeometry(0.38, 0.44, wH, 12);
-        const archTopGeo = new THREE.BoxGeometry(0.9, 1.4, 5.5);
+        const colCount = 3;
+        const colGeo = new THREE.CylinderGeometry(0.38, 0.44, wH, 16);
+        const plinthGeo = new THREE.BoxGeometry(1.0, 0.6, 1.0);
+        
         for(let ci2 = 0; ci2 < colCount; ci2++){
-          const ct2 = t0 + (t1 - t0) * (ci2 / colCount);
-          const cp2 = trackPos(ct2), cn2 = outN(ct2);
+          const ct2 = t0 + (t1 - t0) * ((ci2 + 0.5) / colCount);
+          const cp2 = trackPos(ct2), cn2 = outN(ct2), ctn2 = trackTan(ct2);
+          const rotY = Math.atan2(ctn2.x, ctn2.z);
+
+          // Pedestal / Plinto de hormigón en la base
+          const plinth = new THREE.Mesh(plinthGeo, M.tileDk);
+          plinth.position.set(cp2.x + cn2.x * -5.3, 0.3, cp2.z + cn2.z * -5.3);
+          plinth.rotation.y = rotY;
+          plinth.castShadow = true; plinth.receiveShadow = true;
+          g.add(plinth);
+
+          // Columna estriada con anillos de acero
           const colMesh = new THREE.Mesh(colGeo, M.tile);
-          colMesh.position.set(cp2.x + cn2.x * -5.5, wH / 2, cp2.z + cn2.z * -5.5);
+          colMesh.position.set(cp2.x + cn2.x * -5.3, wH / 2, cp2.z + cn2.z * -5.3);
           colMesh.castShadow = true; colMesh.receiveShadow = true;
           g.add(colMesh);
 
-          // Anillos metálicos decorativos en columnas
-          const ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.20, 12), M.dark);
-          ringMesh.position.set(cp2.x + cn2.x * -5.5, 2.2, cp2.z + cn2.z * -5.5);
+          const ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.50, 0.50, 0.18, 16), M.steel);
+          ringMesh.position.set(cp2.x + cn2.x * -5.3, 2.4, cp2.z + cn2.z * -5.3);
           g.add(ringMesh);
+
+          // Franja amarilla táctil de seguridad en el borde del andén
+          const yellowMat = std({color: 0xf5b000, roughness: 0.4}, .4);
+          const hazardStrip = box(0.35, 0.02, 2.2, yellowMat);
+          hazardStrip.position.set(cp2.x + cn2.x * -5.0, 0.01, cp2.z + cn2.z * -5.0);
+          hazardStrip.rotation.y = rotY;
+          g.add(hazardStrip);
         }
+        
         // Viga de arquería superior (deja el paso inferior de 0 a 5.0m completamente abierto hacia la plaza)
-        const archBeam = new THREE.Mesh(archTopGeo, M.tile);
         const midT = (t0 + t1) / 2;
         const midP = trackPos(midT), midN = outN(midT), midTn = trackTan(midT);
-        archBeam.position.set(midP.x + midN.x * -5.5, wH - 0.7, midP.z + midN.z * -5.5);
+        const archBeam = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.4, (TRACK_LEN / SECTORS) + 0.5), M.tile);
+        archBeam.position.set(midP.x + midN.x * -5.3, wH - 0.7, midP.z + midN.z * -5.3);
         archBeam.rotation.y = Math.atan2(midTn.x, midTn.z);
         g.add(archBeam);
-      }
 
-      // SECTOR 4 / 5 CONCOURSE PASSAGE — 100% UNOBSTRUCTED AND CLEAR
+        // Indicador de andén iluminado ("ANDÉN / TRACK N") sobre la arquería
+        const signTrackMat = std({color: 0x11161d, emissive: 0x00e1ff, emissiveIntensity: 0.9, roughness: 0.3}, .3);
+        addE(signTrackMat, 0.9, true);
+        const trackSign = box(2.2, 0.45, 0.12, signTrackMat);
+        trackSign.position.set(midP.x + midN.x * -5.2, 4.4, midP.z + midN.z * -5.2);
+        trackSign.rotation.y = Math.atan2(midTn.x, midTn.z);
+        g.add(trackSign);
+      }
 
       // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
       const cp=[],ci=[];
@@ -1343,18 +1362,6 @@ function initGameEngine() {
         const gMesh=box(0.50,.50,.01,gMat);
         gMesh.position.set(lp.x+ln.x*(outerW+.38),R(1.80,2.10),lp.z+ln.z*(outerW+.38));
         gMesh.rotation.y=Math.atan2(tn.x,tn.z);g.add(gMesh);
-
-        /* ── ACABADO DE SUELO EMPAPADO CON ALTO BRILLO ESPECULAR Y GOTAS ── */
-      }
-      // GRAFITI PROPORCIONAL EN PAREDES INTERIORES
-      {
-        const glt=(t0+t1)/2;const glp=trackPos(glt),gln=outN(glt),gtn=trackTan(glt);
-        const gColor=pick(['#ff4b3e','#00ffaa','#ffb400','#ff80ff','#80cfff']);
-        const gMsg=WALL_MSGS[(s*3+7)%WALL_MSGS.length];
-        const gMat2=new THREE.MeshBasicMaterial({map:mk(grafCnv(gMsg,gColor)),transparent:true,opacity:.82,depthWrite:false});
-        const gMesh2=box(1.5,.45,.01,gMat2);
-        gMesh2.position.set(glp.x+gln.x*-5.15,1.95,glp.z+gln.z*-5.15);
-        gMesh2.rotation.y=Math.atan2(gtn.x,gtn.z)+Math.PI;g.add(gMesh2);
       }
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         /* GQW-VIS-5.0: Reduced tunnel PointLight intensity for dramatic contrast */
@@ -1366,12 +1373,14 @@ function initGameEngine() {
           const cGeo=new THREE.CylinderGeometry(.015,.015,R(1.2,2.5),4);
           const cMesh=new THREE.Mesh(cGeo,std({color:0x0a0c0f,roughness:.8,metalness:.3},.15));
           const cH=R(1.2,2.5);cMesh.position.set(cp3.x+cn3.x*R(-1,3),wH-cH/2,cp3.z+cn3.z*R(-1,3));
-          g.add(cMesh);}}
+          g.add(cMesh);
+        }
+      }
     }
-
 
     // SISTEMA DINÁMICO DE GENERACIÓN DE MUNICIÓN DINÁMICA DELANTE DEL JUGADOR
     const ammoCrateMat=std({map:mk(ammoCnv()),emissive:0xffb400,emissiveIntensity:.7,roughness:.3},.5);
+
     window.ammoCrates=[];
     for(let i=0; i<4; i++){
       const crGroup=new THREE.Group();
@@ -1425,48 +1434,39 @@ function initGameEngine() {
   buildLoop();
 
   /* ═══════════════════════════════════════════════════════════════════
-     CONSTRUCCIÓN EXPANSIVA: GRAN ESTACIÓN CENTRAL (GRAND CENTRAL CONCOURSE)
-     Suelo cerámico continuo PBR (~3,800 m²), Entresuelo elevado, Paneles LED y Coberturas
+     CONSTRUCCIÓN EXPANSIVA: GRAN ESTACIÓN CENTRAL (GRAND CENTRAL METRO CONCOURSE)
+     Suelo PBR continuo, Bóveda catedral, Entresuelo con escalinatas y ambientación completa
      ═══════════════════════════════════════════════════════════════════ */
   function buildGrandCentralConcourse(){
     const g = new THREE.Group();
     g.name = 'grandCentralConcourse';
     scene.add(g);
 
-    // 1. GRAN SUELO CERÁMICO PBR CONTINUO (ELIPSE CENTRAL ~3,800 m²)
-    const RINGS = 12, SEGS = 48;
+    const RINGS = 16, SEGS = 64;
     const fp = [], fi = [], fuv = [];
-    const TA_IN = 49.5, TB_IN = 24.8;
-    
-    // Vértice central
-    fp.push(0, 0, 0); fuv.push(0, 0);
-    
-    for(let r = 1; r <= RINGS; r++){
+
+    // 1. GRAN SUELO CERÁMICO PBR CONTINUO (CONECTADO AL MILÍMETRO CON LOS ANDENES)
+    for(let r = 0; r <= RINGS; r++){
       const radFrac = r / RINGS;
-      const rx = TA_IN * radFrac;
-      const rz = TB_IN * radFrac;
-      for(let s = 0; s < SEGS; s++){
-        const ang = (s / SEGS) * Math.PI * 2;
-        const x = Math.sin(ang) * rx;
-        const z = -Math.cos(ang) * rz;
-        fp.push(x, 0, z);
-        fuv.push(x / 2.8, z / 2.8);
+      for(let s = 0; s <= SEGS; s++){
+        const t = s / SEGS;
+        const p = trackPos(t), n = outN(t);
+        const edgeX = p.x + n.x * -5.2;
+        const edgeZ = p.z + n.z * -5.2;
+        const vx = edgeX * radFrac;
+        const vz = edgeZ * radFrac;
+        fp.push(vx, 0, vz);
+        fuv.push(vx / 2.8, vz / 2.8);
       }
     }
-    // Índices centro a primer anillo
-    for(let s = 0; s < SEGS; s++){
-      const next = (s + 1) % SEGS;
-      fi.push(0, 1 + s, 1 + next);
-    }
-    // Índices entre anillos
-    for(let r = 1; r < RINGS; r++){
-      const rowA = 1 + (r - 1) * SEGS;
-      const rowB = 1 + r * SEGS;
+    for(let r = 0; r < RINGS; r++){
+      const rowA = r * (SEGS + 1);
+      const rowB = (r + 1) * (SEGS + 1);
       for(let s = 0; s < SEGS; s++){
-        const next = (s + 1) % SEGS;
-        const a1 = rowA + s, a2 = rowA + next;
-        const b1 = rowB + s, b2 = rowB + next;
-        fi.push(a1, b1, a2, a2, b1, b2);
+        const a1 = rowA + s, a2 = rowA + s + 1;
+        const b1 = rowB + s, b2 = rowB + s + 1;
+        fi.push(a1, a2, b1);
+        fi.push(b1, a2, b2);
       }
     }
     const fg = new THREE.BufferGeometry();
@@ -1477,91 +1477,172 @@ function initGameEngine() {
     concourseFloor.receiveShadow = true;
     g.add(concourseFloor);
 
-    // 2. ENTRESUELO ELEVADO CENTRAL (MEZZANINE PLATFORM Y TRANSBORDO)
+    // 2. BÓVEDA CATEDRAL Y TECHO DE LA GRAN ESTACIÓN CENTRAL (ALTURA 6.4m a 8.2m)
+    const cp = [], ci = [], cuv = [];
+    const ceilH = 6.4;
+    for(let r = 0; r <= RINGS; r++){
+      const radFrac = r / RINGS;
+      for(let s = 0; s <= SEGS; s++){
+        const t = s / SEGS;
+        const p = trackPos(t), n = outN(t);
+        const edgeX = p.x + n.x * -5.5;
+        const edgeZ = p.z + n.z * -5.5;
+        const vx = edgeX * radFrac;
+        const vz = edgeZ * radFrac;
+        const domeCurve = Math.cos(radFrac * Math.PI * 0.5);
+        const vy = ceilH + domeCurve * 1.8;
+        cp.push(vx, vy, vz);
+        cuv.push(vx / 4.0, vz / 4.0);
+      }
+    }
+    for(let r = 0; r < RINGS; r++){
+      const rowA = r * (SEGS + 1);
+      const rowB = (r + 1) * (SEGS + 1);
+      for(let s = 0; s < SEGS; s++){
+        const a1 = rowA + s, a2 = rowA + s + 1;
+        const b1 = rowB + s, b2 = rowB + s + 1;
+        ci.push(a1, b1, a2);
+        ci.push(b1, b2, a2);
+      }
+    }
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
+    cg.setAttribute('uv', new THREE.Float32BufferAttribute(cuv, 2));
+    cg.setIndex(ci); cg.computeVertexNormals();
+    const concourseCeil = new THREE.Mesh(cg, M.ceil);
+    g.add(concourseCeil);
+
+    // 3. ENTRESUELO ELEVADO CENTRAL (MEZZANINE DE TRANSBORDO A COTA Y = 1.40m)
     const mezzW = 28, mezzD = 12, mezzH = 1.40;
     const mezzBase = box(mezzW, mezzH, mezzD, M.floor);
     mezzBase.position.set(0, mezzH / 2, 0);
     mezzBase.receiveShadow = true; mezzBase.castShadow = true;
     g.add(mezzBase);
 
-    // Borde perimetral del entresuelo
-    const mezzBorder = box(mezzW + 0.3, 0.15, mezzD + 0.3, M.dark);
+    // Moldura perimetral en zócalo del entresuelo
+    const mezzBorder = box(mezzW + 0.4, 0.18, mezzD + 0.4, M.tileDk);
     mezzBorder.position.set(0, mezzH, 0);
     g.add(mezzBorder);
 
-    // Barandillas de cristal y acero
-    const railMat = std({color: 0x222830, metalness: 0.8, roughness: 0.3}, .2);
-    const rFront1 = box(mezzW - 10, 0.9, 0.1, railMat); rFront1.position.set(0, mezzH + 0.45, -mezzD / 2); g.add(rFront1);
-    const rFront2 = box(mezzW - 10, 0.9, 0.1, railMat); rFront2.position.set(0, mezzH + 0.45,  mezzD / 2); g.add(rFront2);
-    const rSide1 = box(0.1, 0.9, mezzD - 6, railMat); rSide1.position.set(-mezzW / 2, mezzH + 0.45, 0); g.add(rSide1);
-    const rSide2 = box(0.1, 0.9, mezzD - 6, railMat); rSide2.position.set( mezzW / 2, mezzH + 0.45, 0); g.add(rSide2);
+    // Barandillas perimetrales de acero y cristal templado
+    const railMat = std({color: 0x1a2028, metalness: 0.85, roughness: 0.25}, .2);
+    const rFront1 = box(mezzW - 10, 0.95, 0.12, railMat); rFront1.position.set(0, mezzH + 0.47, -mezzD / 2); g.add(rFront1);
+    const rFront2 = box(mezzW - 10, 0.95, 0.12, railMat); rFront2.position.set(0, mezzH + 0.47,  mezzD / 2); g.add(rFront2);
+    const rSide1 = box(0.12, 0.95, mezzD - 6, railMat); rSide1.position.set(-mezzW / 2, mezzH + 0.47, 0); g.add(rSide1);
+    const rSide2 = box(0.12, 0.95, mezzD - 6, railMat); rSide2.position.set( mezzW / 2, mezzH + 0.47, 0); g.add(rSide2);
 
-    // 4 Escalinatas de acceso suave
-    const stairS = box(8, mezzH, 4, M.floor); stairS.position.set(0, mezzH / 2, -mezzD / 2 - 2); g.add(stairS);
-    const stairN = box(8, mezzH, 4, M.floor); stairN.position.set(0, mezzH / 2,  mezzD / 2 + 2); g.add(stairN);
-    const stairW = box(4, mezzH, 6, M.floor); stairW.position.set(-mezzW / 2 - 2, mezzH / 2, 0); g.add(stairW);
-    const stairE = box(4, mezzH, 6, M.floor); stairE.position.set( mezzW / 2 + 2, mezzH / 2, 0); g.add(stairE);
+    // 4 Escalinatas de peldaños escalonados reales
+    const createStairs = (w, d, h, steps, px, pz, rotY) => {
+      const stairGroup = new THREE.Group();
+      for(let stp = 0; stp < steps; stp++){
+        const frac = (stp + 1) / steps;
+        const stepH = h / steps;
+        const stepD = d / steps;
+        const stepMesh = box(w, stepH * (stp + 1), stepD, M.floor);
+        stepMesh.position.set(0, (stepH * (stp + 1)) / 2, -d / 2 + stepD * stp + stepD / 2);
+        stepMesh.receiveShadow = true; stepMesh.castShadow = true;
+        stairGroup.add(stepMesh);
+      }
+      stairGroup.position.set(px, 0, pz);
+      stairGroup.rotation.y = rotY;
+      g.add(stairGroup);
+    };
 
-    // 3. PANTALLA CENTRAL SUSPENDIDA DE INFORMACIÓN LED (DEPARTURES / ARRIVALS)
-    const ledInfoMat = std({map: mk(T.led), emissiveMap: mk(T.led), emissive: 0xffffff, emissiveIntensity: 2.2, roughness: .2}, .3);
-    addE(ledInfoMat, 2.2, true);
-    const infoBoard = box(8.0, 2.2, 0.6, ledInfoMat);
-    infoBoard.position.set(0, 4.6, 0);
+    createStairs(8, 4, mezzH, 6, 0, -mezzD / 2 - 2, 0);
+    createStairs(8, 4, mezzH, 6, 0,  mezzD / 2 + 2, Math.PI);
+    createStairs(6, 4, mezzH, 6, -mezzW / 2 - 2, 0, Math.PI / 2);
+    createStairs(6, 4, mezzH, 6,  mezzW / 2 + 2, 0, -Math.PI / 2);
+
+    // 4. PANTALLA CENTRAL LED SUSPENDIDA DE HORARIOS (DEPARTURES / ARRIVALS)
+    const ledInfoMat = std({map: mk(T.led), emissiveMap: mk(T.led), emissive: 0xffffff, emissiveIntensity: 2.4, roughness: .2}, .3);
+    addE(ledInfoMat, 2.4, true);
+    const infoBoard = box(8.5, 2.4, 0.6, ledInfoMat);
+    infoBoard.position.set(0, 4.8, 0);
     g.add(infoBoard);
     const cableMat = std({color: 0x111317, metalness: 0.9, roughness: 0.2});
-    for(let cx of [-3.5, 3.5]){
-      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 3.0, 6), cableMat);
-      cable.position.set(cx, 6.1, 0); g.add(cable);
+    for(let cx of [-3.8, 3.8]){
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 3.4, 6), cableMat);
+      cable.position.set(cx, 6.5, 0); g.add(cable);
     }
 
-    // 4. QUIOSCOS, PUESTOS DE BILLETES Y BANCOS TÁCTICOS (COBERTURA EN LA PLAZA)
-    const kioskMat = std({color: 0x1c2128, metalness: 0.5, roughness: 0.6});
-    const benchMat = std({color: 0x3d3024, metalness: 0.2, roughness: 0.7});
-    
-    // Quioscos de Prensa / Billetaje
-    const k1 = box(3.2, 2.4, 2.2, kioskMat); k1.position.set(-26, 1.2, -10); k1.castShadow = true; k1.receiveShadow = true; g.add(k1);
-    const k2 = box(3.2, 2.4, 2.2, kioskMat); k2.position.set( 26, 1.2,  10); k2.castShadow = true; k2.receiveShadow = true; g.add(k2);
-    const k3 = box(3.2, 2.4, 2.2, kioskMat); k3.position.set(-26, 1.2,  10); k3.castShadow = true; k3.receiveShadow = true; g.add(k3);
-    const k4 = box(3.2, 2.4, 2.2, kioskMat); k4.position.set( 26, 1.2, -10); k4.castShadow = true; k4.receiveShadow = true; g.add(k4);
+    // 5. QUIOSCOS, PUESTOS DE INFORMACIÓN Y MÁQUINAS EXPENDEDORAS
+    const kioskMat = std({color: 0x181e26, metalness: 0.6, roughness: 0.5});
+    const benchWoodMat = std({color: 0x4a3b2c, roughness: 0.6});
+    const benchMetalMat = std({color: 0x111316, metalness: 0.8, roughness: 0.3});
 
-    // Bancos de espera distribuidos
-    for(let bx of [-12, -6, 6, 12]){
-      for(let bz of [-15, 15]){
-        const bMesh = box(2.6, 0.48, 0.7, benchMat);
-        bMesh.position.set(bx, 0.24, bz); bMesh.castShadow = true; g.add(bMesh);
+    // 4 Quioscos principales en los cuadrantes de la plaza
+    const kioskPositions = [
+      {x: -26, z: -11}, {x: 26, z: 11}, {x: -26, z: 11}, {x: 26, z: -11}
+    ];
+    kioskPositions.forEach((kp) => {
+      const kGroup = new THREE.Group();
+      kGroup.position.set(kp.x, 0, kp.z);
+      const kBody = box(3.6, 2.6, 2.4, kioskMat); kBody.position.y = 1.3; kBody.castShadow = true; kGroup.add(kBody);
+      const kRoof = box(4.0, 0.2, 2.8, M.dark); kRoof.position.y = 2.65; kGroup.add(kRoof);
+      const kWindow = box(2.4, 1.0, 0.05, std({color: 0x6688aa, roughness: 0.1, metalness: 0.9}));
+      kWindow.position.set(0, 1.4, 1.22); kGroup.add(kWindow);
+      const kLight = new THREE.PointLight(0xffeedd, 1.2, 8);
+      kLight.position.set(0, 1.8, 0); kGroup.add(kLight); addL(kLight, 1.2);
+      g.add(kGroup);
+    });
+
+    // Bancos de pasajeros distribuidos en zonas de espera
+    for(let bx of [-14, -7, 7, 14]){
+      for(let bz of [-16, 16]){
+        const bGroup = new THREE.Group();
+        bGroup.position.set(bx, 0, bz);
+        const seat = box(2.6, 0.08, 0.55, benchWoodMat); seat.position.y = 0.45; seat.castShadow = true; bGroup.add(seat);
+        const back = box(2.6, 0.45, 0.06, benchWoodMat); back.position.set(0, 0.70, -0.24); bGroup.add(back);
+        const leg1 = box(0.08, 0.45, 0.50, benchMetalMat); leg1.position.set(-1.1, 0.22, 0); bGroup.add(leg1);
+        const leg2 = box(0.08, 0.45, 0.50, benchMetalMat); leg2.position.set( 1.1, 0.22, 0); bGroup.add(leg2);
+        g.add(bGroup);
       }
     }
 
-    // Máquinas expendedoras
-    const vendMat = std({color: 0x8a1515, emissive: 0x220505, roughness: 0.4});
-    const v1 = box(1.1, 1.9, 0.85, vendMat); v1.position.set(-29, 0.95, -2); g.add(v1);
-    const v2 = box(1.1, 1.9, 0.85, vendMat); v2.position.set( 29, 0.95,  2); g.add(v2);
+    // Máquinas expendedoras luminosas
+    const vendMat = std({color: 0x8a1515, emissive: 0x330808, roughness: 0.35});
+    const vendScreenMat = std({color: 0xffffff, emissive: 0x88ccff, emissiveIntensity: 1.2, roughness: 0.2});
+    addE(vendScreenMat, 1.2, true);
+    for(let vp of [{x: -30, z: -2, r: 0}, {x: 30, z: 2, r: Math.PI}]){
+      const vGroup = new THREE.Group();
+      vGroup.position.set(vp.x, 0, vp.z); vGroup.rotation.y = vp.r;
+      const vBody = box(1.2, 2.1, 0.9, vendMat); vBody.position.y = 1.05; vBody.castShadow = true; vGroup.add(vBody);
+      const vGlass = box(0.9, 1.2, 0.05, vendScreenMat); vGlass.position.set(0, 1.3, 0.46); vGroup.add(vGlass);
+      g.add(vGroup);
+    }
 
-    // 5. CLARABOYA Y CERCHAS DE TECHO INDUSTRIAL (DOME TRUSS)
-    const trussMat = std({color: 0x252a33, metalness: 0.7, roughness: 0.4});
+    // 6. CERCHAS ESTRUCTURALES Y CLARABOYAS INDUSTRIALES
+    const trussMat = std({color: 0x242932, metalness: 0.75, roughness: 0.35});
     for(let tx = -36; tx <= 36; tx += 12){
-      const archTruss = new THREE.Mesh(new THREE.TorusGeometry(15, 0.16, 6, 24, Math.PI), trussMat);
-      archTruss.position.set(tx, 4.2, 0);
+      const archTruss = new THREE.Mesh(new THREE.TorusGeometry(14.5, 0.18, 8, 32, Math.PI), trussMat);
+      archTruss.position.set(tx, 4.4, 0);
       archTruss.rotation.set(0, Math.PI / 2, 0);
       g.add(archTruss);
     }
 
-    // 6. ILUMINACIÓN CENITAL HALÓGENA DE LA PLAZA CENTRAL
+    // 7. LÁMPARAS DE ARAÑA PÉNDULO E ILUMINACIÓN CENITAL CÁLIDA
     for(let lx of [-22, 0, 22]){
       for(let lz of [-8, 8]){
-        const cLight = new THREE.PointLight(0xffeedd, 2.2, 22, 1.6);
-        cLight.position.set(lx, 5.8, lz);
+        const cLight = new THREE.PointLight(0xffeedd, 2.4, 26, 1.5);
+        cLight.position.set(lx, 6.0, lz);
         g.add(cLight);
-        addL(cLight, 2.2);
+        addL(cLight, 2.4);
 
         const spotGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.45
+          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.50
         }));
-        spotGlow.scale.set(3.2, 3.2, 3.2); spotGlow.position.set(lx, 5.8, lz); g.add(spotGlow); addG(spotGlow, 0.45);
+        spotGlow.scale.set(3.5, 3.5, 3.5); spotGlow.position.set(lx, 6.0, lz); g.add(spotGlow); addG(spotGlow, 0.50);
+
+        // Lámpara péndulo metálica
+        const lampCable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8, 6), cableMat);
+        lampCable.position.set(lx, 7.1, lz); g.add(lampCable);
+        const lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.3, 12, 1, true), M.steel);
+        lampShade.position.set(lx, 6.2, lz); g.add(lampShade);
       }
     }
   }
   buildGrandCentralConcourse();
+
 
   
   /* ── SISTEMA DE VAPOR EN ESTACIONES ── */
@@ -6581,14 +6662,12 @@ function initGameEngine() {
   });
 }
 
-
-  // Iniciar motor cuando el DOM esté completamente listo
+// Iniciar motor cuando el DOM esté completamente listo
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initGameEngine);
 } else {
   initGameEngine();
 }
-})();
 </script>
 </body>
 </html>
