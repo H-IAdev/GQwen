@@ -752,7 +752,7 @@ function initGameEngine() {
     logDiag('Falla WebGL: ' + e.message, 'err');
   }    scene=new THREE.Scene();
   scene.background=new THREE.Color(0x030508);
-  scene.fog=new THREE.FogExp2(0x040609,0.022);
+  scene.fog=new THREE.FogExp2(0x040609,0.026);
   setLoad(10,'Configurando escena 3D…');
 
   // Cámara posicionada en Spawn de Plataforma (0, 1.7, -30)
@@ -768,9 +768,9 @@ function initGameEngine() {
   const ambientLight=new THREE.AmbientLight(0x2e3a47,0.07);scene.add(ambientLight);
   const hemiLight=new THREE.HemisphereLight(0x4e5e6e,0x141210,0.08);scene.add(hemiLight);
   /* SpotLight dinámica del jugador — sombras suaves en el túnel */
-  const keyLight=new THREE.SpotLight(0xaabbcc,0.55,26,Math.PI*0.40,0.6,1.2);
+  const keyLight=new THREE.SpotLight(0xaabbcc,0.38,18,Math.PI*0.38,0.55,1.5);
   keyLight.castShadow=true;keyLight.shadow.mapSize.set(1024,1024);
-  keyLight.shadow.bias=-0.0004;keyLight.shadow.camera.near=0.5;keyLight.shadow.camera.far=22;
+  keyLight.shadow.bias=-0.0004;keyLight.shadow.camera.near=0.5;keyLight.shadow.camera.far=18;
   scene.add(keyLight);scene.add(keyLight.target);
 
   const ANISO=renderer&&renderer.capabilities&&renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1;
@@ -1230,19 +1230,28 @@ function initGameEngine() {
 
   // Catálogo de Obstáculos Sólidos (Quioscos, Máquinas, Barreras)
   const OBSTACLES = [
-    { x: -26, z: -11, hw: 1.9, hd: 1.3 },
-    { x:  26, z:  11, hw: 1.9, hd: 1.3 },
-    { x: -26, z:  11, hw: 1.9, hd: 1.3 },
-    { x:  26, z: -11, hw: 1.9, hd: 1.3 },
-    { x: -30, z: -2, hw: 0.7, hd: 0.55 },
-    { x:  30, z:  2, hw: 0.7, hd: 0.55 }
+    { x: -24, z: -12, hw: 2.0, hd: 1.4 },
+    { x:  24, z:  12, hw: 2.0, hd: 1.4 },
+    { x: -24, z:  12, hw: 2.0, hd: 1.4 },
+    { x:  24, z: -12, hw: 2.0, hd: 1.4 },
+    { x: -28, z: -2, hw: 0.75, hd: 0.6 },
+    { x:  28, z:  2, hw: 0.75, hd: 0.6 }
   ];
 
   function resolveWorldCollisions(p, radius = 0.45){
-    // 1. Límite perimetral real de muros exteriores de hormigón (sin barreras invisibles en los rieles)
-    // El mapa se extiende hasta X: [-64.5, 64.5] y Z: [-42.0, 42.0]
-    p.x = clamp(p.x, -64.5 + radius, 64.5 - radius);
-    p.z = clamp(p.z, -42.0 + radius, 42.0 - radius);
+    // 1. Límite perimetral curvo elíptico exacto (sigue la curvatura de la pista en túneles)
+    const maxOuterLat = 8.80 - radius;
+    for(let iter = 0; iter < 2; iter++){
+      const t = closestT(p.x, p.z);
+      const pt = trackPos(t);
+      const nt = outN(t);
+      const lat = (p.x - pt.x) * nt.x + (p.z - pt.z) * nt.z;
+      if(lat > maxOuterLat){
+        const diff = lat - maxOuterLat;
+        p.x -= nt.x * diff;
+        p.z -= nt.z * diff;
+      }
+    }
 
     // 2. Colisión AABB con quioscos y máquinas
     for(const obs of OBSTACLES){
@@ -1400,7 +1409,7 @@ function initGameEngine() {
         tie.receiveShadow = true; g.add(tie);
       }
 
-      // CANALETAS DE CABLES Y TUBERÍAS INDUSTRIALES EN MUROS EXTERIORES
+      // CANALETAS DE CABLES Y TUBERÍAS INDUSTRIALES EN MUROS EXTERIORES Y TECHO
       for(let i=0;i<=SPS;i++){
         if(i % 3 === 0){
           const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t),tn=trackTan(t);
@@ -1409,6 +1418,18 @@ function initGameEngine() {
           cBox.rotation.y = Math.atan2(tn.x, tn.z);
           g.add(cBox);
         }
+      }
+
+      // Tuberías de ventilación industriales suspendidas en el techo del túnel
+      for(let i=0; i<SPS; i+=2){
+        const tt = t0 + (t1 - t0) * ((i + 1) / SPS);
+        const tp2 = trackPos(tt), tn2 = outN(tt), ttn2 = trackTan(tt);
+        const rotY = Math.atan2(ttn2.x, ttn2.z);
+        const ventPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, (TRACK_LEN / SECTORS) / 5 + 0.4, 8), M.steel);
+        ventPipe.rotation.x = Math.PI / 2;
+        ventPipe.rotation.y = rotY;
+        ventPipe.position.set(tp2.x + tn2.x * 3.8, wH - 0.32, tp2.z + tn2.z * 3.8);
+        g.add(ventPipe);
       }
 
       // BARRAS DE LUZ DE TECHO ESTRUCTURALES CALIBRADAS
@@ -1563,10 +1584,10 @@ function initGameEngine() {
     concourseFloor.receiveShadow = true;
     g.add(concourseFloor);
 
-    // 2. BÓVEDA CATEDRAL Y CÚPULA ELEVADA (ALTURA 6.4m EN ARRANQUE HASTA 13.5m EN CÉNIT)
+    // 2. BÓVEDA CATEDRAL Y CÚPULA ELEVADA Y ABIERTA (ALTURA 6.4m EN ARRANQUE HASTA 14.5m EN CÉNIT)
     const cp = [], ci = [], cuv = [];
     const ceilBaseH = 6.4;
-    const domeApexH = 13.5;
+    const domeApexH = 14.5;
     for(let r = 0; r <= RINGS; r++){
       const radFrac = r / RINGS;
       for(let s = 0; s <= SEGS; s++){
@@ -1577,7 +1598,7 @@ function initGameEngine() {
         const vx = edgeX * radFrac;
         const vz = edgeZ * radFrac;
         const domeCurve = Math.cos(radFrac * Math.PI * 0.5);
-        const vy = ceilBaseH + Math.pow(domeCurve, 0.75) * (domeApexH - ceilBaseH);
+        const vy = ceilBaseH + Math.pow(domeCurve, 0.70) * (domeApexH - ceilBaseH);
         cp.push(vx, vy, vz);
         cuv.push(vx / 4.0, vz / 4.0);
       }
@@ -1600,14 +1621,46 @@ function initGameEngine() {
     const concourseCeil = new THREE.Mesh(cg, M.ceil);
     g.add(concourseCeil);
 
-    // Claraboya Octogonal Cenital con Linterna Metálica en la Cúspide
-    const lanternGeo = new THREE.CylinderGeometry(4.2, 4.8, 0.8, 16);
+    // Claraboya Octogonal Cenital Ampliada con Linterna Metálica y Vidrio Templado
+    const lanternGeo = new THREE.CylinderGeometry(5.2, 5.8, 0.9, 16);
     const lanternMesh = new THREE.Mesh(lanternGeo, M.steel);
     lanternMesh.position.set(0, domeApexH - 0.2, 0);
     g.add(lanternMesh);
-    const skylightGlass = new THREE.Mesh(new THREE.CylinderGeometry(3.9, 3.9, 0.1, 16), std({color: 0x6688aa, emissive: 0x223355, emissiveIntensity: 0.8, roughness: 0.2, metalness: 0.8}));
-    skylightGlass.position.set(0, domeApexH + 0.15, 0);
+    const skylightGlass = new THREE.Mesh(new THREE.CylinderGeometry(4.8, 4.8, 0.1, 16), std({color: 0x6688aa, emissive: 0x223355, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.85}));
+    skylightGlass.position.set(0, domeApexH + 0.18, 0);
     g.add(skylightGlass);
+
+    // 4 ARCOS MONUMENTALES DE ACCESO A ANDENES (NORTE, SUR, ESTE, OESTE)
+    const archPortalMat = std({color: 0x22262e, metalness: 0.75, roughness: 0.35});
+    const portalSignMat = std({color: 0x0c1218, emissive: 0x00c8ff, emissiveIntensity: 1.1, roughness: 0.3});
+    addE(portalSignMat, 1.1, true);
+
+    const portals = [
+      { x: 0, z: -18.5, rotY: 0, span: 24, label: 'LÍNEA CIRCULAR · ANDÉN NORTE' },
+      { x: 0, z:  18.5, rotY: Math.PI, span: 24, label: 'LÍNEA CIRCULAR · ANDÉN SUR' },
+      { x: -26.0, z: 0, rotY: Math.PI / 2, span: 18, label: 'TERMINAL DE TRANSBORDO OESTE' },
+      { x:  26.0, z: 0, rotY: -Math.PI / 2, span: 18, label: 'TERMINAL DE TRANSBORDO ESTE' }
+    ];
+
+    portals.forEach(pCfg => {
+      const pGroup = new THREE.Group();
+      pGroup.position.set(pCfg.x, 0, pCfg.z);
+      pGroup.rotation.y = pCfg.rotY;
+
+      // Pilastras laterales de soporte
+      const pillarL = box(0.9, 6.0, 0.9, archPortalMat); pillarL.position.set(-pCfg.span / 2, 3.0, 0); pillarL.castShadow = true; pGroup.add(pillarL);
+      const pillarR = box(0.9, 6.0, 0.9, archPortalMat); pillarR.position.set( pCfg.span / 2, 3.0, 0); pillarR.castShadow = true; pGroup.add(pillarR);
+
+      // Viga de dintel arqueado en medio punto
+      const lintel = box(pCfg.span + 1.2, 0.85, 1.0, archPortalMat);
+      lintel.position.set(0, 5.8, 0); lintel.castShadow = true; pGroup.add(lintel);
+
+      // Cartel luminoso de señalización sobre el arco
+      const signBoard = box(pCfg.span * 0.45, 0.55, 0.16, portalSignMat);
+      signBoard.position.set(0, 5.3, -0.45); pGroup.add(signBoard);
+
+      g.add(pGroup);
+    });
 
     // 3. ENTRESUELO ELEVADO CENTRAL (MEZZANINE DE TRANSBORDO A COTA Y = 1.40m)
     const mezzW = 28, mezzD = 12, mezzH = 1.40;
@@ -1670,13 +1723,13 @@ function initGameEngine() {
       cable.position.set(cx, 7.5, 0); g.add(cable);
     }
 
-    // 5. QUIOSCOS Y PUESTOS DE INFORMACIÓN
+    // 5. QUIOSCOS Y PUESTOS DE INFORMACIÓN (SIN INTERFERENCIA EN PASILLOS)
     const kioskMat = std({color: 0x181e26, metalness: 0.6, roughness: 0.5});
     const benchWoodMat = std({color: 0x4a3b2c, roughness: 0.6});
     const benchMetalMat = std({color: 0x111316, metalness: 0.8, roughness: 0.3});
 
     const kioskPositions = [
-      {x: -26, z: -11}, {x: 26, z: 11}, {x: -26, z: 11}, {x: 26, z: -11}
+      {x: -24, z: -12}, {x: 24, z: 12}, {x: -24, z: 12}, {x: 24, z: -12}
     ];
     kioskPositions.forEach((kp) => {
       const kGroup = new THREE.Group();
@@ -1688,9 +1741,9 @@ function initGameEngine() {
       g.add(kGroup);
     });
 
-    // Bancos de pasajeros
+    // Bancos de pasajeros (ordenados y con pasillo despejado)
     for(let bx of [-14, -7, 7, 14]){
-      for(let bz of [-16, 16]){
+      for(let bz of [-15, 15]){
         const bGroup = new THREE.Group();
         bGroup.position.set(bx, 0, bz);
         const seat = box(2.6, 0.08, 0.55, benchWoodMat); seat.position.y = 0.45; seat.castShadow = true; bGroup.add(seat);
@@ -1705,7 +1758,7 @@ function initGameEngine() {
     const vendMat = std({color: 0x8a1515, emissive: 0x330808, roughness: 0.35});
     const vendScreenMat = std({color: 0xffffff, emissive: 0x88ccff, emissiveIntensity: 1.6, roughness: 0.2});
     addE(vendScreenMat, 1.6, true);
-    for(let vp of [{x: -30, z: -2, r: 0}, {x: 30, z: 2, r: Math.PI}]){
+    for(let vp of [{x: -28, z: -2, r: 0}, {x: 28, z: 2, r: Math.PI}]){
       const vGroup = new THREE.Group();
       vGroup.position.set(vp.x, 0, vp.z); vGroup.rotation.y = vp.r;
       const vBody = box(1.2, 2.1, 0.9, vendMat); vBody.position.y = 1.05; vBody.castShadow = true; vGroup.add(vBody);
@@ -1713,7 +1766,23 @@ function initGameEngine() {
       g.add(vGroup);
     }
 
-    // 6. NERVADURAS ESTRUCTURALES RADIALES ADAPTADAS A LA CÚPULA ELEVADA (6.4m a 13.5m)
+    // Charcos de agua reflectantes PBR en el suelo
+    const puddleMat = new THREE.MeshStandardMaterial({
+      map: mk(puddleCnv()),
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.05,
+      metalness: 0.95
+    });
+    const puddlePositions = [{x: -18, z: 8}, {x: 18, z: -8}, {x: 0, z: -14}, {x: 0, z: 14}];
+    puddlePositions.forEach(pp => {
+      const pMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 3.5), puddleMat);
+      pMesh.rotation.x = -Math.PI / 2;
+      pMesh.position.set(pp.x, 0.004, pp.z);
+      g.add(pMesh);
+    });
+
+    // 6. NERVADURAS ESTRUCTURALES RADIALES ADAPTADAS A LA CÚPULA ELEVADA (6.4m a 14.5m)
     const trussMat = std({color: 0x242932, metalness: 0.85, roughness: 0.3});
     for(let a = 0; a < 8; a++){
       const angle = (a / 8) * Math.PI * 2;
@@ -1724,7 +1793,7 @@ function initGameEngine() {
         const rx = (p0.x + n0.x * -5.2) * radFrac;
         const rz = (p0.z + n0.z * -5.2) * radFrac;
         const dCurve = Math.cos(radFrac * Math.PI * 0.5);
-        const ry = ceilBaseH + Math.pow(dCurve, 0.75) * (domeApexH - ceilBaseH) - 0.12;
+        const ry = ceilBaseH + Math.pow(dCurve, 0.70) * (domeApexH - ceilBaseH) - 0.12;
         const segment = box(0.35, 0.35, 3.2, trussMat);
         segment.position.set(rx, ry, rz);
         segment.rotation.y = angle;
@@ -2375,10 +2444,10 @@ function initGameEngine() {
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
-  /* Linterna Táctica Frontal montada sobre la cámara y apuntando exactamente al frente */
-  const flashlight = new THREE.SpotLight(0xfff5e0, 2.5, 45, Math.PI / 6, 0.35, 1.8);
+  /* Linterna Táctica Frontal montada sobre la cámara con alcance y cono optimizado */
+  const flashlight = new THREE.SpotLight(0xfff5e0, 2.6, 26, Math.PI / 7, 0.5, 2.0);
   flashlight.position.set(0.12, -0.1, -0.1);
-  flashlight.target.position.set(0, 0, -10);
+  flashlight.target.position.set(0, 0, -8);
   flashlight.visible = false;
   flashlight.layers.set(2);
   camera.add(flashlight);
@@ -3688,12 +3757,12 @@ function initGameEngine() {
 
     slot.type=type;
   }
-  const MIN_SPAWN_DIST = 18; // metros mínimos a cualquier unidad viva (antes 26)
+  const MIN_SPAWN_DIST = 14; // metros mínimos a cualquier unidad viva
 
   function pickSpawnParams(){
     const units = typeof getAlivePlayers === 'function' ? getAlivePlayers() : [];
     const cands = [];
-    for(let i = 0; i < 14; i++){
+    for(let i = 0; i < 16; i++){
       const ct = Math.random();
       let minD = Infinity;
       for(const u of units){
@@ -3701,9 +3770,9 @@ function initGameEngine() {
       }
       cands.push({t: ct, d: minD});
     }
-    const valid = cands.filter(c => c.d >= MIN_SPAWN_DIST);
+    const valid = cands.filter(c => c.d >= MIN_SPAWN_DIST && c.d <= 38);
     const chosen = valid.length ? pick(valid) : cands.reduce((a, b) => b.d > a.d ? b : a);
-    return { t: chosen.t, lat: clamp(R(1.2, 5.5), -5.1, 8.3) };
+    return { t: chosen.t, lat: clamp(R(-2.0, 5.8), -4.5, 7.2) };
   }
 
   function spawnZombie(type,hpMul,spMul){
@@ -4146,11 +4215,32 @@ function initGameEngine() {
       const inConcourseZone = (Math.abs(targetPos.x) < 36 && Math.abs(targetPos.z) < 28) || (dist3D < 20.0);
 
       if(inConcourseZone && !z.isCharging && !z.isThrown){
-        const toLen = Math.hypot(dx, dz) || 1.0;
+        let moveDx = dx;
+        let moveDz = dz;
+        const toLen = Math.hypot(moveDx, moveDz) || 1.0;
+
+        // Evasión dinámica de obstáculos (bordear esquinas de quioscos y máquinas)
+        for(const obs of OBSTACLES){
+          const odx = obs.x - z.g.position.x;
+          const odz = obs.z - z.g.position.z;
+          const oDist = Math.hypot(odx, odz);
+          if(oDist < (obs.hw + obs.hd + 1.8)){
+            const dot = (moveDx * odx + moveDz * odz) / (toLen * oDist || 1);
+            if(dot > 0.45){
+              const perpX = -odz / oDist;
+              const perpZ = odx / oDist;
+              const side = (moveDx * perpX + moveDz * perpZ) >= 0 ? 1.0 : -1.0;
+              moveDx += perpX * side * 2.2;
+              moveDz += perpZ * side * 2.2;
+            }
+          }
+        }
+
+        const finalLen = Math.hypot(moveDx, moveDz) || 1.0;
         if(dist3D > stopR){
           const step = z.curSpd * boost * (z.windup > 0 ? 0.35 : 1.0) * dt;
-          z.g.position.x += (dx / toLen) * step;
-          z.g.position.z += (dz / toLen) * step;
+          z.g.position.x += (moveDx / finalLen) * step;
+          z.g.position.z += (moveDz / finalLen) * step;
         }
         const floorY = getFloorY(z.g.position.x, z.g.position.z);
         let targetPosY = floorY;
@@ -4162,7 +4252,7 @@ function initGameEngine() {
         }
         z.g.position.y = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
         resolveWorldCollisions(z.g.position, 0.45);
-        z.g.rotation.y = Math.atan2(dx, dz);
+        z.g.rotation.y = Math.atan2(moveDx, moveDz);
         // Sincronizar track coords para coherencia
         z.t = closestT(z.g.position.x, z.g.position.z);
         const pClosest = trackPos(z.t), nClosest = outN(z.t);
