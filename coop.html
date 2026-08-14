@@ -524,6 +524,14 @@ if (typeof THREE === 'undefined') {
 </script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 
+<!-- POST-PROCESSING PIPELINE SCRIPTS (EFFECT COMPOSER + UNREAL BLOOM + SHADER PASS) -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/js/utils/SkeletonUtils.js"></script>
@@ -760,6 +768,7 @@ function initGameEngine() {
   camera.rotation.order='YXZ';camera.layers.enable(2);
   camera.position.set(0,1.7,-30);scene.add(camera);
   buildEnv();
+  initPostProcessing();
   setLoad(20,'Construyendo iluminación…');
   /* Reflective Chrome Debug Sphere removed after successful IBL verification */
 
@@ -774,6 +783,115 @@ function initGameEngine() {
   scene.add(keyLight);scene.add(keyLight.target);
 
   const ANISO=renderer&&renderer.capabilities&&renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1;
+
+  /* ═══════════════════════════════════════════════════════════════════
+     PIPELINE DE POST-PROCESAMIENTO LIGERO (BLOOM + ABERRACIÓN CROMÁTICA)
+     ═══════════════════════════════════════════════════════════════════ */
+  const ChromaticAberrationShader = {
+    uniforms: {
+      tDiffuse: { value: null },
+      uAmount: { value: 0.0 }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D tDiffuse;
+      uniform float uAmount;
+      varying vec2 vUv;
+      void main(){
+        if(uAmount <= 0.0005){
+          gl_FragColor = texture2D(tDiffuse, vUv);
+          return;
+        }
+        vec2 dir = vUv - vec2(0.5);
+        float dist = length(dir);
+        vec2 offset = dir * (dist * uAmount);
+        float r = texture2D(tDiffuse, vUv + offset).r;
+        float g = texture2D(tDiffuse, vUv).g;
+        float b = texture2D(tDiffuse, vUv - offset).b;
+        gl_FragColor = vec4(r, g, b, 1.0);
+      }
+    `
+  };
+
+  let composer = null;
+  let bloomPass = null;
+  let chromaPass = null;
+
+  function initPostProcessing(){
+    if(IS_TOUCH || typeof THREE.EffectComposer === 'undefined' || typeof THREE.RenderPass === 'undefined') return;
+    try {
+      const renderScene = new THREE.RenderPass(scene, camera);
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(renderScene);
+
+      if(typeof THREE.UnrealBloomPass !== 'undefined'){
+        bloomPass = new THREE.UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          0.70, // fuerza
+          0.35, // radio
+          0.85  // umbral alto (bloom selectivo en emisivos y flashes)
+        );
+        composer.addPass(bloomPass);
+      }
+
+      if(typeof THREE.ShaderPass !== 'undefined'){
+        chromaPass = new THREE.ShaderPass(ChromaticAberrationShader);
+        composer.addPass(chromaPass);
+      }
+      logDiag('Post-processing pipeline (Bloom + Chroma) activado.', 'ok');
+    } catch(e) {
+      logDiag('Post-processing fallback a render estándar: ' + e.message, 'info');
+      composer = null;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     2D SPATIAL GRID PARTITIONING (O(N) FLOCKING & REPEL PERFORMANCE)
+     ═══════════════════════════════════════════════════════════════════ */
+  const SpatialGrid = {
+    cellSize: 3.5,
+    grid: new Map(),
+    _getKey(cx, cz){ return `${cx},${cz}`; },
+    clear(){
+      this.grid.clear();
+    },
+    insert(entity){
+      if(!entity || !entity.g) return;
+      const cx = Math.floor(entity.g.position.x / this.cellSize);
+      const cz = Math.floor(entity.g.position.z / this.cellSize);
+      const key = this._getKey(cx, cz);
+      let list = this.grid.get(key);
+      if(!list){
+        list = [];
+        this.grid.set(key, list);
+      }
+      list.push(entity);
+    },
+    getNearby(x, z, radius = 3.5){
+      const minCx = Math.floor((x - radius) / this.cellSize);
+      const maxCx = Math.floor((x + radius) / this.cellSize);
+      const minCz = Math.floor((z - radius) / this.cellSize);
+      const maxCz = Math.floor((z + radius) / this.cellSize);
+      const results = [];
+      for(let cx = minCx; cx <= maxCx; cx++){
+        for(let cz = minCz; cz <= maxCz; cz++){
+          const list = this.grid.get(this._getKey(cx, cz));
+          if(list){
+            for(let k = 0; k < list.length; k++){
+              results.push(list[k]);
+            }
+          }
+        }
+      }
+      return results;
+    }
+  };
 
   /* ═══════════════════════════════════════════════════════════════════
      IBL ENVIRONMENT REFLECTION MAP (PMREM)
@@ -2507,25 +2625,106 @@ function initGameEngine() {
     }
   }
 
-  /* ===== IMPACT MARKS EN PAREDES (MARCAS DE BALA) ===== */
-  const impactPool=[];
-  function addImpact(pos){
-    let imp=impactPool.find(m=>!m.visible);
-    if(!imp){
-      if(impactPool.length>=25) impactPool.shift(); // límite 25 marcas
-      const g=new THREE.SpriteMaterial({map:mk(T.glow),color:0x050608,transparent:true,opacity:.55,depthWrite:false});
-      imp=new THREE.Sprite(g);imp.scale.setScalar(.12);imp.layers.set(2);scene.add(imp);
-      impactPool.push(imp);
+  /* ===== IMPACT DECALS PROYECTADAS EN SUPERFICIES (NORMAL MATCHING & NO Z-FIGHTING) ===== */
+  const decalGeo = new THREE.PlaneGeometry(0.14, 0.14);
+  const decalMat = new THREE.MeshBasicMaterial({
+    map: mk(T.glow),
+    color: 0x06080b,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
+  const decalPool = [];
+  const MAX_DECALS = 32;
+
+  function addImpact(pos, normal, obj){
+    let decal = decalPool.find(d => !d.mesh.visible);
+    if(!decal){
+      if(decalPool.length >= MAX_DECALS){
+        decal = decalPool.shift();
+      } else {
+        const mesh = new THREE.Mesh(decalGeo, decalMat.clone());
+        mesh.layers.set(2);
+        scene.add(mesh);
+        decal = { mesh, life: 0 };
+        decalPool.push(decal);
+      }
     }
-    imp.position.copy(pos);imp.position.y+=.05;imp.visible=true;imp.material.opacity=.7;
-    imp.userData.life=.8;
+    const worldNormal = new THREE.Vector3(0, 0, 1);
+    if(normal){
+      worldNormal.copy(normal);
+      if(obj && obj.matrixWorld){
+        worldNormal.transformDirection(obj.matrixWorld);
+      }
+      worldNormal.normalize();
+    }
+    decal.mesh.position.copy(pos).addScaledVector(worldNormal, 0.006);
+    decal.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), worldNormal);
+    decal.mesh.visible = true;
+    decal.mesh.material.opacity = 0.85;
+    decal.life = 1.4;
   }
+
   function updateImpacts(dt){
-    for(const imp of impactPool){
-      if(!imp.visible)continue;
-      imp.userData.life=(imp.userData.life||0)-dt;
-      if(imp.userData.life<=0){imp.visible=false;continue;}
-      imp.material.opacity=imp.userData.life*.7/.8;
+    for(const decal of decalPool){
+      if(!decal || !decal.mesh || !decal.mesh.visible) continue;
+      decal.life -= dt;
+      if(decal.life <= 0){
+        decal.mesh.visible = false;
+      } else {
+        decal.mesh.material.opacity = (decal.life / 1.4) * 0.85;
+      }
+    }
+  }
+
+  /* ===== MICRO-FÍSICA DE DESMEMBRAMIENTO Y RAGDOLL GRAVITACIONAL ===== */
+  const dismemberPool = [];
+  const MAX_DISMEMBER = 24;
+  function spawnDismemberChunk(pos, vel, type = 'limb'){
+    let chunk = dismemberPool.find(c => !c.mesh.visible);
+    if(!chunk){
+      if(dismemberPool.length >= MAX_DISMEMBER){
+        chunk = dismemberPool.shift();
+      } else {
+        const geo = new THREE.BoxGeometry(0.14, 0.28, 0.14);
+        const mat = std({color: 0x4a5542, roughness: 0.8}, 0.2);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.layers.set(2);
+        scene.add(mesh);
+        chunk = { mesh, vel: new THREE.Vector3(), rotVel: new THREE.Vector3(), life: 0 };
+        dismemberPool.push(chunk);
+      }
+    }
+    chunk.mesh.position.copy(pos);
+    chunk.vel.copy(vel);
+    chunk.rotVel.set(R(-6, 6), R(-6, 6), R(-6, 6));
+    chunk.life = 2.2;
+    chunk.mesh.visible = true;
+  }
+
+  function updateDismemberChunks(dt){
+    for(const chunk of dismemberPool){
+      if(!chunk || !chunk.mesh || !chunk.mesh.visible) continue;
+      chunk.life -= dt;
+      if(chunk.life <= 0){
+        chunk.mesh.visible = false;
+        continue;
+      }
+      chunk.vel.y -= 12.0 * dt;
+      chunk.mesh.position.addScaledVector(chunk.vel, dt);
+      chunk.mesh.rotation.x += chunk.rotVel.x * dt;
+      chunk.mesh.rotation.y += chunk.rotVel.y * dt;
+      const floorY = getFloorY(chunk.mesh.position.x, chunk.mesh.position.z) + 0.07;
+      if(chunk.mesh.position.y <= floorY){
+        chunk.mesh.position.y = floorY;
+        chunk.vel.y = -chunk.vel.y * 0.35;
+        chunk.vel.x *= 0.65;
+        chunk.vel.z *= 0.65;
+        chunk.rotVel.multiplyScalar(0.7);
+      }
     }
   }
 
@@ -3203,6 +3402,19 @@ function initGameEngine() {
     flanker: { maxTether: 18.0, aggro: 1.05, leadAhead: 0.015 }  // KIDO: maniobra por los flancos
   };
 
+  let squadOrder = 'follow'; // 'follow' | 'hold' | 'focus_boss'
+  function setSquadOrder(order){
+    squadOrder = order;
+    if(order === 'hold'){
+      feed('📡 ORDEN TÁCTICA [Z]: ¡MANTENER POSICIÓN Y COBERTURA!', 'h');
+    } else if(order === 'follow'){
+      feed('📡 ORDEN TÁCTICA [X]: ¡REAGRUPAR CON EL LÍDER!', 'h');
+    } else if(order === 'focus_boss'){
+      feed('📡 ORDEN TÁCTICA [Q]: ¡FUEGO CONCENTRADO EN EL BOSS!', 'k');
+    }
+    sfx.click();
+  }
+
   function evaluateBotUtility(bot, dt) {
     if (bot.dead || bot.downed) return null;
     const botPos = bot.group.position;
@@ -3230,7 +3442,8 @@ function initGameEngine() {
         const dot = botFacing.dot(dirToZ);
         if (dot > -0.34 || dist < 5.0) {
           let threat = (100 / Math.max(1, dist)) * rc.aggro;
-          if (z.type.includes('boss')) threat *= 2.2;
+          if (z.type.includes('boss')) threat *= (squadOrder === 'focus_boss' ? 6.0 : 2.2);
+          if (z.type.includes('mini') || z.type === 'brute') threat *= (squadOrder === 'focus_boss' ? 3.5 : 1.5);
           if (z.grabbed || z.grabVictim) threat *= 3.0;
           // ── COBERTURA POR SECTOR: rebanada de 120° por bot (VEGA izq, RUIZ frente, KIDO der) ──
           const zAng = Math.atan2(z.g.position.x - playerPos.x, z.g.position.z - playerPos.z);
@@ -3243,14 +3456,31 @@ function initGameEngine() {
     }
     bot.lastThreatScore = maxThreat;
 
-    // 2. CÁLCULO DE UTILIDADES CON SQUAD TETHERING SEGÚN ROL
+    // 2. CÁLCULO DE UTILIDADES CON SQUAD TETHERING SEGÚN ROL Y ORDEN TÁCTICA
     const uRescue = (playerState === 'downed') ? 0.98 : 0.0;
     const isFarFromPlayer = distToPlayer > rc.maxTether;
     
     const uSelfPreservation = (bot.hp < 28 && maxThreat > 25 && !isFarFromPlayer) ? 0.85 :
                               (bot.isRetreatingToHeal && bot.hp < 60 && !isFarFromPlayer) ? 0.78 : 0.0;
     const uCombat = (bestTarget && !isFarFromPlayer) ? Math.min(0.85, maxThreat / 100) : 0.0;
-    const uFormation = isFarFromPlayer ? 0.92 : (bot.role === 'anchor' ? 0.45 : 0.15);
+    const uFormation = isFarFromPlayer ? 0.92 : (squadOrder === 'hold' ? 0.08 : (bot.role === 'anchor' ? 0.45 : 0.15));
+
+    // Cobertura táctica al mantener posición (squadOrder === 'hold')
+    if(squadOrder === 'hold' && !isFarFromPlayer && !uRescue && !uSelfPreservation){
+      if(!bot.coverPos || rethink){
+        let bestObs = null, minObsDist = Infinity;
+        for(const obs of OBSTACLES){
+          const od = Math.hypot(obs.x - botPos.x, obs.z - botPos.z);
+          if(od < minObsDist && od < 18){ minObsDist = od; bestObs = obs; }
+        }
+        if(bestObs){
+          bot.coverPos = { x: bestObs.x + (bot.id === 1 ? 1.2 : bot.id === 2 ? -1.2 : 0), z: bestObs.z + (bot.id === 3 ? 1.2 : -1.2) };
+        }
+      }
+      if(bot.coverPos && Math.hypot(botPos.x - bot.coverPos.x, botPos.z - bot.coverPos.z) > 1.2 && !bestTarget){
+        moveBotTo(bot, bot.coverPos, 4.5, dt);
+      }
+    }
 
     const HYSTERESIS = 0.12;
 
@@ -3951,6 +4181,7 @@ function initGameEngine() {
           else if(z.lR && z.lR.p) z.lR.p.visible = false;
           sfx.boneCrack();
           burst(pt, 'ichor', 16, 3.8);
+          spawnDismemberChunk(pt, new THREE.Vector3(R(-2,2), R(3.5,6.5), R(-2,2)), 'limb');
           feed('💥 PIERNA CERCENADA — ZOMBIE EN GATEO', 'h');
         }
       }
@@ -3964,12 +4195,16 @@ function initGameEngine() {
           else if(z.aR && z.aR.p) z.aR.p.visible = false;
           sfx.boneCrack();
           burst(pt, 'ichor', 14, 3.5);
+          spawnDismemberChunk(pt, new THREE.Vector3(R(-2,2), R(3.5,6.5), R(-2,2)), 'limb');
           feed('💥 BRAZO DESTRUIDO — MODO MORDIDA', 'k');
         }
       }
     }
 
-    if(z.hp<=0) killZombie(z,hs);
+    if(z.hp<=0){
+      if(hs) spawnDismemberChunk(pt, new THREE.Vector3(R(-2,2), R(4.5,7.5), R(-2,2)), 'head');
+      killZombie(z,hs);
+    }
     else { hitmark(hs); sfx.flesh(); }
     netSend({type:'zhit',id:z.id,dmg});
     netSend({type:'zhit_fx',pos:{x:pt.x,y:pt.y,z:pt.z},hs});
@@ -4034,6 +4269,12 @@ function initGameEngine() {
     const enrageMul = hostilesEnraged ? 1.08 : 1.0;
     const boost = (1.0 + Math.max(0, (0.35 - B) * 0.10)) * enrageMul;
     const targets=getAlivePlayers();
+
+    SpatialGrid.clear();
+    for(let zi = 0; zi < zombies.length; zi++){
+      const sz = zombies[zi];
+      if(sz && !sz.dead && sz.g) SpatialGrid.insert(sz);
+    }
 
     for(let i=zombies.length-1;i>=0;i--){
       const z=zombies[i];
@@ -4235,11 +4476,11 @@ function initGameEngine() {
         let moveDz = dz;
         const toLen = Math.hypot(moveDx, moveDz) || 1.0;
 
-        // 1. Separación de horda (Flocking inteligente para rodear al jugador sin solaparse)
-        for(let oj = 0; oj < zombies.length; oj++){
-          if(oj === i) continue;
-          const otherZ = zombies[oj];
-          if(!otherZ || otherZ.hp <= 0 || !otherZ.g) continue;
+        // 1. Separación de horda O(1) con SpatialGrid (flocking masivo optimizado)
+        const nearbyZombies = SpatialGrid.getNearby(z.g.position.x, z.g.position.z, 2.0);
+        for(let oj = 0; oj < nearbyZombies.length; oj++){
+          const otherZ = nearbyZombies[oj];
+          if(otherZ === z || !otherZ || otherZ.hp <= 0 || !otherZ.g) continue;
           const sepX = z.g.position.x - otherZ.g.position.x;
           const sepZ = z.g.position.z - otherZ.g.position.z;
           const sepDist = Math.hypot(sepX, sepZ);
@@ -4465,12 +4706,14 @@ function initGameEngine() {
       }else{
         z.clothM.emissiveIntensity=0;
         if(z.head&&z.head.material) z.head.material.emissiveIntensity=0;
-      }}
+      }
+    }
+    instBody.count=zombies.length; instHead.count=zombies.length;
+    if(instBody.instanceMatrix) instBody.instanceMatrix.needsUpdate = true;
+    if(instHead.instanceMatrix) instHead.instanceMatrix.needsUpdate = true;
+    updateDismemberChunks(dt);
+    updateImpacts(dt);
   }
-  instBody.count=zombies.length; instHead.count=zombies.length;
-  if(instBody.instanceMatrix) instBody.instanceMatrix.needsUpdate = true;
-  if(instHead.instanceMatrix) instHead.instanceMatrix.needsUpdate = true;
-}
 
 
   /* ===== ROCK HURLER — PROYECTILES Y GRAB ===== */
@@ -4975,6 +5218,15 @@ function initGameEngine() {
     if((e.code==='KeyG'||e.key==='g'||e.key==='G')&&playing&&!isChatting){
       e.preventDefault(); throwGrenade();
     }
+    if((e.code==='KeyZ'||e.key==='z'||e.key==='Z')&&playing&&!isChatting){
+      e.preventDefault(); setSquadOrder('hold');
+    }
+    if((e.code==='KeyX'||e.key==='x'||e.key==='X')&&playing&&!isChatting){
+      e.preventDefault(); setSquadOrder('follow');
+    }
+    if((e.code==='KeyQ'||e.key==='q'||e.key==='Q')&&playing&&!isChatting){
+      e.preventDefault(); setSquadOrder('focus_boss');
+    }
     if((e.code==='KeyF'||e.key==='f'||e.key==='F')&&playing){
       flashlight.visible = !flashlight.visible;
       flashlight.intensity = flashlight.visible ? 2.5 : 0;
@@ -5000,10 +5252,14 @@ function initGameEngine() {
     }
   });
   window.addEventListener('mouseup',e=>{if(e.button===0){isMouseDown=false;firing=false;}});
+  let mouseDeltaX = 0, mouseDeltaY = 0;
+  let swayX = 0, swayY = 0;
   window.addEventListener('mousemove',e=>{
     if(locked){
       yaw-=e.movementX*.0021;
       pitch=clamp(pitch-e.movementY*.0021,-1.45,1.45);
+      mouseDeltaX += e.movementX;
+      mouseDeltaY += e.movementY;
     }
   });
   window.addEventListener('blur',()=>{isMouseDown=false;firing=false;for(const k in keys)keys[k]=false;});
@@ -5118,7 +5374,11 @@ function initGameEngine() {
         }
       }else{
         const envHits=ray.intersectObjects(sectorGroups,true);
-        if(envHits.length){end=envHits[0].point;burst(end,'spark',8,3);addImpact(end);}
+        if(envHits.length){
+          end=envHits[0].point;
+          burst(end,'spark',8,3);
+          addImpact(end, envHits[0].face ? envHits[0].face.normal : null, envHits[0].object);
+        }
       }
       tip.getWorldPosition(_v2);fireTracer(_v2.clone(),end.clone());
       hudAmmo();
@@ -5158,7 +5418,11 @@ function initGameEngine() {
           }
         } else {
           const envHits=ray.intersectObjects(sectorGroups,true);
-          if(envHits.length){end=envHits[0].point;burst(end,'spark',4,2.5);}
+          if(envHits.length){
+            end=envHits[0].point;
+            burst(end,'spark',4,2.5);
+            addImpact(end, envHits[0].face ? envHits[0].face.normal : null, envHits[0].object);
+          }
         }
         fireTracer(camPos.clone(), end.clone());
       }
@@ -5481,6 +5745,7 @@ function initGameEngine() {
 
   /* ===== FUNCIONES AUXILIARES FALTANTES (MINIMAP, CULLING, TEAM HUD) ===== */
 
+  const MAX_ACTIVE_POINT_LIGHTS = 4;
   function updateCulling(){
     if(!sectorGroups || !sectorGroups.length) return;
     const pS = Math.floor(playerT * SECTORS) % SECTORS;
@@ -5491,24 +5756,39 @@ function initGameEngine() {
     }
     const sEl = $('#sectorId');
     if(lightsReg && lightsReg.length && camera){
-      lightsReg.forEach(l => {
-        if(!l) return;
+      // Forward Light Budget Controller: ordenar y activar estrictamente las 4 luces más cercanas
+      const candidateLights = [];
+      for(let li = 0; li < lightsReg.length; li++){
+        const l = lightsReg[li];
+        if(!l) continue;
         const distToCam = camera.position.distanceTo(l.position);
-        l.visible = (distToCam < 16.0);
-        if(l.visible){
-          const fade = clamp(1.0 - (distToCam - 8.0) / 8.0, 0.05, 1.0);
-          const base = l.userData.base || 1.0;
-          const k = (l.userData.k !== undefined) ? l.userData.k : 1.0;
-          l.intensity = base * k * fade;
+        if(distToCam < 16.0){
+          candidateLights.push({ light: l, dist: distToCam });
+        } else {
+          l.visible = false;
         }
-      });
+      }
+      candidateLights.sort((a, b) => a.dist - b.dist);
+      for(let i = 0; i < candidateLights.length; i++){
+        const item = candidateLights[i];
+        if(i < MAX_ACTIVE_POINT_LIGHTS){
+          item.light.visible = true;
+          const fade = clamp(1.0 - (item.dist - 7.0) / 9.0, 0.05, 1.0);
+          const base = item.light.userData.base || 1.0;
+          const k = (item.light.userData.k !== undefined) ? item.light.userData.k : 1.0;
+          item.light.intensity = base * k * fade;
+        } else {
+          item.light.visible = false;
+        }
+      }
     }
     if(glowReg && glowReg.length && camera){
-      glowReg.forEach(g => {
-        if(!g) return;
+      for(let gi = 0; gi < glowReg.length; gi++){
+        const g = glowReg[gi];
+        if(!g) continue;
         const dist = camera.position.distanceTo(g.position);
-        g.visible = (dist < 17.0);
-      });
+        g.visible = (dist < 16.0);
+      }
     }
     if(sEl) sEl.textContent = 'S' + (pS + 1);
   }
@@ -6944,13 +7224,22 @@ function initGameEngine() {
       const spd = vel.length();
       const dip = reloading ? Math.sin(Math.min(1, relT / 1.5) * Math.PI) * .45 : 0;
       const downDip = playerState === 'downed' ? .3 : 0;
+
+      // Weapon Sway & Procedural Bobbing (inercia fluida al mover ratón y correr)
+      swayX = lerp(swayX, -mouseDeltaX * 0.0006, dt * 10);
+      swayY = lerp(swayY, -mouseDeltaY * 0.0006, dt * 10);
+      mouseDeltaX *= Math.exp(-15 * dt);
+      mouseDeltaY *= Math.exp(-15 * dt);
+      const walkBobX = Math.cos(bobT * 0.5) * 0.005 * Math.min(1.5, spd);
+      const walkBobY = Math.sin(bobT) * 0.006 * Math.min(1.5, spd);
+
       if(weapon){
-        weapon.position.set(.22, -.2 - downDip + Math.sin(bobT) * .004, -.42 + wKick * .08);
-        weapon.rotation.set(wKick * .15 - dip - downDip, 0, wKick * .02);
+        weapon.position.set(.22 + swayX + walkBobX, -.2 - downDip + walkBobY + swayY, -.42 + wKick * .08);
+        weapon.rotation.set(wKick * .15 - dip - downDip + swayY * 1.2, swayX * 1.5, wKick * .02 - swayX);
       }
       if(shotgunGroup){
-        shotgunGroup.position.set(.22, -.2 - downDip + Math.sin(bobT) * .004, -.42 + wKick * .08);
-        shotgunGroup.rotation.set(wKick * .15 - dip - downDip, 0, wKick * .02);
+        shotgunGroup.position.set(.22 + swayX + walkBobX, -.2 - downDip + walkBobY + swayY, -.42 + wKick * .08);
+        shotgunGroup.rotation.set(wKick * .15 - dip - downDip + swayY * 1.2, swayX * 1.5, wKick * .02 - swayX);
       }
 
       
@@ -7115,7 +7404,15 @@ function initGameEngine() {
         }
 
 
-        renderer.render(scene,camera);
+        if(composer && !IS_TOUCH){
+          if(chromaPass && chromaPass.uniforms && chromaPass.uniforms.uAmount){
+            const panicAmount = (dmgFlash * 0.012) + (playerState === 'downed' || hostilesEnraged ? 0.005 : 0.0) + (hp < 30 ? 0.006 : 0.0);
+            chromaPass.uniforms.uAmount.value = panicAmount;
+          }
+          composer.render();
+        } else {
+          renderer.render(scene, camera);
+        }
 
         camera.position.copy(_origCamPos);
         camera.rotation.y = _origCamRotY;
@@ -7302,8 +7599,10 @@ function initGameEngine() {
       camera.aspect=innerWidth/innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(innerWidth,innerHeight);
+      if(composer) composer.setSize(innerWidth,innerHeight);
     }
   });
+}
 }
 
 // Iniciar motor cuando el DOM esté completamente listo
