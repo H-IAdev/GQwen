@@ -4419,6 +4419,7 @@ function initGameEngine() {
           z.g.rotation.x = 0;
         }
         if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
+      }
       let nearest = null, nearD = Infinity;
       for(const pl of targets){
         const plPos = pl.pos || camera.position;
@@ -7718,7 +7719,6 @@ function initGameEngine() {
       if(composer) composer.setSize(innerWidth,innerHeight);
     }
   });
-}
 }
 
 // Iniciar motor cuando el DOM esté completamente listo
