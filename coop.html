@@ -1640,6 +1640,247 @@ function initGameEngine() {
         lampShade.position.set(lx, 6.2, lz); g.add(lampShade);
       }
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ETAPA 2: VAGONES DE METRO, TORNIQUETES, SEÑALÉTICA Y EMBOSCADAS
+    // ═══════════════════════════════════════════════════════════════════
+
+    // 8. VAGONES DE METRO ABANDONADOS EN VÍAS (INTERIOR TRANSITABLE Y COBERTURA TÁCTICA)
+    window.trainCars = [];
+    const carMat = std({color: 0x1e2738, metalness: 0.85, roughness: 0.35});
+    const carStripeMat = std({color: 0xffb400, roughness: 0.4});
+    const carGlassMat = std({color: 0x88bbdd, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.65});
+    const carInteriorMat = std({color: 0x2b333e, roughness: 0.6});
+    const carFloorMat = std({color: 0x11141a, metalness: 0.9, roughness: 0.4});
+    const redLightMat = std({color: 0xff1122, emissive: 0xff1122, emissiveIntensity: 2.0, roughness: 0.2});
+    addE(redLightMat, 2.0, true);
+
+    const trainConfigs = [
+      { tVal: 0.38, flipped: false },
+      { tVal: 0.88, flipped: true }
+    ];
+
+    trainConfigs.forEach((cfg) => {
+      const p = trackPos(cfg.tVal), n = outN(cfg.tVal), tn = trackTan(cfg.tVal);
+      const carGroup = new THREE.Group();
+      const carAngle = Math.atan2(tn.x, tn.z);
+      carGroup.position.set(p.x, 0, p.z);
+      carGroup.rotation.y = carAngle;
+
+      const cL = 16.0, cW = 2.8, cH = 3.1, cFloorY = 0.25;
+
+      // Chasis y suelo del vagón
+      const chassis = box(cW, cFloorY, cL, M.dark);
+      chassis.position.y = cFloorY / 2; chassis.castShadow = true; carGroup.add(chassis);
+
+      const interiorFloor = box(cW - 0.2, 0.05, cL - 0.4, carFloorMat);
+      interiorFloor.position.y = cFloorY + 0.025; carGroup.add(interiorFloor);
+
+      // Bogies / Ruedas
+      const bogieMat = std({color: 0x0c0e12, metalness: 0.95, roughness: 0.2});
+      for(let bz of [-5.5, 5.5]){
+        const bogie = box(cW - 0.4, 0.35, 2.2, bogieMat);
+        bogie.position.y = 0.18; bogie.position.z = bz; carGroup.add(bogie);
+      }
+
+      // Techo abovedado del vagón
+      const roof = box(cW, 0.2, cL, carMat);
+      roof.position.y = cH - 0.1; carGroup.add(roof);
+      const acUnit1 = box(1.2, 0.35, 2.4, M.dark); acUnit1.position.set(0, cH + 0.18, -3.5); carGroup.add(acUnit1);
+      const acUnit2 = box(1.2, 0.35, 2.4, M.dark); acUnit2.position.set(0, cH + 0.18,  3.5); carGroup.add(acUnit2);
+
+      // Testeros (Cabinas delantera y trasera)
+      for(let ez of [-cL/2, cL/2]){
+        const endWall = box(cW, cH - cFloorY, 0.2, carMat);
+        endWall.position.set(0, (cH + cFloorY)/2, ez); carGroup.add(endWall);
+
+        const cabWin = box(1.4, 0.9, 0.05, carGlassMat);
+        cabWin.position.set(0, (cH + cFloorY)/2 + 0.3, ez + (ez < 0 ? -0.12 : 0.12)); carGroup.add(cabWin);
+
+        for(let rx of [-0.9, 0.9]){
+          const tailLight = box(0.18, 0.18, 0.08, redLightMat);
+          tailLight.position.set(rx, 1.2, ez + (ez < 0 ? -0.12 : 0.12)); carGroup.add(tailLight);
+        }
+      }
+
+      // Laterales con Franja Amarilla, Ventanales y Puertas Corredizas
+      for(let side of [-1, 1]){
+        const sx = side * (cW / 2 - 0.06);
+        const baseBoard = box(0.12, 0.85, cL - 0.4, carMat);
+        baseBoard.position.set(sx, cFloorY + 0.425, 0); carGroup.add(baseBoard);
+
+        const stripe = box(0.14, 0.18, cL - 0.4, carStripeMat);
+        stripe.position.set(sx, cFloorY + 0.75, 0); carGroup.add(stripe);
+
+        for(let pz = -6.0; pz <= 6.0; pz += 3.0){
+          const isDoorZone = (Math.abs(pz) === 3.0);
+          if(!isDoorZone){
+            const pillar = box(0.12, 1.5, 0.8, carMat);
+            pillar.position.set(sx, cFloorY + 0.85 + 0.75, pz); carGroup.add(pillar);
+
+            const windowGlass = box(0.04, 1.1, 2.0, carGlassMat);
+            windowGlass.position.set(sx, cFloorY + 0.85 + 0.75, pz + 1.5); carGroup.add(windowGlass);
+          } else {
+            const doorOpen = (side === (cfg.flipped ? 1 : -1));
+            const doorSlide = doorOpen ? 0.9 : 0.2;
+            const doorLeaf1 = box(0.08, 1.95, 0.65, carMat);
+            doorLeaf1.position.set(sx, cFloorY + 0.975, pz - 0.35 - doorSlide); carGroup.add(doorLeaf1);
+            const doorLeaf2 = box(0.08, 1.95, 0.65, carMat);
+            doorLeaf2.position.set(sx, cFloorY + 0.975, pz + 0.35 + doorSlide); carGroup.add(doorLeaf2);
+          }
+        }
+      }
+
+      // Interior: Bancos corridos y pasamanos de acero
+      for(let side of [-1, 1]){
+        const seat = box(0.45, 0.40, 4.2, carInteriorMat);
+        seat.position.set(side * (cW / 2 - 0.32), cFloorY + 0.20, 0); carGroup.add(seat);
+      }
+      const handRailMat = std({color: 0xdddddd, metalness: 0.95, roughness: 0.15});
+      for(let rx of [-0.6, 0.6]){
+        const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, cL - 2.0, 6), handRailMat);
+        rail.rotation.x = Math.PI / 2; rail.position.set(rx, cH - 0.55, 0); carGroup.add(rail);
+      }
+
+      // Iluminación interior de emergencia titilante
+      const intLight = new THREE.PointLight(0xffaa44, 2.2, 12, 1.6);
+      intLight.position.set(0, cH - 0.45, 0); carGroup.add(intLight); addL(intLight, 2.2);
+
+      const intGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: mk(T.glow), color: 0xffaa44, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.45
+      }));
+      intGlow.scale.set(3.2, 3.2, 3.2); intGlow.position.set(0, cH - 0.45, 0); carGroup.add(intGlow); addG(intGlow, 0.45);
+
+      g.add(carGroup);
+
+      // Registrar datos OBB de los vagones para getFloorY
+      window.trainCars.push({
+        cx: p.x, cz: p.z,
+        angle: carAngle,
+        cosA: Math.cos(carAngle),
+        sinA: Math.sin(carAngle),
+        halfL: cL / 2,
+        halfW: cW / 2,
+        floorY: cFloorY
+      });
+    });
+
+    // 9. BATERÍAS DE TORNIQUETES Y BARRERAS DE ACCESO METRO
+    const turnstileMat = std({color: 0x222832, metalness: 0.9, roughness: 0.25});
+    const gateGlassMat = std({color: 0x44aaff, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.7});
+    const greenLedMat = std({color: 0x2fd06e, emissive: 0x2fd06e, emissiveIntensity: 2.2, roughness: 0.2});
+    const redLedMat = std({color: 0xff4b3e, emissive: 0xff4b3e, emissiveIntensity: 2.2, roughness: 0.2});
+    addE(greenLedMat, 2.2, true); addE(redLedMat, 2.2, true);
+
+    const turnstileBatteries = [
+      { x: 0, z: -13.5, rotY: 0, count: 5, spacing: 1.15 },
+      { x: 0, z:  13.5, rotY: Math.PI, count: 5, spacing: 1.15 },
+      { x: -21.0, z: 0, rotY: Math.PI / 2, count: 4, spacing: 1.15 },
+      { x:  21.0, z: 0, rotY: -Math.PI / 2, count: 4, spacing: 1.15 }
+    ];
+
+    turnstileBatteries.forEach((bat) => {
+      const batGroup = new THREE.Group();
+      batGroup.position.set(bat.x, 0, bat.z);
+      batGroup.rotation.y = bat.rotY;
+
+      const totalW = (bat.count - 1) * bat.spacing;
+      const startX = -totalW / 2;
+
+      for(let i = 0; i < bat.count; i++){
+        const gx = startX + i * bat.spacing;
+        const cabinet = box(0.28, 1.02, 1.15, turnstileMat);
+        cabinet.position.set(gx, 0.51, 0); cabinet.castShadow = true; batGroup.add(cabinet);
+
+        const topCap = box(0.26, 0.03, 1.12, M.dark);
+        topCap.position.set(gx, 1.035, 0); batGroup.add(topCap);
+
+        const isLocked = (i === 0 || i === bat.count - 1);
+        const ledMat = isLocked ? redLedMat : greenLedMat;
+        const ledInd = box(0.12, 0.02, 0.12, ledMat);
+        ledInd.position.set(gx, 1.055, -0.35); batGroup.add(ledInd);
+
+        if(i < bat.count - 1){
+          const flap = box(bat.spacing - 0.32, 0.65, 0.03, gateGlassMat);
+          flap.position.set(gx + bat.spacing / 2, 0.65, 0); batGroup.add(flap);
+        }
+      }
+      g.add(batGroup);
+    });
+
+    // 10. SEÑALÉTICA SECTORIAL Y LÍNEAS VINÍLICAS GUÍA EN SUELO PBR
+    const signMatA = std({color: 0x111620, emissive: 0x0088ff, emissiveIntensity: 1.2, roughness: 0.3});
+    const signMatB = std({color: 0x111620, emissive: 0xffaa00, emissiveIntensity: 1.2, roughness: 0.3});
+    const signMatExit = std({color: 0x0a1c12, emissive: 0x22cc66, emissiveIntensity: 1.4, roughness: 0.3});
+    addE(signMatA, 1.2, true); addE(signMatB, 1.2, true); addE(signMatExit, 1.4, true);
+
+    const signConfigs = [
+      { x: -16, y: 4.5, z: -10, r: 0, mat: signMatA },
+      { x:  16, y: 4.5, z:  10, r: Math.PI, mat: signMatB },
+      { x: -22, y: 4.5, z:   0, r: Math.PI / 2, mat: signMatExit },
+      { x:  22, y: 4.5, z:   0, r: -Math.PI / 2, mat: signMatExit }
+    ];
+
+    signConfigs.forEach((sc) => {
+      const sGroup = new THREE.Group();
+      sGroup.position.set(sc.x, sc.y, sc.z);
+      sGroup.rotation.y = sc.r;
+
+      const board = box(3.2, 0.65, 0.12, sc.mat);
+      board.castShadow = true; sGroup.add(board);
+
+      for(let cx of [-1.3, 1.3]){
+        const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.2, 6), cableMat);
+        cable.position.set(cx, 1.1, 0); sGroup.add(cable);
+      }
+      g.add(sGroup);
+    });
+
+    // Franjas Vinílicas Guía en Suelo Cerámico PBR (Cota Y = 0.005m sin Z-fighting)
+    const lineMatYellow = std({color: 0xffcc00, roughness: 0.35});
+    const lineMatBlue = std({color: 0x1a75ff, roughness: 0.35});
+    const lineMatRed = std({color: 0xff3b30, roughness: 0.35});
+
+    const lineN = box(0.18, 0.006, 18.0, lineMatYellow); lineN.position.set(-3.5, 0.003, -11.0); g.add(lineN);
+    const lineS = box(0.18, 0.006, 18.0, lineMatBlue);   lineS.position.set( 3.5, 0.003,  11.0); g.add(lineS);
+    const lineW = box(16.0, 0.006, 0.18, lineMatRed);    lineW.position.set(-16.0, 0.003, 0);   g.add(lineW);
+    const lineE = box(16.0, 0.006, 0.18, lineMatRed);    lineE.position.set( 16.0, 0.003, 0);   g.add(lineE);
+
+    // 11. REJILLAS DE ALCANTARILLADO Y PUNTOS DE EMBOSCADA CON VAPOR ILUMINADO
+    const grateMat = std({color: 0x15181e, metalness: 0.85, roughness: 0.45});
+    const grateGlowMat = std({color: 0xff5500, emissive: 0xff4400, emissiveIntensity: 1.8, roughness: 0.2});
+    addE(grateGlowMat, 1.8, true);
+
+    const grateLocs = [
+      { x: -22, z: 8 }, { x: 22, z: -8 },
+      { x: -12, z: -18 }, { x: 12, z: 18 },
+      { x: -35, z: 0 }, { x: 35, z: 0 }
+    ];
+
+    window.ambushGratePositions = grateLocs;
+
+    grateLocs.forEach((gl) => {
+      const grGroup = new THREE.Group();
+      grGroup.position.set(gl.x, 0.005, gl.z);
+
+      const frame = box(1.6, 0.02, 1.6, grateMat); frame.receiveShadow = true; grGroup.add(frame);
+      const innerGlow = box(1.3, 0.015, 1.3, grateGlowMat); grGroup.add(innerGlow);
+
+      for(let rz = -0.6; rz <= 0.6; rz += 0.15){
+        const rib = box(1.4, 0.025, 0.04, grateMat);
+        rib.position.set(0, 0.008, rz); grGroup.add(rib);
+      }
+
+      const vLight = new THREE.PointLight(0xff5500, 1.5, 6, 1.8);
+      vLight.position.set(0, 0.35, 0); grGroup.add(vLight); addL(vLight, 1.5);
+
+      const grateSteam = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: mk(T.glow), color: 0xff8844, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.30
+      }));
+      grateSteam.scale.set(1.8, 1.8, 1.8); grateSteam.position.set(0, 0.5, 0); grGroup.add(grateSteam); addG(grateSteam, 0.30);
+
+      g.add(grGroup);
+    });
   }
   buildGrandCentralConcourse();
 
@@ -3395,9 +3636,20 @@ function initGameEngine() {
     slot.g.rotation.set(0,0,0);
 
     // Posicionar (LOD ya está en la escena, solo mover y mostrar)
-    const p2=trackPos(slot.t),n2=outN(slot.t);
-    const _y0=getFloorY(p2.x+n2.x*slot.lat,p2.z+n2.z*slot.lat);
-    slot.g.position.set(p2.x+n2.x*slot.lat,_y0,p2.z+n2.z*slot.lat);
+    const isAmbushType = (type === 'runner' || type === 'mini_stalker' || type === 'boss_stalker');
+    const ambushGrate = (isAmbushType && window.ambushGratePositions && window.ambushGratePositions.length && Math.random() < 0.25)
+      ? pick(window.ambushGratePositions)
+      : null;
+
+    if(ambushGrate){
+      const _y0 = getFloorY(ambushGrate.x, ambushGrate.z);
+      slot.g.position.set(ambushGrate.x, _y0, ambushGrate.z);
+      burst(slot.g.position, 'ichor', 12, 3.2);
+    } else {
+      const p2=trackPos(slot.t),n2=outN(slot.t);
+      const _y0=getFloorY(p2.x+n2.x*slot.lat,p2.z+n2.z*slot.lat);
+      slot.g.position.set(p2.x+n2.x*slot.lat,_y0,p2.z+n2.z*slot.lat);
+    }
     /* userData.z + re-registrar hitboxes en el pool global (se pierden tras killZombie) */
     window.zombieHitboxes=(window.zombieHitboxes||[]).filter(m=>m&&m.userData&&m.userData.z!==slot);
     slot.detailG.traverse(c=>{if(c.isMesh){c.userData.z=slot;window.zombieHitboxes.push(c);}});
@@ -3524,6 +3776,18 @@ function initGameEngine() {
   }
 
   function getFloorY(x,z){
+    // Vagones de Metro Abandonados (OBB Check)
+    if(window.trainCars && window.trainCars.length){
+      for(const tc of window.trainCars){
+        const dx = x - tc.cx;
+        const dz = z - tc.cz;
+        const localX = dx * tc.cosA + dz * tc.sinA;
+        const localZ = -dx * tc.sinA + dz * tc.cosA;
+        if(Math.abs(localX) <= tc.halfW && Math.abs(localZ) <= tc.halfL){
+          return tc.floorY;
+        }
+      }
+    }
     // Plataforma central de entresuelo (mezzanine)
     if(Math.abs(x) <= 14 && Math.abs(z) <= 6){
       return 1.40;
