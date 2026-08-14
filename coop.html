@@ -1239,13 +1239,10 @@ function initGameEngine() {
   ];
 
   function resolveWorldCollisions(p, radius = 0.45){
-    // 1. Límite perimetral elíptico exterior
-    const normSq = (p.x / 55.5) * (p.x / 55.5) + (p.z / 30.5) * (p.z / 30.5);
-    if(normSq > 1.0){
-      const factor = 1.0 / Math.sqrt(normSq);
-      p.x *= factor;
-      p.z *= factor;
-    }
+    // 1. Límite perimetral real de muros exteriores de hormigón (sin barreras invisibles en los rieles)
+    // El mapa se extiende hasta X: [-64.5, 64.5] y Z: [-42.0, 42.0]
+    p.x = clamp(p.x, -64.5 + radius, 64.5 - radius);
+    p.z = clamp(p.z, -42.0 + radius, 42.0 - radius);
 
     // 2. Colisión AABB con quioscos y máquinas
     for(const obs of OBSTACLES){
@@ -1262,7 +1259,7 @@ function initGameEngine() {
       }
     }
 
-    // 3. Colisión con vagones de metro (salvo en las puertas abiertas)
+    // 3. Colisión suave con vagones de metro (puertas y pasillo central 100% transitables)
     if(window.trainCars && window.trainCars.length){
       for(const tc of window.trainCars){
         const dx = p.x - tc.cx;
@@ -1272,10 +1269,11 @@ function initGameEngine() {
         const endPenZ = (tc.halfL + radius) - Math.abs(lz);
         const endPenX = (tc.halfW + radius) - Math.abs(lx);
         if(endPenZ > 0 && endPenX > 0){
-          const isDoor = (Math.abs(lz) >= 2.0 && Math.abs(lz) <= 4.0);
-          if(!isDoor && Math.abs(lx) > tc.halfW - 0.25){
+          const isDoor = (Math.abs(lz) >= 1.6 && Math.abs(lz) <= 4.4);
+          const isInterior = Math.abs(lx) < tc.halfW - 0.28;
+          if(!isDoor && !isInterior && Math.abs(lx) > tc.halfW - 0.25){
             const pushX = (tc.halfW + radius) - Math.abs(lx);
-            if(pushX > 0 && pushX < 0.8){
+            if(pushX > 0 && pushX < 0.6){
               p.x += Math.sign(lx) * pushX * tc.cosA;
               p.z += Math.sign(lx) * pushX * tc.sinA;
             }
@@ -1374,27 +1372,48 @@ function initGameEngine() {
         g.add(trackSign);
       }
 
-      // TECHO ELEVADO 100% COMPLETO DE ANCHO A ANCHO (DESDE X = -3.2M HASTA X = OUTERW + 0.4M)
+      // TECHO ELEVADO CONTINUO ALINEADO AL MILÍMETRO (DESDE BORDE DE ANDÉN -5.2M HASTA MURO EXTERIOR)
       const cp=[],ci=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        cp.push(p.x+n.x*-5.7,wH,p.z+n.z*-5.7, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
+        cp.push(p.x+n.x*-5.2,wH,p.z+n.z*-5.2, p.x+n.x*(outerW+.4),wH,p.z+n.z*(outerW+.4));}
       for(let i=0;i<SPS;i++){const a=i*2;ci.push(a,a+1,a+2,a+1,a+3,a+2);}
       const cg=new THREE.BufferGeometry();
       cg.setAttribute('position',new THREE.Float32BufferAttribute(cp,3));cg.setIndex(ci);cg.computeVertexNormals();
       g.add(new THREE.Mesh(cg,M.ceil));
 
-      // Vías
+      // LECHO DE BALASTO Y TRAVIESAS DE HORMIGÓN EN VÍAS
       const tp=[],ti=[];
       for(let i=0;i<=SPS;i++){const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t);
-        tp.push(p.x+n.x*-1.3,.01,p.z+n.z*-1.3, p.x+n.x*1.3,.01,p.z+n.z*1.3);}
+        tp.push(p.x+n.x*-1.5,.02,p.z+n.z*-1.5, p.x+n.x*1.5,.02,p.z+n.z*1.5);}
       for(let i=0;i<SPS;i++){const a=i*2;ti.push(a,a+2,a+1,a+1,a+2,a+3);}
       const tg=new THREE.BufferGeometry();
       tg.setAttribute('position',new THREE.Float32BufferAttribute(tp,3));tg.setIndex(ti);tg.computeVertexNormals();
       g.add(new THREE.Mesh(tg,M.dark));
 
-      // BARRAS DE LUZ DE TECHO ESTRUCTURALES DISTRIBUIDAS EN TODOS LOS SECTORES
+      // Traviesas de tren distribuidas a lo largo del sector
+      for(let k = 0; k < 6; k++){
+        const tt = t0 + (t1 - t0) * ((k + 0.5) / 6);
+        const tp2 = trackPos(tt), tn2 = trackTan(tt);
+        const tie = box(2.6, 0.10, 0.32, M.tileDk);
+        tie.position.set(tp2.x, 0.05, tp2.z);
+        tie.rotation.y = Math.atan2(tn2.x, tn2.z);
+        tie.receiveShadow = true; g.add(tie);
+      }
+
+      // CANALETAS DE CABLES Y TUBERÍAS INDUSTRIALES EN MUROS EXTERIORES
+      for(let i=0;i<=SPS;i++){
+        if(i % 3 === 0){
+          const t=t0+(t1-t0)*i/SPS;const p=trackPos(t),n=outN(t),tn=trackTan(t);
+          const cBox = box(0.35, 0.45, 0.22, M.steel);
+          cBox.position.set(p.x + n.x * (outerW + 0.25), 2.8, p.z + n.z * (outerW + 0.25));
+          cBox.rotation.y = Math.atan2(tn.x, tn.z);
+          g.add(cBox);
+        }
+      }
+
+      // BARRAS DE LUZ DE TECHO ESTRUCTURALES CALIBRADAS
       {
-        const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:2.8,roughness:.2},.3);addE(lm,2.8);
+        const lm=std({color:0xdfe3e8,emissive:0xe8f1ff,emissiveIntensity:2.2,roughness:.2},.3);addE(lm,2.2);
         for(let q of [.25, .75]){
           const lt=t0+(t1-t0)*q; const lp=trackPos(lt),ln=outN(lt),tn=trackTan(lt);
           const barAngle=Math.atan2(tn.x,tn.z);
@@ -1406,9 +1425,9 @@ function initGameEngine() {
           const lf2=box(.5,.08,3.2,lm);
           lf2.position.set(lp.x+ln.x*6.5, wH-.06, lp.z+ln.z*6.5);
           lf2.rotation.y=barAngle; g.add(lf2);
-          // Punto de luz difusa de techo
-          const pL=new THREE.PointLight(0xaabbdd, 1.4, 14);
-          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL); addL(pL, 1.4);
+          // Punto de luz difusa de techo calibrado (11m de radio, decay cuadrático)
+          const pL=new THREE.PointLight(0xaabbdd, 1.1, 11, 2.0);
+          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL); addL(pL, 1.1);
         }
       }
       // Props de Estación
@@ -1544,9 +1563,10 @@ function initGameEngine() {
     concourseFloor.receiveShadow = true;
     g.add(concourseFloor);
 
-    // 2. BÓVEDA CATEDRAL Y TECHO COMPLETO SELLADO (ALTURA 6.4m a 8.2m)
+    // 2. BÓVEDA CATEDRAL Y CÚPULA ELEVADA (ALTURA 6.4m EN ARRANQUE HASTA 13.5m EN CÉNIT)
     const cp = [], ci = [], cuv = [];
-    const ceilH = 6.4;
+    const ceilBaseH = 6.4;
+    const domeApexH = 13.5;
     for(let r = 0; r <= RINGS; r++){
       const radFrac = r / RINGS;
       for(let s = 0; s <= SEGS; s++){
@@ -1557,7 +1577,7 @@ function initGameEngine() {
         const vx = edgeX * radFrac;
         const vz = edgeZ * radFrac;
         const domeCurve = Math.cos(radFrac * Math.PI * 0.5);
-        const vy = ceilH + domeCurve * 1.8;
+        const vy = ceilBaseH + Math.pow(domeCurve, 0.75) * (domeApexH - ceilBaseH);
         cp.push(vx, vy, vz);
         cuv.push(vx / 4.0, vz / 4.0);
       }
@@ -1579,6 +1599,15 @@ function initGameEngine() {
     M.ceil.side = THREE.DoubleSide;
     const concourseCeil = new THREE.Mesh(cg, M.ceil);
     g.add(concourseCeil);
+
+    // Claraboya Octogonal Cenital con Linterna Metálica en la Cúspide
+    const lanternGeo = new THREE.CylinderGeometry(4.2, 4.8, 0.8, 16);
+    const lanternMesh = new THREE.Mesh(lanternGeo, M.steel);
+    lanternMesh.position.set(0, domeApexH - 0.2, 0);
+    g.add(lanternMesh);
+    const skylightGlass = new THREE.Mesh(new THREE.CylinderGeometry(3.9, 3.9, 0.1, 16), std({color: 0x6688aa, emissive: 0x223355, emissiveIntensity: 0.8, roughness: 0.2, metalness: 0.8}));
+    skylightGlass.position.set(0, domeApexH + 0.15, 0);
+    g.add(skylightGlass);
 
     // 3. ENTRESUELO ELEVADO CENTRAL (MEZZANINE DE TRANSBORDO A COTA Y = 1.40m)
     const mezzW = 28, mezzD = 12, mezzH = 1.40;
@@ -1637,8 +1666,8 @@ function initGameEngine() {
     g.add(infoBoard);
     const cableMat = std({color: 0x111317, metalness: 0.9, roughness: 0.2});
     for(let cx of [-3.8, 3.8]){
-      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 3.4, 6), cableMat);
-      cable.position.set(cx, 6.5, 0); g.add(cable);
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 5.4, 6), cableMat);
+      cable.position.set(cx, 7.5, 0); g.add(cable);
     }
 
     // 5. QUIOSCOS Y PUESTOS DE INFORMACIÓN
@@ -1684,37 +1713,44 @@ function initGameEngine() {
       g.add(vGroup);
     }
 
-    // 6. CERCHAS ESTRUCTURALES DE TECHO (ARCOS SUPERIORES EN Y = 6.2m a 8.2m SIN INTERFERENCIA EN SUELO)
-    const trussMat = std({color: 0x242932, metalness: 0.8, roughness: 0.3});
-    for(let tx of [-28, -14, 0, 14, 28]){
-      const trussGroup = new THREE.Group();
-      trussGroup.position.set(tx, 0, 0);
-      for(let z = -14; z <= 14; z += 2){
-        const archY = 6.2 + Math.cos((z / 15) * Math.PI * 0.5) * 1.8;
-        const segment = box(0.22, 0.22, 2.1, trussMat);
-        segment.position.set(0, archY, z);
-        trussGroup.add(segment);
+    // 6. NERVADURAS ESTRUCTURALES RADIALES ADAPTADAS A LA CÚPULA ELEVADA (6.4m a 13.5m)
+    const trussMat = std({color: 0x242932, metalness: 0.85, roughness: 0.3});
+    for(let a = 0; a < 8; a++){
+      const angle = (a / 8) * Math.PI * 2;
+      const ribGroup = new THREE.Group();
+      for(let r = 2; r <= RINGS; r += 2){
+        const radFrac = r / RINGS;
+        const p0 = trackPos(a / 8), n0 = outN(a / 8);
+        const rx = (p0.x + n0.x * -5.2) * radFrac;
+        const rz = (p0.z + n0.z * -5.2) * radFrac;
+        const dCurve = Math.cos(radFrac * Math.PI * 0.5);
+        const ry = ceilBaseH + Math.pow(dCurve, 0.75) * (domeApexH - ceilBaseH) - 0.12;
+        const segment = box(0.35, 0.35, 3.2, trussMat);
+        segment.position.set(rx, ry, rz);
+        segment.rotation.y = angle;
+        segment.rotation.x = -Math.sin(radFrac * Math.PI * 0.5) * 0.32;
+        ribGroup.add(segment);
       }
-      g.add(trussGroup);
+      g.add(ribGroup);
     }
 
-    // 7. ILUMINACIÓN CENITAL CÁLIDA MASTER (4 LÁMPARAS DE ALTA EFICIENCIA PARA 60 FPS)
+    // 7. ILUMINACIÓN CENITAL CÁLIDA MASTER (4 LÁMPARAS COLGANTES CALIBRADAS)
     for(let lx of [-16, 16]){
       for(let lz of [-6, 6]){
-        const cLight = new THREE.PointLight(0xffeedd, 2.2, 28, 2.0);
-        cLight.position.set(lx, 6.0, lz);
+        const cLight = new THREE.PointLight(0xffeedd, 1.8, 16, 2.0);
+        cLight.position.set(lx, 6.2, lz);
         g.add(cLight);
-        addL(cLight, 2.2);
+        addL(cLight, 1.8);
 
         const spotGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.50
+          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.40
         }));
-        spotGlow.scale.set(3.5, 3.5, 3.5); spotGlow.position.set(lx, 6.0, lz); g.add(spotGlow); addG(spotGlow, 0.50);
+        spotGlow.scale.set(3.2, 3.2, 3.2); spotGlow.position.set(lx, 6.2, lz); g.add(spotGlow); addG(spotGlow, 0.40);
 
-        const lampCable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8, 6), cableMat);
-        lampCable.position.set(lx, 7.1, lz); g.add(lampCable);
-        const lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.3, 12, 1, true), M.steel);
-        lampShade.position.set(lx, 6.2, lz); g.add(lampShade);
+        const lampCable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 3.8, 6), cableMat);
+        lampCable.position.set(lx, 8.1, lz); g.add(lampCable);
+        const lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.32, 12, 1, true), M.steel);
+        lampShade.position.set(lx, 6.38, lz); g.add(lampShade);
       }
     }
 
@@ -3983,25 +4019,30 @@ function initGameEngine() {
           z.g.rotation.x = 0;
         }
         if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
-      let nearest=null,nearD=Infinity;
-      for(const pl of targets){const d=trackDist(z.t,pl.trackT);if(d<nearD){nearD=d;nearest=pl;}}
-      if(!nearest)continue;
-      let dir=nearest.trackT-z.t;if(dir>.5)dir-=1;if(dir<-.5)dir+=1;
-      const dist=Math.abs(dir)*TRACK_LEN;
-      // LOD: ocultar animación de zombies lejanos (>45m) — solo mover posición a velocidad constante
-      if(dist>45){if(z.g.visible)z.g.visible=false;z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;z.t=((z.t%1)+1)%1;continue;}
-      // FIX INVISIBILIDAD: garantizar visibilidad de zombies vivos en rango de cámara
-      if(!z.g.visible && !z.spawning && !z.dead){
-        if(_vCam.distanceTo(z.g.position) < 45) z.g.visible = true;
+      let nearest = null, nearD = Infinity;
+      for(const pl of targets){
+        const plPos = pl.pos || camera.position;
+        const d = z.g.position.distanceTo(plPos);
+        if(d < nearD){ nearD = d; nearest = pl; }
       }
+      if(!nearest) continue;
 
-      // Distancia 3D directa y precisa entre zombie y target
       const targetPos = nearest.pos || _vCam;
-      const dx = z.g.position.x - targetPos.x;
-      const dz = z.g.position.z - targetPos.z;
+      const dx = targetPos.x - z.g.position.x;
+      const dz = targetPos.z - z.g.position.z;
       const dist3D = Math.hypot(dx, dz);
       const meleeR = (z.isCrawling ? 1.45 : (z.isBiting ? 1.55 : 1.95)) * (z.scale || 1.0);
       const stopR = meleeR * 0.75;
+
+      let dir = (nearest.trackT !== undefined) ? (nearest.trackT - z.t) : 0;
+      if(dir > 0.5) dir -= 1;
+      if(dir < -0.5) dir += 1;
+      const dist = Math.abs(dir) * TRACK_LEN;
+
+      // Garantizar visibilidad continua para todos los zombies vivos en rango razonable
+      if(!z.spawning && !z.dead){
+        z.g.visible = (_vCam.distanceTo(z.g.position) < 65.0);
+      }
 
       // Mecánica de Sprint Temporal Periódico (Surge Frenzy)
       z.sprintCd = (z.sprintCd || R(3, 7)) - dt;
@@ -4058,8 +4099,6 @@ function initGameEngine() {
                            z.type === 'runner' ? 2.2 : 2.6;
           z.cool = baseCool;
 
-
-
           if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 8, 2.8);
             if(z.isBiting) sfx.flesh();
@@ -4077,7 +4116,6 @@ function initGameEngine() {
           }
         }
       }else if(dist3D > stopR){
-        z.t+=Math.sign(dir)*z.curSpd*boost*dt/TRACK_LEN;
         const s=Math.sin(z.animT);
         if(z.actions && (z.actions['Walk'] || z.actions['Run']) && z.activeAction !== 'Walk' && z.activeAction !== 'Run' && !z.isCrawling){
           const walkAct = z.actions['Walk'] || z.actions['Run'];
@@ -4104,28 +4142,52 @@ function initGameEngine() {
         }
       }
 
-      z.t=((z.t%1)+1)%1;
-      const targetLat=nearest.trackLat!==undefined?nearest.trackLat:3;
-      z.lat+=(targetLat-z.lat)*dt*2.8;z.lat=clamp(z.lat,-5.1,8.3);
+      // Navegación Híbrida: Concourse 3D libre vs. Loop de Vías
+      const inConcourseZone = (Math.abs(targetPos.x) < 36 && Math.abs(targetPos.z) < 28) || (dist3D < 20.0);
 
-      const p=trackPos(z.t),n=outN(z.t),tn=trackTan(z.t);
-      const floorY = getFloorY(p.x+n.x*z.lat, p.z+n.z*z.lat);
-      let targetPosY = floorY;
-      if(z.isCrawling){
-        targetPosY = floorY + 0.16;
-        z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, -Math.PI * 0.42, dt * 8);
-        if(z.aL && z.aL.p) z.aL.p.rotation.x = Math.sin(z.animT * 3.5) * 0.8 - 1.2;
-        if(z.aR && z.aR.p) z.aR.p.rotation.x = -Math.sin(z.animT * 3.5) * 0.8 - 1.2;
+      if(inConcourseZone && !z.isCharging && !z.isThrown){
+        const toLen = Math.hypot(dx, dz) || 1.0;
+        if(dist3D > stopR){
+          const step = z.curSpd * boost * (z.windup > 0 ? 0.35 : 1.0) * dt;
+          z.g.position.x += (dx / toLen) * step;
+          z.g.position.z += (dz / toLen) * step;
+        }
+        const floorY = getFloorY(z.g.position.x, z.g.position.z);
+        let targetPosY = floorY;
+        if(z.isCrawling){
+          targetPosY = floorY + 0.16;
+          z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, -Math.PI * 0.42, dt * 8);
+        } else {
+          z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, 0, dt * 8);
+        }
+        z.g.position.y = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
+        resolveWorldCollisions(z.g.position, 0.45);
+        z.g.rotation.y = Math.atan2(dx, dz);
+        // Sincronizar track coords para coherencia
+        z.t = closestT(z.g.position.x, z.g.position.z);
+        const pClosest = trackPos(z.t), nClosest = outN(z.t);
+        z.lat = (z.g.position.x - pClosest.x) * nClosest.x + (z.g.position.z - pClosest.z) * nClosest.z;
       } else {
-        z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, 0, dt * 8);
+        z.t += Math.sign(dir) * z.curSpd * boost * (z.windup > 0 ? 0.35 : 1.0) * dt / TRACK_LEN;
+        z.t = ((z.t % 1) + 1) % 1;
+        const targetLat = nearest.trackLat !== undefined ? nearest.trackLat : 3;
+        z.lat += (targetLat - z.lat) * dt * 2.8; z.lat = clamp(z.lat, -5.5, 8.5);
+
+        const p = trackPos(z.t), n = outN(z.t), tn = trackTan(z.t);
+        const floorY = getFloorY(p.x + n.x * z.lat, p.z + n.z * z.lat);
+        let targetPosY = floorY;
+        if(z.isCrawling){
+          targetPosY = floorY + 0.16;
+          z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, -Math.PI * 0.42, dt * 8);
+        } else {
+          z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, 0, dt * 8);
+        }
+        const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
+        z.g.position.set(p.x + n.x * z.lat, currentY, p.z + n.z * z.lat);
+        resolveWorldCollisions(z.g.position, 0.45);
+        z.g.rotation.y = Math.atan2(tn.x * Math.sign(dir), tn.z * Math.sign(dir));
       }
-      const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
 
-
-
-      z.g.position.set(p.x+n.x*z.lat, currentY, p.z+n.z*z.lat);
-      resolveWorldCollisions(z.g.position, 0.45);
-      z.g.rotation.y=Math.atan2(tn.x*Math.sign(dir),tn.z*Math.sign(dir));
       /* InstancedMesh: walkers/runners >20m usan instancia (menos draw calls) */
       const _isSimple=z.type==='walker'||z.type==='runner'||z.type==='brute';
       const _d2cam=_vCam.distanceTo(z.g.position);
@@ -4722,7 +4784,7 @@ function initGameEngine() {
     // Progresión calibrada de vitalidad enemiga por ola con resistencia de armadura en niveles altos
     hpMul = (1 + (n >= 8 ? 0.35 : (n >= 5 ? 0.18 : 0))) * (1 + 0.15 * (N - 1));
     spMul = 1.0; // Velocidad estándar constante: la aceleración es una mecánica de sprint temporal orgánico
-    spawnInt = Math.max(1.8, 3.2 - (n >= 8 ? 0.6 : (n >= 5 ? 0.3 : 0))); spawnT = 1.0;
+    spawnInt = Math.max(0.9, 1.8 - (n >= 7 ? 0.5 : (n >= 4 ? 0.3 : 0))); spawnT = 0.4;
 
 
 
@@ -5306,13 +5368,20 @@ function initGameEngine() {
       lightsReg.forEach(l => {
         if(!l) return;
         const distToCam = camera.position.distanceTo(l.position);
-        l.visible = (distToCam < 38.0);
+        l.visible = (distToCam < 22.0);
         if(l.visible){
-          const fade = clamp(1.0 - (distToCam - 14.0) / 24.0, 0.08, 1.0);
+          const fade = clamp(1.0 - (distToCam - 10.0) / 12.0, 0.08, 1.0);
           const base = l.userData.base || 1.0;
           const k = (l.userData.k !== undefined) ? l.userData.k : 1.0;
           l.intensity = base * k * fade;
         }
+      });
+    }
+    if(glowReg && glowReg.length && camera){
+      glowReg.forEach(g => {
+        if(!g) return;
+        const dist = camera.position.distanceTo(g.position);
+        g.visible = (dist < 24.0);
       });
     }
     if(sEl) sEl.textContent = 'S' + (pS + 1);
@@ -6669,7 +6738,7 @@ function initGameEngine() {
         if(isHost){
           if(queue.length){
             spawnT -= dt;
-            const maxActive = Math.min(4, 2 + Math.floor(wave / 2));
+            const maxActive = Math.min(12, 5 + Math.floor(wave * 1.1));
             if(spawnT <= 0 && zombies.filter(z => !z.dead).length < maxActive){
               spawnT = spawnInt; spawnZombie(queue.pop(), hpMul, spMul);
             }
