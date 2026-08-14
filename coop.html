@@ -751,8 +751,8 @@ function initGameEngine() {
   } catch(e) {
     logDiag('Falla WebGL: ' + e.message, 'err');
   }    scene=new THREE.Scene();
-  scene.background=new THREE.Color(0x030508);
-  scene.fog=new THREE.FogExp2(0x040609,0.026);
+  scene.background=new THREE.Color(0x020406);
+  scene.fog=new THREE.FogExp2(0x020406,0.034);
   setLoad(10,'Configurando escena 3D…');
 
   // Cámara posicionada en Spawn de Plataforma (0, 1.7, -30)
@@ -764,13 +764,13 @@ function initGameEngine() {
   /* Reflective Chrome Debug Sphere removed after successful IBL verification */
 
   // Iluminación
-  /* GQW-VIS-5.0: Rebalanced Lighting — oscuro ambiental + spotlight dinámico */
-  const ambientLight=new THREE.AmbientLight(0x2e3a47,0.07);scene.add(ambientLight);
-  const hemiLight=new THREE.HemisphereLight(0x4e5e6e,0x141210,0.08);scene.add(hemiLight);
-  /* SpotLight dinámica del jugador — sombras suaves en el túnel */
-  const keyLight=new THREE.SpotLight(0xaabbcc,0.38,18,Math.PI*0.38,0.55,1.5);
+  /* GQW-VIS-5.0: Rebalanced Lighting — atmósfera oscura + spotlight focalizado */
+  const ambientLight=new THREE.AmbientLight(0x1a222c,0.035);scene.add(ambientLight);
+  const hemiLight=new THREE.HemisphereLight(0x2d3a47,0x080706,0.04);scene.add(hemiLight);
+  /* SpotLight dinámica del jugador — sombras suaves y alcance controlado */
+  const keyLight=new THREE.SpotLight(0x8899aa,0.25,14,Math.PI*0.35,0.6,1.8);
   keyLight.castShadow=true;keyLight.shadow.mapSize.set(1024,1024);
-  keyLight.shadow.bias=-0.0004;keyLight.shadow.camera.near=0.5;keyLight.shadow.camera.far=18;
+  keyLight.shadow.bias=-0.0004;keyLight.shadow.camera.near=0.5;keyLight.shadow.camera.far=14;
   scene.add(keyLight);scene.add(keyLight.target);
 
   const ANISO=renderer&&renderer.capabilities&&renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1;
@@ -1364,14 +1364,19 @@ function initGameEngine() {
           g.add(hazardStrip);
         }
         
-        // Viga de arquería superior (deja el paso inferior de 0 a 5.0m completamente abierto hacia la plaza)
+        // Vigas de arquería modulares ajustadas de columna a columna (sin excedentes que sobresalgan)
+        const segLen = (TRACK_LEN / SECTORS) / colCount + 0.15;
+        for(let ci2 = 0; ci2 < colCount; ci2++){
+          const ct2 = t0 + (t1 - t0) * ((ci2 + 0.5) / colCount);
+          const cp2 = trackPos(ct2), cn2 = outN(ct2), ctn2 = trackTan(ct2);
+          const archSeg = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.90, segLen), M.tile);
+          archSeg.position.set(cp2.x + cn2.x * -5.3, wH - 0.45, cp2.z + cn2.z * -5.3);
+          archSeg.rotation.y = Math.atan2(ctn2.x, ctn2.z);
+          g.add(archSeg);
+        }
+
         const midT = (t0 + t1) / 2;
         const midP = trackPos(midT), midN = outN(midT), midTn = trackTan(midT);
-        const archBeam = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.4, (TRACK_LEN / SECTORS) + 0.5), M.tile);
-        archBeam.position.set(midP.x + midN.x * -5.3, wH - 0.7, midP.z + midN.z * -5.3);
-        archBeam.rotation.y = Math.atan2(midTn.x, midTn.z);
-        g.add(archBeam);
-
         // Indicador de andén iluminado ("ANDÉN / TRACK N") sobre la arquería
         const signTrackMat = std({color: 0x11161d, emissive: 0x00e1ff, emissiveIntensity: 0.9, roughness: 0.3}, .3);
         addE(signTrackMat, 0.9, true);
@@ -1446,9 +1451,9 @@ function initGameEngine() {
           const lf2=box(.5,.08,3.2,lm);
           lf2.position.set(lp.x+ln.x*6.5, wH-.06, lp.z+ln.z*6.5);
           lf2.rotation.y=barAngle; g.add(lf2);
-          // Punto de luz difusa de techo calibrado (11m de radio, decay cuadrático)
-          const pL=new THREE.PointLight(0xaabbdd, 1.1, 11, 2.0);
-          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL); addL(pL, 1.1);
+          // Punto de luz difusa de techo calibrado (7m de radio, decay cuadrático para óptimos FPS)
+          const pL=new THREE.PointLight(0xaabbdd, 0.65, 7, 2.0);
+          pL.position.set(lp.x+ln.x*4.4, wH-.5, lp.z+ln.z*4.4); g.add(pL); addL(pL, 0.65);
         }
       }
       // Props de Estación
@@ -1472,7 +1477,7 @@ function initGameEngine() {
       }
       if(st<.4){const lt=(t0+t1)/2;const lp=trackPos(lt);
         /* GQW-VIS-5.0: Reduced tunnel PointLight intensity for dramatic contrast */
-        addL(new THREE.PointLight(0x8899aa,3.2,7,1.5),3.2).position.set(lp.x,2.8,lp.z);
+        addL(new THREE.PointLight(0x8899aa,1.8,5.5,2.0),1.8).position.set(lp.x,2.8,lp.z);
         /* GQW-VIS-5.0: Industrial hanging cables in tunnel sectors */
         const ctn=outN(lt),ctt=trackTan(lt);
         for(let ci3=0;ci3<2;ci3++){const ct3=t0+(t1-t0)*(.25+ci3*.5);
@@ -1803,18 +1808,18 @@ function initGameEngine() {
       g.add(ribGroup);
     }
 
-    // 7. ILUMINACIÓN CENITAL CÁLIDA MASTER (4 LÁMPARAS COLGANTES CALIBRADAS)
+    // 7. ILUMINACIÓN CENITAL CÁLIDA MASTER (4 LÁMPARAS COLGANTES CALIBRADAS PARA ALTO RENDIMIENTO)
     for(let lx of [-16, 16]){
       for(let lz of [-6, 6]){
-        const cLight = new THREE.PointLight(0xffeedd, 1.8, 16, 2.0);
+        const cLight = new THREE.PointLight(0xffeedd, 1.1, 10, 2.0);
         cLight.position.set(lx, 6.2, lz);
         g.add(cLight);
-        addL(cLight, 1.8);
+        addL(cLight, 1.1);
 
         const spotGlow = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.40
+          map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.25
         }));
-        spotGlow.scale.set(3.2, 3.2, 3.2); spotGlow.position.set(lx, 6.2, lz); g.add(spotGlow); addG(spotGlow, 0.40);
+        spotGlow.scale.set(2.2, 2.2, 2.2); spotGlow.position.set(lx, 6.2, lz); g.add(spotGlow); addG(spotGlow, 0.25);
 
         const lampCable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 3.8, 6), cableMat);
         lampCable.position.set(lx, 8.1, lz); g.add(lampCable);
@@ -2444,10 +2449,10 @@ function initGameEngine() {
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
-  /* Linterna Táctica Frontal montada sobre la cámara con alcance y cono optimizado */
-  const flashlight = new THREE.SpotLight(0xfff5e0, 2.6, 26, Math.PI / 7, 0.5, 2.0);
+  /* Linterna Táctica Frontal montada sobre la cámara con alcance controlado (18m) y cono táctico */
+  const flashlight = new THREE.SpotLight(0xffeedd, 2.0, 18, Math.PI / 8, 0.55, 2.0);
   flashlight.position.set(0.12, -0.1, -0.1);
-  flashlight.target.position.set(0, 0, -8);
+  flashlight.target.position.set(0, 0, -6);
   flashlight.visible = false;
   flashlight.layers.set(2);
   camera.add(flashlight);
@@ -2463,12 +2468,23 @@ function initGameEngine() {
   const _frustumSphere=new THREE.Sphere(new THREE.Vector3(),10);
   const _projScreenMatrix=new THREE.Matrix4();
   const trGeo=new THREE.BoxGeometry(1,1,1),tracers=[];
-  for(let i=0;i<24;i++){const m=new THREE.Mesh(trGeo,new THREE.MeshBasicMaterial({color:0xffd9a0,
+  for(let i=0;i<24;i++){const m=new THREE.Mesh(trGeo,new THREE.MeshBasicMaterial({color:0xfff0c0,
     transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
-    m.visible=false;m.layers.set(2);scene.add(m);tracers.push({m,life:0});}
+    m.visible=false;m.layers.set(2);scene.add(m);tracers.push({m,life:0,maxLife:0.035});}
   let trIdx=0;
-  function fireTracer(a,b){const t=tracers[trIdx++%24];t.m.position.lerpVectors(a,b,.5);t.m.lookAt(b);
-    t.m.scale.set(.018,.018,Math.max(.1,a.distanceTo(b)));t.m.visible=true;t.life=.065;t.m.material.opacity=.9;}
+  function fireTracer(a,b){
+    const t=tracers[trIdx++%24];
+    const dist=a.distanceTo(b);
+    const traceLen=Math.min(2.0, dist);
+    _vDir.subVectors(b, a).normalize();
+    t.m.position.copy(a).addScaledVector(_vDir, traceLen * 0.5 + 0.15);
+    t.m.lookAt(b);
+    t.m.scale.set(0.005, 0.005, traceLen);
+    t.m.visible=true;
+    t.life=0.035;
+    t.maxLife=0.035;
+    t.m.material.opacity=0.85;
+  }
   const pGeo=new THREE.TetrahedronGeometry(.04);
   const pMats={
     ichor: new THREE.MeshBasicMaterial({color:0xff0044, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}),
@@ -4211,15 +4227,30 @@ function initGameEngine() {
         }
       }
 
-      // Navegación Híbrida: Concourse 3D libre vs. Loop de Vías
-      const inConcourseZone = (Math.abs(targetPos.x) < 36 && Math.abs(targetPos.z) < 28) || (dist3D < 20.0);
+      // Navegación Híbrida Inteligente: Concourse 3D libre + Flocking + Evasión
+      const inConcourseZone = (Math.abs(targetPos.x) < 40 && Math.abs(targetPos.z) < 30) || (dist3D < 26.0);
 
       if(inConcourseZone && !z.isCharging && !z.isThrown){
         let moveDx = dx;
         let moveDz = dz;
         const toLen = Math.hypot(moveDx, moveDz) || 1.0;
 
-        // Evasión dinámica de obstáculos (bordear esquinas de quioscos y máquinas)
+        // 1. Separación de horda (Flocking inteligente para rodear al jugador sin solaparse)
+        for(let oj = 0; oj < zombies.length; oj++){
+          if(oj === i) continue;
+          const otherZ = zombies[oj];
+          if(!otherZ || otherZ.hp <= 0 || !otherZ.g) continue;
+          const sepX = z.g.position.x - otherZ.g.position.x;
+          const sepZ = z.g.position.z - otherZ.g.position.z;
+          const sepDist = Math.hypot(sepX, sepZ);
+          if(sepDist > 0.01 && sepDist < 1.25){
+            const repulse = (1.25 - sepDist) / sepDist;
+            moveDx += sepX * repulse * 1.8;
+            moveDz += sepZ * repulse * 1.8;
+          }
+        }
+
+        // 2. Evasión dinámica de obstáculos (bordear esquinas de quioscos, máquinas y arcos)
         for(const obs of OBSTACLES){
           const odx = obs.x - z.g.position.x;
           const odz = obs.z - z.g.position.z;
@@ -4230,8 +4261,8 @@ function initGameEngine() {
               const perpX = -odz / oDist;
               const perpZ = odx / oDist;
               const side = (moveDx * perpX + moveDz * perpZ) >= 0 ? 1.0 : -1.0;
-              moveDx += perpX * side * 2.2;
-              moveDz += perpZ * side * 2.2;
+              moveDx += perpX * side * 2.4;
+              moveDz += perpZ * side * 2.4;
             }
           }
         }
@@ -4252,7 +4283,11 @@ function initGameEngine() {
         }
         z.g.position.y = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
         resolveWorldCollisions(z.g.position, 0.45);
-        z.g.rotation.y = Math.atan2(moveDx, moveDz);
+        
+        // Rotación suave inteligente hacia el vector de avance
+        const desiredYaw = Math.atan2(moveDx, moveDz);
+        z.g.rotation.y = lerpAngle(z.g.rotation.y, desiredYaw, dt * 10);
+
         // Sincronizar track coords para coherencia
         z.t = closestT(z.g.position.x, z.g.position.z);
         const pClosest = trackPos(z.t), nClosest = outN(z.t);
@@ -4275,7 +4310,8 @@ function initGameEngine() {
         const currentY = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
         z.g.position.set(p.x + n.x * z.lat, currentY, p.z + n.z * z.lat);
         resolveWorldCollisions(z.g.position, 0.45);
-        z.g.rotation.y = Math.atan2(tn.x * Math.sign(dir), tn.z * Math.sign(dir));
+        const desiredTrackYaw = Math.atan2(tn.x * Math.sign(dir), tn.z * Math.sign(dir));
+        z.g.rotation.y = lerpAngle(z.g.rotation.y, desiredTrackYaw, dt * 8);
       }
 
       /* InstancedMesh: walkers/runners >20m usan instancia (menos draw calls) */
@@ -5458,9 +5494,9 @@ function initGameEngine() {
       lightsReg.forEach(l => {
         if(!l) return;
         const distToCam = camera.position.distanceTo(l.position);
-        l.visible = (distToCam < 22.0);
+        l.visible = (distToCam < 16.0);
         if(l.visible){
-          const fade = clamp(1.0 - (distToCam - 10.0) / 12.0, 0.08, 1.0);
+          const fade = clamp(1.0 - (distToCam - 8.0) / 8.0, 0.05, 1.0);
           const base = l.userData.base || 1.0;
           const k = (l.userData.k !== undefined) ? l.userData.k : 1.0;
           l.intensity = base * k * fade;
@@ -5471,7 +5507,7 @@ function initGameEngine() {
       glowReg.forEach(g => {
         if(!g) return;
         const dist = camera.position.distanceTo(g.position);
-        g.visible = (dist < 24.0);
+        g.visible = (dist < 17.0);
       });
     }
     if(sEl) sEl.textContent = 'S' + (pS + 1);
@@ -7052,10 +7088,14 @@ function initGameEngine() {
             }
           }
           if(weapon) weapon.visible = false;
+          if(shotgunGroup) shotgunGroup.visible = false;
+          if(fistsGroup) fistsGroup.visible = false;
         } else if(camMode === 'tps_back' || camMode === 'tps_front'){
           if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
           if(localPlayerBodyGroup) localPlayerBodyGroup.visible = (playing);
           if(weapon) weapon.visible = false;
+          if(shotgunGroup) shotgunGroup.visible = false;
+          if(fistsGroup) fistsGroup.visible = false;
           if(camMode === 'tps_back'){
             const _back = new THREE.Vector3(0.35, 0.45, 2.6).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
             camera.position.add(_back);
@@ -7068,7 +7108,10 @@ function initGameEngine() {
         } else {
           if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
           if(localPlayerBodyGroup) localPlayerBodyGroup.visible = false;
-          if(weapon) weapon.visible = (playing && playerState === 'alive');
+          const isAlive = (playing && playerState === 'alive');
+          if(weapon) weapon.visible = (isAlive && activeWeapon === 'gun');
+          if(shotgunGroup) shotgunGroup.visible = (isAlive && activeWeapon === 'shotgun');
+          if(fistsGroup) fistsGroup.visible = (isAlive && activeWeapon === 'fists');
         }
 
 
