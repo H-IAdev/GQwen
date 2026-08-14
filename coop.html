@@ -599,6 +599,10 @@ function initGameEngine() {
   const R=(a,b)=>a+Math.random()*(b-a);
   const pick=a=>a[Math.random()*a.length|0];
   const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+
+  // Colección de Jugadores Remotos P2P (Declaración global temprana)
+  const remotePlayers = {};
+
   // GAME_CONFIG data-driven unificado (Inicialización prioritaria sincrónica)
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
@@ -2760,8 +2764,10 @@ function initGameEngine() {
 
   function loadSoldierGLTFForPlayers(){
     if(cachedSoldierGLTF){
-      for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
-      if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
+      if(typeof remotePlayers !== 'undefined' && remotePlayers){
+        for(const rp of Object.values(remotePlayers)) if(rp && rp.mesh) applySoldierToGroup(rp.mesh);
+      }
+      if(typeof localPlayerBodyGroup !== 'undefined' && localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
       return;
     }
     if(isSoldierLoading) return;
@@ -2786,8 +2792,10 @@ function initGameEngine() {
         cachedSoldierGLTF = gltf;
         isSoldierLoading = false;
         logDiag('✓ Modelo Soldado 3D cargado: ' + url.split('/').pop() + ' (' + (gltf.animations ? gltf.animations.length : 0) + ' animaciones)', 'ok');
-        for(const rp of Object.values(remotePlayers)) if(rp.mesh) applySoldierToGroup(rp.mesh);
-        if(localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
+        if(typeof remotePlayers !== 'undefined' && remotePlayers){
+          for(const rp of Object.values(remotePlayers)) if(rp && rp.mesh) applySoldierToGroup(rp.mesh);
+        }
+        if(typeof localPlayerBodyGroup !== 'undefined' && localPlayerBodyGroup) applySoldierToGroup(localPlayerBodyGroup);
       }, undefined, (err) => {
         attempt(idx + 1);
       });
@@ -5096,7 +5104,6 @@ function initGameEngine() {
 
   /* ===== MULTIJUGADOR P2P ===== */
   let peer=null,isHost=true,hostConn=null;
-  const remotePlayers={};
   const PCOLORS=[0xffb400,0x3f8cff,0x14a44d,0xff4b3e];
   let myColor=PCOLORS[0];
   function genCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<5;i++)s+=c[Math.random()*c.length|0];return s;}
