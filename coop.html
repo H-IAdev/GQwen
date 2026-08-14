@@ -6386,6 +6386,7 @@ function initGameEngine() {
   let gameMode = 'solo'; // 'solo' | 'bots' | 'online'
 
   function initSolo(){
+    initAudio(); if(AC && AC.state === 'suspended') AC.resume();
     resetPeer();
     gameMode = 'solo';
     isHost=true;myColor=PCOLORS[0];
@@ -6395,6 +6396,7 @@ function initGameEngine() {
   }
 
   function initBotsMode(){
+    initAudio(); if(AC && AC.state === 'suspended') AC.resume();
     resetPeer();
     gameMode = 'bots';
     isHost=true;myColor=PCOLORS[0];
@@ -6830,6 +6832,7 @@ function initGameEngine() {
     camera.position.set(0,1.7,-30);yaw=0;pitch=0;vel.set(0,0,0);vy=0;jumpY=0;
     playerT=0;playerLat=3;
     $('#over').classList.add('gone');$('#lobby').classList.add('gone');
+    $('#paused').classList.remove('show');
     document.body.classList.add('playing');
     hudAmmo();hudHP();hudScore();hudWave();playing=true;startTime=elapsed;requestLock();
     if(!localPlayerBodyGroup){
@@ -6837,6 +6840,7 @@ function initGameEngine() {
       localPlayerBodyGroup = pm.group;
       localPlayerBodyGroup.name = 'localPlayerBody';
       localPlayerBodyGroup.userData.refs = pm.refs;
+      scene.add(localPlayerBodyGroup);
     }
     if(cachedSoldierGLTF){
       applySoldierToGroup(localPlayerBodyGroup);
@@ -7460,8 +7464,9 @@ function initGameEngine() {
           keyLight.target.position.copy(camera.position).addScaledVector(_kd,8);
           keyLight.target.updateMatrixWorld();
         }
-        const _origCamPos = camera.position.clone();
+        _vCam.copy(camera.position);
         const _origCamRotY = camera.rotation.y;
+        const _origCamRotX = camera.rotation.x;
 
         if(camMode === 'fps_body' && playing){
           if(camera.near !== 0.05){ camera.near = 0.05; camera.updateProjectionMatrix(); }
@@ -7511,8 +7516,9 @@ function initGameEngine() {
           renderer.render(scene, camera);
         }
 
-        camera.position.copy(_origCamPos);
+        camera.position.copy(_vCam);
         camera.rotation.y = _origCamRotY;
+        camera.rotation.x = _origCamRotX;
 
       }
 
@@ -7699,6 +7705,10 @@ function initGameEngine() {
   }
 
 
+
+  setLoad(100, 'MOTOR 3D LISTO');
+  hideLoad();
+  logDiag('Motor 3D inicializado y listo para jugar.', 'ok');
 
   addEventListener('resize',()=>{
     if(camera&&renderer) {
