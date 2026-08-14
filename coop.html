@@ -602,6 +602,11 @@ function initGameEngine() {
 
   // Colección de Jugadores Remotos P2P (Declaración global temprana)
   const remotePlayers = {};
+  const POOL_SIZE = 60;
+  const ZOMBIE_POOL = [];
+  let cachedZombieGLTF = null, isZombieGLTFLoading = false;
+  let cachedSoldierGLTF = null, isSoldierLoading = false;
+  let cachedRobotGLTF = null, isRobotLoading = false;
 
   // GAME_CONFIG data-driven unificado (Inicialización prioritaria sincrónica)
   const GAME_CONFIG = {
@@ -2470,7 +2475,7 @@ function initGameEngine() {
   ];
 
 
-  let cachedZombieGLTF = null, isZombieGLTFLoading = false;
+  // cachedZombieGLTF e isZombieGLTFLoading declarados en cabecera de motor
 
 
   function applyGLTFToZombiePool(gltf){
@@ -2612,7 +2617,7 @@ function initGameEngine() {
   let squadRegroupTimer = 40.0, isSquadRegrouping = false, squadRegroupDur = 0;
 
   const SOLDIER_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb';
-  let cachedSoldierGLTF = null, isSoldierLoading = false;
+  // cachedSoldierGLTF e isSoldierLoading declarados en cabecera de motor
   let localPlayerBodyGroup = null;
   let camMode = 'fps'; // 'fps' | 'fps_body' | 'tps_back' | 'tps_front'
 
@@ -2812,7 +2817,7 @@ function initGameEngine() {
     'src/ZombieKit2024/Characters/glTF/Characters_Sam.gltf',
     'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
   ];
-  let cachedRobotGLTF = null, isRobotLoading = false;
+  // cachedRobotGLTF e isRobotLoading declarados en cabecera de motor
 
   function applyRobotGLTFToBot(b){
     if(!b || !b.group || !cachedRobotGLTF) return;
@@ -3494,8 +3499,7 @@ function initGameEngine() {
     return g;
   }
   /* Fase 6B+ — Pool de 60 slots con LODs pre-creados y anclaje CDN dedicado (mountAnchor) */
-  const POOL_SIZE=60;
-  const ZOMBIE_POOL=[];
+  // POOL_SIZE y ZOMBIE_POOL declarados en cabecera de motor
   /* Materiales default para la estructura pre-construida (se intercambian al spawnear) */
   function buildPrebuiltLODForSlot(slot){
     const g=new THREE.Group();
@@ -4278,6 +4282,7 @@ function initGameEngine() {
   instBody.count=zombies.length; instHead.count=zombies.length;
   if(instBody.instanceMatrix) instBody.instanceMatrix.needsUpdate = true;
   if(instHead.instanceMatrix) instHead.instanceMatrix.needsUpdate = true;
+}
 
 
   /* ===== ROCK HURLER — PROYECTILES Y GRAB ===== */
@@ -6338,16 +6343,29 @@ function initGameEngine() {
 
 
   /* ===== EVENTOS BOTONES LOBBY ===== */
-  $('#soloBtn').addEventListener('click',e=>{e.currentTarget.blur();initSolo();});
-  $('#botsBtn').addEventListener('click',e=>{e.currentTarget.blur();initBotsMode();});
-  $('#createBtn').addEventListener('click',e=>{e.currentTarget.blur();
-    $('#createBtn').disabled=true;$('#joinBtn').disabled=true;initHost();});
-  $('#joinBtn').addEventListener('click',e=>{e.currentTarget.blur();
-    const code=$('#joinInput').value.trim().toUpperCase();
-    if(code.length>=4){$('#createBtn').disabled=true;$('#joinBtn').disabled=true;initClient(code);}});
-  $('#joinInput').addEventListener('keydown',e=>{if(e.code==='Enter')$('#joinBtn').click();});
-  $('#startBtn').addEventListener('click',e=>{e.currentTarget.blur();startGame();});
-  $('#retryBtn').addEventListener('click',e=>{e.currentTarget.blur();resetGame();});
+  function bindLobbyButtons(){
+    const solo = $('#soloBtn'), bots = $('#botsBtn'), create = $('#createBtn'), join = $('#joinBtn'), start = $('#startBtn'), retry = $('#retryBtn'), joinIn = $('#joinInput');
+    if(solo) solo.addEventListener('click', e => { e.currentTarget.blur(); hideLoad(); initSolo(); });
+    if(bots) bots.addEventListener('click', e => { e.currentTarget.blur(); hideLoad(); initBotsMode(); });
+    if(create) create.addEventListener('click', e => {
+      e.currentTarget.blur();
+      create.disabled = true; if(join) join.disabled = true;
+      initHost();
+    });
+    if(join) join.addEventListener('click', e => {
+      e.currentTarget.blur();
+      const code = joinIn ? joinIn.value.trim().toUpperCase() : '';
+      if(code.length >= 4){
+        if(create) create.disabled = true;
+        join.disabled = true;
+        initClient(code);
+      }
+    });
+    if(joinIn) joinIn.addEventListener('keydown', e => { if(e.code === 'Enter' && join) join.click(); });
+    if(start) start.addEventListener('click', e => { e.currentTarget.blur(); hideLoad(); startGame(); });
+    if(retry) retry.addEventListener('click', e => { e.currentTarget.blur(); resetGame(); });
+  }
+  bindLobbyButtons();
 
     /* ===== HELPER DE RESILIENCIA Y ISOLACIÓN MODULAR ===== */
   const errThrottleMap = new Map();
@@ -7084,7 +7102,6 @@ function initGameEngine() {
       renderer.setSize(innerWidth,innerHeight);
     }
   });
-}
 }
 
 // Iniciar motor cuando el DOM esté completamente listo
