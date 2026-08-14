@@ -777,20 +777,6 @@ function initGameEngine() {
   camera=new THREE.PerspectiveCamera(74,innerWidth/innerHeight,0.05,120);
   camera.rotation.order='YXZ';camera.layers.enable(2);
   camera.position.set(0,1.7,-30);scene.add(camera);
-  buildEnv();
-  initPostProcessing();
-  setLoad(20,'Construyendo iluminación…');
-  /* Reflective Chrome Debug Sphere removed after successful IBL verification */
-
-  // Iluminación
-  /* GQW-VIS-5.0: Rebalanced Lighting — atmósfera oscura + spotlight focalizado */
-  const ambientLight=new THREE.AmbientLight(0x1a222c,0.035);scene.add(ambientLight);
-  const hemiLight=new THREE.HemisphereLight(0x2d3a47,0x080706,0.04);scene.add(hemiLight);
-  /* SpotLight dinámica del jugador — sombras suaves y alcance controlado */
-  const keyLight=new THREE.SpotLight(0x8899aa,0.25,14,Math.PI*0.35,0.6,1.8);
-  keyLight.castShadow=true;keyLight.shadow.mapSize.set(1024,1024);
-  keyLight.shadow.bias=-0.0004;keyLight.shadow.camera.near=0.5;keyLight.shadow.camera.far=14;
-  scene.add(keyLight);scene.add(keyLight.target);
 
   const ANISO=renderer&&renderer.capabilities&&renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1;
 
@@ -860,6 +846,21 @@ function initGameEngine() {
       composer = null;
     }
   }
+
+  buildEnv();
+  initPostProcessing();
+  setLoad(20,'Construyendo iluminación…');
+  /* Reflective Chrome Debug Sphere removed after successful IBL verification */
+
+  // Iluminación
+  /* GQW-VIS-5.0: Rebalanced Lighting — atmósfera oscura + spotlight focalizado */
+  const ambientLight=new THREE.AmbientLight(0x1a222c,0.035);scene.add(ambientLight);
+  const hemiLight=new THREE.HemisphereLight(0x2d3a47,0x080706,0.04);scene.add(hemiLight);
+  /* SpotLight dinámica del jugador — sombras suaves y alcance controlado */
+  const keyLight=new THREE.SpotLight(0x8899aa,0.25,14,Math.PI*0.35,0.6,1.8);
+  keyLight.castShadow=true;keyLight.shadow.mapSize.set(1024,1024);
+  keyLight.shadow.bias=-0.0004;keyLight.shadow.camera.near=0.5;keyLight.shadow.camera.far=14;
+  scene.add(keyLight);scene.add(keyLight.target);
 
   /* ═══════════════════════════════════════════════════════════════════
      2D SPATIAL GRID PARTITIONING (O(N) FLOCKING & REPEL PERFORMANCE)
