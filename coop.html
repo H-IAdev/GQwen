@@ -276,6 +276,19 @@ border:1px solid var(--line);margin:20px 0 26px;max-width:420px}
 #pttIndicator.active{display:flex;animation:pttGlow 1.2s ease-in-out infinite alternate}
 @keyframes pttGlow{0%{transform:translateX(-50%) scale(0.98);box-shadow:0 0 12px rgba(16,185,129,0.5)}100%{transform:translateX(-50%) scale(1.03);box-shadow:0 0 24px rgba(16,185,129,0.9)}}
 
+/* ===== SISTEMA DE BUFFS Y RECOMPENSAS DE ÚLTIMO GOLPE ===== */
+#buffHud{position:absolute;left:14px;bottom:240px;display:flex;flex-direction:column;gap:6px;z-index:12;pointer-events:none}
+.buffItem{display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(12,16,22,0.92);backdrop-filter:blur(6px);border-left:3.5px solid var(--amber);border-radius:3px;box-shadow:0 0 14px rgba(255,180,0,0.35);animation:fin .2s ease both}
+.buffItem.gold{border-left-color:#ffd700;box-shadow:0 0 18px rgba(255,215,0,0.6);background:linear-gradient(90deg,rgba(40,32,10,0.92),rgba(12,16,22,0.92))}
+.buffItem.purple{border-left-color:#c084fc;box-shadow:0 0 18px rgba(192,132,252,0.6);background:linear-gradient(90deg,rgba(35,15,45,0.92),rgba(12,16,22,0.92))}
+.buffIcon{font-size:14px;line-height:1}
+.buffInfo{display:flex;flex-direction:column;gap:2px}
+.buffName{font-family:var(--disp);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--paper)}
+.buffBarTrack{width:80px;height:3px;background:rgba(255,255,255,0.15);border-radius:2px;overflow:hidden}
+.buffBarFill{height:100%;background:var(--amber);transition:width 0.1s linear}
+.buffItem.gold .buffBarFill{background:#ffd700}
+.buffItem.purple .buffBarFill{background:#c084fc}
+
 
 /* ===== CONTROLES TÁCTILES Y UI MÓVIL ERGONÓMICA DE ALTA RESPUESTA (DISTRIBUCIÓN 3 ZONAS) ===== */
 #touchHud{position:fixed;inset:0;pointer-events:none;z-index:15;display:none;user-select:none}
@@ -447,6 +460,7 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
     </div>
   </div>
 
+  <div id="buffHud"></div>
 </div>
 
 <div class="ov" id="lobby">
@@ -3521,7 +3535,8 @@ function initGameEngine() {
   function executeBotFire(bot, target, dt) {
     bot.fireCd -= dt;
     if (bot.fireCd <= 0) {
-      bot.fireCd = R(0.4, 0.95);
+      const dist = bot.group.position.distanceTo(target.g.position);
+      bot.fireCd = (dist < 6.0) ? R(0.18, 0.38) : R(0.38, 0.75);
       if (bot.flash) {
         bot.flash.visible = true;
         bot.flash.material.rotation = R(0, 6.28);
@@ -3534,11 +3549,10 @@ function initGameEngine() {
       _v1.copy(bot.group.position); _v1.y += 1.2;
       _v2.copy(target.g.position); _v2.y += (target.isCrawling ? 0.35 : 1.1);
       fireTracer(_v1, _v2);
-      const dist = bot.group.position.distanceTo(target.g.position);
-      const hitChance = Math.max(0.25, 0.88 - (dist * 0.02));
+      const hitChance = Math.max(0.35, 0.92 - (dist * 0.015));
       if (Math.random() < hitChance && !target.dead) {
-        const isHeadshot = Math.random() < 0.20;
-        const dmg = isHeadshot ? 45 : 20;
+        const isHeadshot = Math.random() < 0.25;
+        const dmg = isHeadshot ? 50 : 25;
         hurtZombie(target, isHeadshot ? 'head' : 'body', target.g.position, dmg);
         burst(target.g.position, 'ichor', isHeadshot ? 10 : 5, 2.5);
       }
@@ -3701,7 +3715,7 @@ function initGameEngine() {
       
       // Oscilación orgánica de puntería humana (±2.6°)
       const aimSway = Math.sin(elapsed * 1.7 + bot.id * 2.6) * 0.045;
-      smoothBotYaw(bot, aimAng + aimSway, dt, 3.5);
+      smoothBotYaw(bot, aimAng + aimSway, dt, distToTarget < 8.0 ? 7.5 : 4.0);
 
       const combatSpeed = distToTarget > 14 ? bot.baseSpeed : bot.baseSpeed * 0.55;
 
@@ -3990,6 +4004,14 @@ function initGameEngine() {
     rTorso: new THREE.BoxGeometry(.44,.6,.25),
     rArm:   new THREE.BoxGeometry(.1,.5,.1),
     rLeg:   new THREE.BoxGeometry(.12,.55,.12),
+    // Bosses y Mini-Bosses — Apéndices 3D únicos
+    horn:          new THREE.ConeGeometry(.06, .26, 5),
+    pauldron:      new THREE.BoxGeometry(.28, .18, .26),
+    blade:         new THREE.ConeGeometry(.055, .55, 4),
+    crest:         new THREE.BoxGeometry(.06, .18, .28),
+    stoneShoulder: new THREE.DodecahedronGeometry(.18, 0),
+    stoneFist:     new THREE.DodecahedronGeometry(.24, 0),
+    magmaCore:     new THREE.SphereGeometry(.12, 6, 4),
   };
   function limbGeo(cylG,capG,len,material){
     const g=new THREE.Group();
@@ -4018,6 +4040,16 @@ function initGameEngine() {
     coreJug.layers.set(2);coreJug.visible=false;g.add(coreJug);
     const head=mkMesh(GEO_POOL.head,defSkin);head.position.y=1.5;g.add(head);
     const jaw=mkMesh(GEO_POOL.jaw,defSkin);jaw.position.set(0,1.35,.09);g.add(jaw);
+
+    // Apéndices de Juggernaut / Titan
+    const horns=[], pauldrons=[];
+    [-1,1].forEach(s=>{
+      const h=mkMesh(GEO_POOL.horn,defDark);h.position.set(s*.12,1.68,0);h.rotation.set(-.2,0,s*-.4);
+      h.visible=false;g.add(h);horns.push(h);
+      const p=mkMesh(GEO_POOL.pauldron,defDark);p.position.set(s*.36,1.34,0);
+      p.visible=false;g.add(p);pauldrons.push(p);
+    });
+
     // Dos pares de ojos (normal + boss), boss oculto
     const eyes=[],eyeB=[];
     [-1,1].forEach(s=>{
@@ -4041,6 +4073,20 @@ function initGameEngine() {
 
     const aL=arm(-1),aR=arm(1),lL=leg(-1),lR=leg(1);
 
+    // Apéndices de Shadow Stalker (Cuchillas de hueso en antebrazos y cresta craneal)
+    const bladeL=mkMesh(GEO_POOL.blade,defDark);bladeL.position.set(0,-.28,.14);bladeL.rotation.x=Math.PI*.45;bladeL.visible=false;aL.p.add(bladeL);
+    const bladeR=mkMesh(GEO_POOL.blade,defDark);bladeR.position.set(0,-.28,.14);bladeR.rotation.x=Math.PI*.45;bladeR.visible=false;aR.p.add(bladeR);
+    const crest=mkMesh(GEO_POOL.crest,defDark);crest.position.set(0,1.62,-.05);crest.visible=false;g.add(crest);
+
+    // Apéndices de Rock Hurler / Stone Hurler (Hombreras de roca, Puño triturador y Núcleo de magma)
+    const stoneShoulders=[];
+    [-1,1].forEach(s=>{
+      const ss=mkMesh(GEO_POOL.stoneShoulder,defCloth);ss.position.set(s*.34,1.32,0);ss.visible=false;g.add(ss);stoneShoulders.push(ss);
+    });
+    const stoneFist=mkMesh(GEO_POOL.stoneFist,defCloth);stoneFist.position.set(0,-.34,0);stoneFist.visible=false;aR.p.add(stoneFist);
+    const magmaMat=std({color:0xff4400,emissive:0xff5500,emissiveIntensity:4.5},.2);
+    const magmaCore=mkMesh(GEO_POOL.magmaCore,magmaMat);magmaCore.position.set(0,1.05,.09);magmaCore.layers.set(2);magmaCore.visible=false;g.add(magmaCore);
+
     // Aura Stalker (siempre en la escena, oculta por defecto)
     const aura=new THREE.PointLight(0xff00cc,0,6,1.8);
     aura.position.set(0,1.2,0);aura.visible=false;g.add(aura);
@@ -4062,6 +4108,9 @@ function initGameEngine() {
     // Guardar TODAS las referencias en el slot
     slot.g=lod;slot.detailG=g;slot.mountAnchor=mountAnchor;
     slot.torso=torso;slot.torJugMesh=torJug;slot.coreMesh=coreJug;
+    slot.horns=horns;slot.pauldrons=pauldrons;
+    slot.bladeL=bladeL;slot.bladeR=bladeR;slot.crest=crest;
+    slot.stoneShoulders=stoneShoulders;slot.stoneFist=stoneFist;slot.magmaCore=magmaCore;
     slot.head=head;slot.jaw=jaw;slot.eyes=eyes;slot.eyeB=eyeB;
     slot.aL=aL;slot.aR=aR;slot.lL=lL;slot.lR=lR;
     slot.loBody=loBody;slot.loHead=loHead;slot.aura=aura;
@@ -4108,6 +4157,7 @@ function initGameEngine() {
     const isJuggernaut = type === 'boss_juggernaut' || type === 'mini_juggernaut';
     const isStalker = type === 'boss_stalker' || type === 'mini_stalker';
     const isRockHurler = type === 'boss_rockhurler' || type === 'mini_rockhurler';
+    const isBoss = isJuggernaut || isStalker || isRockHurler;
     const skinColor=isJuggernaut?0x0c120e:isStalker?0x2e0828:isRockHurler?0x38322c:pick(SKINS);
     const clothColor=isJuggernaut?0x05070a:isStalker?0x180516:isRockHurler?0x1c1714:pick(CLOTH);
     const newSkin=std({color:skinColor,roughness:.8},.1);
@@ -4124,7 +4174,6 @@ function initGameEngine() {
     slot.loBody.material=newCloth;
     slot.loHead.material=newSkin;
     // Visibilidad por tipo y optimización GLTF CDN
-    const isBoss = isJuggernaut || isStalker || isRockHurler;
     const hasGLTF = !!slot.gltfMesh;
     const useGLTF = hasGLTF && !isBoss;
 
@@ -4140,13 +4189,27 @@ function initGameEngine() {
     if(slot.lL && slot.lL.p) slot.lL.p.visible = !useGLTF;
     if(slot.lR && slot.lR.p) slot.lR.p.visible = !useGLTF;
 
-    slot.torJugMesh.visible=isJuggernaut;
-    slot.coreMesh.visible=isJuggernaut;
-    const useBossEyes=isJuggernaut||isStalker;
+    // 1. Juggernaut 3D Components
+    slot.torJugMesh.visible = isJuggernaut;
+    slot.coreMesh.visible = isJuggernaut;
+    if(slot.horns) slot.horns.forEach(h => { h.visible = isJuggernaut; });
+    if(slot.pauldrons) slot.pauldrons.forEach(p => { p.visible = isJuggernaut; });
+
+    // 2. Stalker 3D Components
+    if(slot.bladeL) slot.bladeL.visible = isStalker;
+    if(slot.bladeR) slot.bladeR.visible = isStalker;
+    if(slot.crest) slot.crest.visible = isStalker;
+    slot.aura.visible = isStalker;
+
+    // 3. Rock Hurler 3D Components
+    if(slot.stoneShoulders) slot.stoneShoulders.forEach(s => { s.visible = isRockHurler; });
+    if(slot.stoneFist) slot.stoneFist.visible = isRockHurler;
+    if(slot.magmaCore) slot.magmaCore.visible = isRockHurler;
+
+    const useBossEyes=isJuggernaut||isStalker||isRockHurler;
     const eyeMat=isJuggernaut?EYE_BOSS_GREEN:isStalker?EYE_BOSS_PURPLE:EYE_M;
     slot.eyes.forEach(e=>{e.visible=!useBossEyes && !useGLTF;e.material=eyeMat;});
     slot.eyeB.forEach(e=>{e.visible=useBossEyes;e.material=eyeMat;});
-    slot.aura.visible=isStalker;
     // Actualizar referencias de materiales en el slot
     slot.skin=newSkin;slot.clothM=newCloth;slot.dark=newDark;
 
@@ -4262,7 +4325,106 @@ function initGameEngine() {
     return slot;
   }
 
-  function killZombie(z,hs){
+  /* ===== SISTEMA DE BUFFS Y RECOMPENSAS DE ÚLTIMO GOLPE ===== */
+  const activeBuffs = {};
+  let playerKillstreak = 0;
+
+  function applyPlayerBuff(id, duration, name, theme, icon){
+    activeBuffs[id] = {
+      id,
+      name,
+      theme,
+      icon,
+      duration,
+      maxDuration: duration
+    };
+    renderBuffHud();
+  }
+
+  function hasBuff(id){
+    return !!(activeBuffs[id] && activeBuffs[id].duration > 0);
+  }
+
+  function getBuffSpeedMul(){
+    let mul = 1.0;
+    if(hasBuff('titan_slayer')) mul *= 1.35;
+    else if(hasBuff('elite_slayer')) mul *= 1.20;
+    if(hasBuff('streak_10')) mul *= 1.15;
+    return mul;
+  }
+
+  function getBuffFireRateMul(){
+    let mul = 1.0;
+    if(hasBuff('titan_slayer')) mul *= 1.50;
+    else if(hasBuff('elite_slayer')) mul *= 1.25;
+    return mul;
+  }
+
+  function getBuffDamageMul(){
+    let mul = 1.0;
+    if(hasBuff('titan_slayer')) mul *= 1.25;
+    if(hasBuff('streak_25')) mul *= 1.30;
+    return mul;
+  }
+
+  function renderBuffHud(){
+    const hud = $('#buffHud');
+    if(!hud) return;
+    const keys = Object.keys(activeBuffs).filter(k => activeBuffs[k].duration > 0);
+    if(keys.length === 0){
+      hud.innerHTML = '';
+      return;
+    }
+    let html = '';
+    for(const k of keys){
+      const b = activeBuffs[k];
+      const pct = Math.max(0, Math.min(100, (b.duration / b.maxDuration) * 100));
+      html += `<div class="buffItem ${b.theme}">
+        <span class="buffIcon">${b.icon}</span>
+        <div class="buffInfo">
+          <span class="buffName">${b.name} (${Math.ceil(b.duration)}s)</span>
+          <div class="buffBarTrack"><div class="buffBarFill" style="width:${pct}%"></div></div>
+        </div>
+      </div>`;
+    }
+    hud.innerHTML = html;
+  }
+
+  function updateBuffs(dt){
+    let changed = false;
+    for(const k in activeBuffs){
+      const b = activeBuffs[k];
+      if(b.duration > 0){
+        b.duration -= dt;
+        changed = true;
+        if(b.duration <= 0){
+          delete activeBuffs[k];
+        }
+      }
+    }
+    // Regeneración de vida si titan_slayer o elite_slayer está activo
+    if(playerState === 'alive' && hp < (_cfg.player?.maxHp || 100)){
+      if(hasBuff('titan_slayer')){
+        hp = Math.min(_cfg.player?.maxHp || 100, hp + dt * 4.0);
+        hudHP();
+      } else if(hasBuff('elite_slayer')){
+        hp = Math.min(_cfg.player?.maxHp || 100, hp + dt * 2.0);
+        hudHP();
+      }
+    }
+    // Descarga de arco de sobrecarga (streak_50)
+    if(hasBuff('streak_50') && Math.random() < dt * 3){
+      for(const z of zombies){
+        if(!z.dead && z.g && z.g.position && z.g.position.distanceTo(camera.position) < 4.5){
+          hurtZombie(z, 'body', z.g.position, 35, 'local');
+          burst(z.g.position, 'spark', 8, 3.0);
+        }
+      }
+    }
+    if(changed) renderBuffHud();
+  }
+
+  function killZombie(z,hs,killerId='local'){
     z.dead=true;z.deathT=0;kills++;headshots+=hs?1:0;score+=z.score+(hs?15:0);
     if(z.chargeRockMesh){scene.remove(z.chargeRockMesh);z.chargeRockMesh=null;}
     if(z.grabbed){z.grabbed.grabbed=false;z.grabbed=null;}
@@ -4273,6 +4435,42 @@ function initGameEngine() {
     feed((hs?'CRANIAL +':'DOWN +')+(z.score+(hs?15:0)),hs?'h':'k');
     sfx.die();burst(_v1.copy(z.g.position).setY(1.1),'ichor',hs?12:7,2.8);
     hitmark(true);hudScore();
+
+    // 1. Recompensa de Último Golpe (Boss & Mini-Boss Slayer)
+    if(killerId === 'local' || killerId === peer?.id){
+      playerKillstreak++;
+      if(z.type.startsWith('boss_')){
+        applyPlayerBuff('titan_slayer', 25, '👑 TITAN SLAYER', 'gold', '👑');
+        banner('👑 TITAN SLAYER ACTIVADO', 'ÚLTIMO GOLPE: +35% VEL / REGEN / CADENCIA EXTREMA', true, 4500);
+        sfx.pickup();
+        grenades = Math.min(6, grenades + 3); hudGrenades();
+        score += 500; hudScore();
+      } else if(z.type.startsWith('mini_')){
+        applyPlayerBuff('elite_slayer', 16, '⚡ ELITE SLAYER', 'purple', '⚡');
+        banner('⚡ ELITE SLAYER ACTIVADO', 'ÚLTIMO GOLPE: +20% VEL / REGEN / CADENCIA RÁPIDA', false, 3200);
+        sfx.pickup();
+        score += 200; hudScore();
+      }
+
+      // 2. Rachas de Bajas (Killstreaks sin caer)
+      if(hasBuff('streak_25')){ // Vampirismo activo
+        hp = Math.min(_cfg.player?.maxHp || 100, hp + 3);
+        hudHP();
+      }
+      if(playerKillstreak === 10){
+        applyPlayerBuff('streak_10', 14, '🎯 ADRENALINA', 'amber', '🎯');
+        banner('🎯 RACHA 10 BAJAS', 'ADRENALINA TÁCTICA: +15% VELOCIDAD', false, 2800);
+        sfx.pickup();
+      } else if(playerKillstreak === 25){
+        applyPlayerBuff('streak_25', 18, '🩸 CAZADOR IMPLACABLE', 'purple', '🩸');
+        banner('🩸 RACHA 25 BAJAS', 'CAZADOR: +30% DAÑO & VAMPIRISMO (+3 HP/KILL)', true, 3500);
+        sfx.pickup();
+      } else if(playerKillstreak === 50){
+        applyPlayerBuff('streak_50', 22, '⚡ SOBRECARGA ELÉCTRICA', 'gold', '⚡');
+        banner('⚡ RACHA 50 BAJAS', 'SOBRECARGA: DESCARGA EN ARCO & RECARGA INSTANTÁNEA', true, 4500);
+        sfx.pickup();
+      }
+    }
 
     // Drop dinámico de suministros al morir
     const rDrop = Math.random();
@@ -4286,17 +4484,18 @@ function initGameEngine() {
       else if(rDrop < 0.28) spawnPickup(z.g.position, 'ammo'); // 20% drop de munición
     }
 
-    netSend({type:'zkill',id:z.id,hs});
+    netSend({type:'zkill',id:z.id,hs,kId:killerId});
 
   }
   function gTraverseNull(g){if(!g)return;g.traverse(c=>{if(c.isMesh)c.userData.z=null;});}
-  function hurtZombie(z,part,pt,customDmg=null){
+  function hurtZombie(z,part,pt,customDmg=null,killerId='local'){
     if(z.dead)return;
     const hs = (part === 'head');
     const isLeg = (part === 'legL' || part === 'legR');
     const isArm = (part === 'armL' || part === 'armR');
 
-    let rawDmg = customDmg !== null ? customDmg : (hs ? 42 : (isLeg ? 20 : 25));
+    const buffDmgMul = (killerId === 'local' && typeof getBuffDamageMul === 'function') ? getBuffDamageMul() : 1.0;
+    let rawDmg = (customDmg !== null ? customDmg : (hs ? 42 : (isLeg ? 20 : 25))) * buffDmgMul;
     
     // Zoned Headshot: Los bosses y brutes tienen casco/armadura craneal
     const isBossOrElite = z.type.startsWith('boss_') || z.type.startsWith('mini_') || z.type === 'brute';
@@ -4359,7 +4558,7 @@ function initGameEngine() {
         _vChunkVel.set(R(-2,2), R(4.5,7.5), R(-2,2));
         spawnDismemberChunk(pt, _vChunkVel, 'head');
       }
-      killZombie(z,hs);
+      killZombie(z,hs,killerId);
     }
     else { hitmark(hs); sfx.flesh(); }
     netSend({type:'zhit',id:z.id,dmg});
@@ -4527,16 +4726,16 @@ function initGameEngine() {
         z.g.visible = (_vCam.distanceTo(z.g.position) < 65.0);
       }
 
-      // Mecánica de Sprint Temporal Periódico (Surge Frenzy Equilibrado)
-      z.sprintCd = (z.sprintCd || R(8, 14)) - dt;
-      if(z.sprintCd <= 0 && dist3D > 5.0 && dist3D < 18 && !z.isCrawling && !z.dead){
-        z.sprintT = R(1.5, 2.2);
-        z.sprintCd = R(9, 16);  // Cooldown de 9 a 16 segundos
+      // Mecánica de Sprint Temporal Periódico (Surge Frenzy Equilibrado - Límites Ola 4+)
+      z.sprintCd = (z.sprintCd || R(12, 18)) - dt;
+      if(z.sprintCd <= 0 && dist3D > 5.0 && dist3D < 16 && !z.isCrawling && !z.dead){
+        z.sprintT = R(1.0, 1.4);
+        z.sprintCd = R(12, 18);  // Cooldown ampliado de 12 a 18 segundos
       }
       let sprintBoost = 1.0;
       if(z.sprintT > 0){
         z.sprintT -= dt;
-        sprintBoost = z.type === 'runner' ? 1.22 : 1.18; // Multiplicador de sprint orgánico calibrado (+18-22%)
+        sprintBoost = z.type === 'runner' ? 1.15 : 1.10; // Multiplicador acotado (+10-15%)
       }
 
       // Modificador de velocidad y postura para Crawlers y Biters
@@ -4574,13 +4773,13 @@ function initGameEngine() {
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const baseCool = z.isBiting ? 2.4 :
+          const baseCool = z.isBiting ? 2.6 :
                            z.type.includes('juggernaut') ? 3.8 :
                            z.type.includes('stalker') ? 3.4 :
                            z.type.includes('rockhurler') ? 3.2 :
                            z.type === 'brute' ? 3.2 :
-                           z.type === 'runner' ? 2.5 : 2.8;
-          z.cool = baseCool;
+                           z.type === 'runner' ? 2.2 : 2.6;
+          z.cool = Math.max(1.8, baseCool);
 
           if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 8, 2.8);
@@ -5282,16 +5481,22 @@ function initGameEngine() {
       }
     }
   }
-  function enterDowned(){playerState='downed';downTimer=25;reviveProgress=0;firing=false;
-    $('#downedHud').classList.add('show');netSend({type:'pstate',state:'downed'});}
+  function enterDowned(){
+    playerState='downed';downTimer=25;reviveProgress=0;firing=false;
+    playerKillstreak=0; for(const k in activeBuffs) delete activeBuffs[k]; renderBuffHud();
+    $('#downedHud').classList.add('show');netSend({type:'pstate',state:'downed'});
+  }
   function revivePlayer(){playerState='alive';hp=50;reviveInvuln=2.5;reviveProgress=0;
     $('#downedHud').classList.remove('show');$('#revivePrompt').classList.remove('show');
     sfx.revive();feed('¡REANIMADO! +2.5S INVULNERABLE','h');hudHP();
     banner('¡REANIMADO!','HAS VUELTO A LA LÍNEA DE FUEGO',false,2000);
     netSend({type:'pstate',state:'alive'});}
-  function playerDie(){playerState='dead';$('#downedHud').classList.remove('show');
+  function playerDie(){
+    playerState='dead';$('#downedHud').classList.remove('show');
+    playerKillstreak=0; for(const k in activeBuffs) delete activeBuffs[k]; renderBuffHud();
     feed(gameMode==='solo'?'GAME OVER — NO SURVIVORS':'YOU DIED — WAITING FOR NEXT WAVE','k');
-    netSend({type:'pstate',state:'dead'});checkGameOver();}
+    netSend({type:'pstate',state:'dead'});checkGameOver();
+  }
   function checkGameOver(){
     if(gameMode === 'solo'){
       if(playerState === 'dead'||hp<=0) gameOver();
@@ -5536,7 +5741,9 @@ function initGameEngine() {
         return;
       }
       ammoGun--;ammo=ammoGun;
-      fireCd=fireMode==='auto'?.092:fireMode==='burst'?.075:.22;wKick=1;
+      const baseGunCd = (fireMode==='auto'?.092:fireMode==='burst'?.075:.22);
+      fireCd = baseGunCd / (typeof getBuffFireRateMul === 'function' ? getBuffFireRateMul() : 1.0);
+      wKick=1;
       // Spring Physics Recoil Impulse (Posición hacia atrás + elevación de cañón elástica)
       gunSpring.addImpulse(
         _v1.set(R(-0.003, 0.003), R(0.006, 0.012), 0.065),
@@ -5591,7 +5798,8 @@ function initGameEngine() {
         return;
       }
       ammoShotgun--;ammo=ammoShotgun;
-      fireCd=.58;wKick=2.2;
+      fireCd = .58 / (typeof getBuffFireRateMul === 'function' ? getBuffFireRateMul() : 1.0);
+      wKick=2.2;
       // Spring Physics Recoil Impulse para Escopeta (Retroceso potente y dispersión)
       gunSpring.addImpulse(
         _v1.set(R(-0.007, 0.007), R(0.016, 0.028), 0.15),
@@ -7050,6 +7258,11 @@ function initGameEngine() {
 
     grenades=3;hudGrenades();if(typeof activeGrenades!=='undefined'&&Array.isArray(activeGrenades)){activeGrenades.forEach(g=>{if(g.mesh)scene.remove(g.mesh);});activeGrenades.length=0;}
     reloading=false;fireCd=0;firing=false;wKick=0;dmgFlash=0;shake=0;playerInvulnT=0;
+    playerKillstreak=0;
+    if(typeof activeBuffs !== 'undefined'){
+      for(const k in activeBuffs) delete activeBuffs[k];
+      if(typeof renderBuffHud === 'function') renderBuffHud();
+    }
     if(typeof tracers!=='undefined'&&Array.isArray(tracers)){
       tracers.forEach(tr=>{tr.active=false;if(tr.m){tr.m.visible=false;tr.m.scale.set(0.0001,0.0001,0.0001);}});
     }
@@ -7226,8 +7439,8 @@ function initGameEngine() {
         /* GQW-VIS-5.0: Sprint FOV Kick */
         const tgtFov=sprint&&playerState==='alive'?82:74;
         camera.fov+=(tgtFov-camera.fov)*(1-Math.exp(-12*dt));
-        camera.updateProjectionMatrix();
-        const maxSp = playerState === 'alive' ? (sprint ? 10.5 : 6.5) : 0.5;
+        const baseMaxSp = playerState === 'alive' ? (sprint ? 10.5 : 6.5) : 0.5;
+        const maxSp = baseMaxSp * (typeof getBuffSpeedMul === 'function' ? getBuffSpeedMul() : 1.0);
         fwdV.set(-Math.sin(yaw), 0, -Math.cos(yaw));
         rgtV.set(Math.cos(yaw), 0, -Math.sin(yaw));
         
@@ -7417,7 +7630,8 @@ function initGameEngine() {
         }
         if(reloading){
           relT += dt;
-          const reloadDuration = activeWeapon === 'shotgun' ? 1.8 : 1.0;
+          const baseReloadDur = activeWeapon === 'shotgun' ? 1.8 : 1.0;
+          const reloadDuration = (typeof hasBuff === 'function' && (hasBuff('titan_slayer') || hasBuff('streak_50'))) ? 0.35 : baseReloadDur;
           if($('#relFill')) $('#relFill').style.width = Math.min(100, (relT / reloadDuration) * 100) + '%';
           if(relT >= reloadDuration){
             const take = Math.min(MAG - ammo, reserve);
@@ -7667,7 +7881,7 @@ function initGameEngine() {
       if($('#ch')) $('#ch').style.setProperty('--gap', gap.toFixed(1) + 'px');
     });
 
-
+    if(typeof updateBuffs === 'function') updateBuffs(dt);
   }
 
     /* === FIX YOUR TIMESTEP: acumulador 60Hz + render a rAF rate === */
