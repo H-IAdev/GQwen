@@ -2609,8 +2609,8 @@ function initGameEngine() {
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
-  /* Linterna Táctica Frontal con orientación dinámica desacoplada de la cámara (18m, cono suave anti-cegamiento) */
-  const flashlight = new THREE.SpotLight(0xffeedd, 1.4, 18, Math.PI / 7, 0.65, 2.0);
+  /* Linterna Táctica Frontal con alcance extendido (24m), cono óptico definido y atenuación física suave */
+  const flashlight = new THREE.SpotLight(0xffeedd, 1.6, 24, Math.PI / 6.5, 0.60, 1.8);
   flashlight.visible = false;
   flashlight.layers.set(0);
   scene.add(flashlight);
@@ -4880,7 +4880,7 @@ function initGameEngine() {
   const instRocks=new THREE.InstancedMesh(rockGeo,rockMat,ROCK_SLOTS);
   instRocks.frustumCulled=false;instRocks.count=0;
   scene.add(instRocks);
-  const rockSlots=Array.from({length:ROCK_SLOTS},()=>({inUse:false,le:null,v:null,pos:new THREE.Vector3(),life:0,dmg:0,hit:false,rot:0}));
+  const rockSlots=Array.from({length:ROCK_SLOTS},()=>({inUse:false,le:null,v:new THREE.Vector3(),pos:new THREE.Vector3(),life:0,dmg:0,hit:false,rot:0}));
   const _rkMtx=new THREE.Matrix4(),_rkQ=new THREE.Quaternion(),_rkOne=new THREE.Vector3(1,1,1),_rkZero=new THREE.Vector3(0,0,0);
 
   // Pool de 3 luces de roca (reutilizadas, sin crear/destruir cada lanzamiento)
@@ -4949,14 +4949,19 @@ function initGameEngine() {
     if(si<0)return;
     const sl=rockSlots[si];
     sl.inUse=true;sl.hit=false;sl.life=ROCK_LIFE;sl.dmg=dmg;sl.rot=0;
-    _vDir.subVectors(toPos,fromPos).normalize();
-    sl.v=_vDir.clone().multiplyScalar(ROCK_SPEED);
+    _vDir.subVectors(toPos,fromPos);
+    const hDist = Math.hypot(_vDir.x, _vDir.z);
+    _vDir.normalize();
+    _vDir.y += Math.min(0.28, Math.max(0.12, hDist * 0.012)); // Arco balístico calculado según distancia
+    _vDir.normalize();
+    sl.v.copy(_vDir).multiplyScalar(ROCK_SPEED);
     sl.le=acquireRockLight();
     sl.pos.copy(fromPos);
     if(sl.le) sl.le.light.position.copy(fromPos);
     _rkMtx.identity().compose(sl.pos,_rkQ.identity(),_rkOne);
     instRocks.setMatrixAt(si,_rkMtx);
     instRocks.count=rockSlots.filter(s=>s.inUse).length;
+    if(instRocks.instanceMatrix) instRocks.instanceMatrix.needsUpdate = true;
   }
 
   function updateRocks(dt){
@@ -4966,17 +4971,31 @@ function initGameEngine() {
       const sl=rockSlots[i];
       if(!sl.inUse)continue;
       sl.life-=dt;
-      sl.v.y-=9*dt;
+      sl.v.y-=9.8*dt;
       sl.pos.addScaledVector(sl.v,dt);
-      sl.rot+=dt*5;
+      sl.rot+=dt*4.5;
       if(sl.le) sl.le.light.position.copy(sl.pos);
-      _rkQ.setFromEuler(new THREE.Euler(sl.rot,0,sl.rot*0.6));
+      _rkQ.setFromEuler(new THREE.Euler(sl.rot,sl.rot*0.7,sl.rot*0.5));
       _rkMtx.identity().compose(sl.pos,_rkQ,_rkOne);
       instRocks.setMatrixAt(i,_rkMtx);
       const distToCam=sl.pos.distanceTo(_vCam);
-      const directHit=distToCam<0.7 && playerState==='alive';
-      const floorHit=sl.pos.y<0.15;
-      if((directHit||floorHit) && !sl.hit){
+      const directHit=distToCam<0.75 && playerState==='alive';
+      const floorH=getFloorY(sl.pos.x,sl.pos.z)+0.15;
+      const floorHit=sl.pos.y<=floorH;
+
+      // Colisión con obstáculos 3D del entorno (quioscos, pilares, andenes)
+      let obstacleHit = false;
+      if(!directHit && !floorHit && typeof OBSTACLES !== 'undefined'){
+        for(let oi = 0; oi < OBSTACLES.length; oi++){
+          const ob = OBSTACLES[oi];
+          if(Math.abs(sl.pos.x - ob.x) < (ob.hw + 0.3) && Math.abs(sl.pos.z - ob.z) < (ob.hd + 0.3)){
+            obstacleHit = true;
+            break;
+          }
+        }
+      }
+
+      if((directHit||floorHit||obstacleHit) && !sl.hit){
         sl.hit=true;
         rockExplode(sl.pos, sl.dmg, true);
       }
@@ -4991,8 +5010,8 @@ function initGameEngine() {
         instRocks.setMatrixAt(i,_rkMtx);
       }else{
         activeCount++;
-        // Estela de chispa con culling de distancia (<25m) para evitar caída de FPS
-        if(distToCam < 25.0 && Math.random() < 0.28) burst(sl.pos,'spark',1,1.0);
+        // Estela de chispa con culling de distancia (<30m) para evitar caída de FPS
+        if(distToCam < 30.0 && Math.random() < 0.32) burst(sl.pos,'spark',1,1.2);
       }
     }
     instRocks.count=activeCount;
@@ -5387,7 +5406,7 @@ function initGameEngine() {
     }
     if((e.code==='KeyF'||e.key==='f'||e.key==='F')&&playing){
       flashlight.visible = !flashlight.visible;
-      flashlight.intensity = flashlight.visible ? 1.4 : 0;
+      flashlight.intensity = flashlight.visible ? 1.6 : 0;
       sfx.click();
       feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
     }
@@ -5901,6 +5920,9 @@ function initGameEngine() {
         refs: { armL, armR, legL, legR }
       };
 
+      if(!isRemote && !isBot){
+        g.visible = false;
+      }
       scene.add(g);
       return { group: g, gun, flash, fLight, refs: { armL, armR, legL, legR }, walk: R(0, 6) };
     } catch(err) {
@@ -7540,13 +7562,15 @@ function initGameEngine() {
 
       // Actualización de Físicas de Resorte de Retroceso
       gunSpring.update(dt);
-      const totalPosX = .22 + swayX + walkBobX + gunSpring.pos.x;
-      const totalPosY = -.2 - downDip + walkBobY + swayY + gunSpring.pos.y;
-      const totalPosZ = -.42 + wKick * .02 + gunSpring.pos.z;
+      const cSwayX = clamp(swayX, -0.025, 0.025);
+      const cSwayY = clamp(swayY, -0.025, 0.025);
+      const totalPosX = .18 + cSwayX + walkBobX + gunSpring.pos.x;
+      const totalPosY = -.16 - downDip + walkBobY + cSwayY + gunSpring.pos.y;
+      const totalPosZ = -.34 + wKick * .02 + gunSpring.pos.z;
 
-      const totalRotX = gunSpring.rot.x - dip - downDip + swayY * 1.2;
-      const totalRotY = gunSpring.rot.y + swayX * 1.5;
-      const totalRotZ = gunSpring.rot.z - swayX;
+      const totalRotX = -0.04 + gunSpring.rot.x - dip - downDip + clamp(swayY * 0.7, -0.10, 0.10);
+      const totalRotY = gunSpring.rot.y + clamp(swayX * 0.7, -0.10, 0.10);
+      const totalRotZ = gunSpring.rot.z - clamp(swayX * 0.4, -0.06, 0.06);
 
       if(weapon){
         weapon.position.set(totalPosX, totalPosY, totalPosZ);
@@ -7722,6 +7746,9 @@ function initGameEngine() {
             camera.position.add(_vPos);
             const minFloor = getFloorY(camera.position.x, camera.position.z) + 0.35;
             if(camera.position.y < minFloor) camera.position.y = minFloor;
+            if(localPlayerBodyGroup && localPlayerBodyGroup.userData && localPlayerBodyGroup.userData.headBone){
+              localPlayerBodyGroup.userData.headBone.rotation.x = pitch * 0.45;
+            }
           } else if(camMode === 'tps_front'){
             _vPos.set(0, 0.20, -2.4);
             _vEuler.set(pitch * 0.50, yaw, 0, 'YXZ');
@@ -7731,9 +7758,12 @@ function initGameEngine() {
             camera.rotation.x = -pitch;
             const minFloor = getFloorY(camera.position.x, camera.position.z) + 0.35;
             if(camera.position.y < minFloor) camera.position.y = minFloor;
+            if(localPlayerBodyGroup && localPlayerBodyGroup.userData && localPlayerBodyGroup.userData.headBone){
+              localPlayerBodyGroup.userData.headBone.rotation.x = -pitch * 0.45;
+            }
           }
         } else {
-          if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
+          if(camera.near !== 0.05){ camera.near = 0.05; camera.updateProjectionMatrix(); }
           if(localPlayerBodyGroup) localPlayerBodyGroup.visible = false;
           const isAlive = (playing && playerState === 'alive');
           if(weapon) weapon.visible = (isAlive && activeWeapon === 'gun');
@@ -7906,7 +7936,7 @@ function initGameEngine() {
   bindTouchBtn('#tBtnFlashlight', () => {
     if(flashlight){
       flashlight.visible = !flashlight.visible;
-      flashlight.intensity = flashlight.visible ? 1.4 : 0;
+      flashlight.intensity = flashlight.visible ? 1.6 : 0;
       sfx.click();
       feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
     }
