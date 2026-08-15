@@ -829,9 +829,9 @@ function initGameEngine() {
       if(typeof THREE.UnrealBloomPass !== 'undefined'){
         bloomPass = new THREE.UnrealBloomPass(
           new THREE.Vector2(window.innerWidth, window.innerHeight),
-          0.70, // fuerza
-          0.35, // radio
-          0.85  // umbral alto (bloom selectivo en emisivos y flashes)
+          0.38, // fuerza suave calibrada
+          0.26, // radio contenido
+          0.90  // umbral alto (bloom selectivo y nítido en emisivos)
         );
         composer.addPass(bloomPass);
       }
@@ -1355,6 +1355,7 @@ function initGameEngine() {
 
   /* ===== MAPA 3D & SISTEMA DE COLISIONES ===== */
   const sectorGroups=[];
+  const environmentColliders=[];
   const box=(w,h,d,m)=>new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);
 
   // Catálogo de Obstáculos Sólidos (Quioscos, Máquinas, Barreras)
@@ -1445,7 +1446,7 @@ function initGameEngine() {
   function buildLoop(){
     const SPS=10;
     for(let s=0;s<SECTORS;s++){
-      const g=new THREE.Group();scene.add(g);sectorGroups.push(g);
+      const g=new THREE.Group();scene.add(g);sectorGroups.push(g);environmentColliders.push(g);
       const t0=s/SECTORS,t1=(s+1)/SECTORS;
       const st=stationness((t0+t1)/2);
       const outerW=8.5;
@@ -1711,6 +1712,7 @@ function initGameEngine() {
     const g = new THREE.Group();
     g.name = 'grandCentralConcourse';
     scene.add(g);
+    environmentColliders.push(g);
 
     const RINGS = 16, SEGS = 64;
     const fp = [], fi = [], fuv = [];
@@ -2292,13 +2294,13 @@ function initGameEngine() {
   function applyBrightness(v){
     v = clamp(v, 5, 100);
     B = v / 100;
-    if(renderer) renderer.toneMappingExposure = 0.35 + 1.25 * B;
-    if(typeof ambientLight !== 'undefined' && ambientLight) ambientLight.intensity = 0.18 + 0.55 * B;
-    if(typeof hemiLight !== 'undefined' && hemiLight) hemiLight.intensity = 0.20 + 0.60 * B;
-    const kM = .03 + 1.07 * B, kE = .3 + .7 * B;
+    if(renderer) renderer.toneMappingExposure = 0.40 + 0.48 * B;
+    if(typeof ambientLight !== 'undefined' && ambientLight) ambientLight.intensity = 0.08 + 0.22 * B;
+    if(typeof hemiLight !== 'undefined' && hemiLight) hemiLight.intensity = 0.10 + 0.25 * B;
+    const kM = .03 + 0.95 * B, kE = .3 + .7 * B;
     lightsReg.forEach(l => { l.userData.k = l.userData.emergency ? kE : kM; l.intensity = l.userData.base * l.userData.k; });
     emisReg.forEach(m => m.emissiveIntensity = m.userData.base * (m.userData.emergency ? kE : kM));
-    glowReg.forEach(g => g.opacity = g.userData.base * (.08 + .92 * B));
+    glowReg.forEach(g => g.opacity = g.userData.base * (.08 + .75 * B));
     setTxt($('#pct'), Math.round(v) + '%');
     const brEl = $('#bright');
     if(brEl && document.activeElement !== brEl){
@@ -2648,27 +2650,78 @@ function initGameEngine() {
     }
   };
 
-  /* Fase 6D — Reusables para frustum culling */
+  /* Fase 6D — Sistema de Trazadoras Balísticas Dinámicas de Alta Velocidad (220 m/s) */
   const _frustum=new THREE.Frustum();
   const _frustumSphere=new THREE.Sphere(new THREE.Vector3(),10);
   const _projScreenMatrix=new THREE.Matrix4();
-  const trGeo=new THREE.BoxGeometry(1,1,1),tracers=[];
-  for(let i=0;i<24;i++){const m=new THREE.Mesh(trGeo,new THREE.MeshBasicMaterial({color:0xfff0c0,
-    transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
-    m.visible=false;m.layers.set(2);scene.add(m);tracers.push({m,life:0,maxLife:0.035});}
+  const trGeo=new THREE.CylinderGeometry(0.012, 0.012, 1.0, 6);
+  trGeo.rotateX(Math.PI * 0.5);
+  const tracers=[];
+  const TRACER_POOL_SIZE=36;
+  for(let i=0;i<TRACER_POOL_SIZE;i++){
+    const m=new THREE.Mesh(trGeo,new THREE.MeshBasicMaterial({
+      color:0xffeb7a,
+      transparent:true,
+      opacity:0.95,
+      blending:THREE.AdditiveBlending,
+      depthWrite:false
+    }));
+    m.visible=false;
+    m.layers.set(2);
+    scene.add(m);
+    tracers.push({
+      m,
+      active:false,
+      start:new THREE.Vector3(),
+      dir:new THREE.Vector3(),
+      distTraveled:0,
+      maxDist:50,
+      speed:220,
+      tracerLen:1.5,
+      life:0
+    });
+  }
   let trIdx=0;
   function fireTracer(a,b){
-    const t=tracers[trIdx++%24];
+    if(!a || !b) return;
+    const t=tracers[trIdx++%TRACER_POOL_SIZE];
     const dist=a.distanceTo(b);
-    const traceLen=Math.min(2.0, dist);
-    _vDir.subVectors(b, a).normalize();
-    t.m.position.copy(a).addScaledVector(_vDir, traceLen * 0.5 + 0.15);
-    t.m.lookAt(b);
-    t.m.scale.set(0.005, 0.005, traceLen);
+    if(dist < 0.05) return;
+    t.start.copy(a);
+    t.dir.subVectors(b, a).normalize();
+    t.maxDist=dist;
+    t.speed=210 + Math.random()*30;
+    t.tracerLen=Math.min(1.8, Math.max(0.3, dist * 0.35));
+    t.distTraveled=0;
+    t.life=Math.min(0.22, (dist / t.speed) + 0.04);
+    t.active=true;
     t.m.visible=true;
-    t.life=0.035;
-    t.maxLife=0.035;
-    t.m.material.opacity=0.85;
+    t.m.position.copy(a);
+    t.m.quaternion.setFromUnitVectors(_vUnitZ, t.dir);
+    t.m.scale.set(1, 1, 0.1);
+    t.m.material.opacity=0.95;
+  }
+
+  function updateTracers(dt){
+    for(let i=0;i<TRACER_POOL_SIZE;i++){
+      const tr=tracers[i];
+      if(!tr || !tr.active) continue;
+      tr.distTraveled += tr.speed * dt;
+      tr.life -= dt;
+      if(tr.distTraveled >= tr.maxDist || tr.life <= 0){
+        tr.active = false;
+        if(tr.m) tr.m.visible = false;
+        continue;
+      }
+      const curHead = Math.min(tr.distTraveled, tr.maxDist);
+      const curTail = Math.max(0, curHead - tr.tracerLen);
+      const curCenter = (curHead + curTail) * 0.5;
+      const curLen = Math.max(0.15, curHead - curTail);
+      tr.m.position.copy(tr.start).addScaledVector(tr.dir, curCenter);
+      tr.m.scale.set(1, 1, curLen);
+      const progress = curHead / tr.maxDist;
+      if(tr.m.material) tr.m.material.opacity = Math.max(0, 0.95 * (1.0 - progress * 0.7));
+    }
   }
   const pGeo=new THREE.TetrahedronGeometry(.04);
   const pMats={
@@ -3035,19 +3088,24 @@ function initGameEngine() {
       targetGroup.add(soldierClone);
 
       let rightHandBone = null, headBone = null;
+      let internalRifle = null, internalShotgun = null;
       soldierClone.traverse(child => {
-        if(child.isBone || child.isObject3D){
-          const n = (child.name || '').toLowerCase();
-          if(!rightHandBone && (n.includes('righthand') || n.includes('handr') || n.includes('hand_r') || n.includes('rightarm'))){
-            rightHandBone = child;
-          }
-          if(!headBone && (n.includes('head') || n.includes('cabeza'))){
-            headBone = child;
-          }
+        const n = (child.name || '').toLowerCase();
+        if(!rightHandBone && (n.includes('lowerarm.r') || n.includes('righthand') || n.includes('handr') || n.includes('hand_r') || n.includes('rightarm'))){
+          rightHandBone = child;
+        }
+        if(!headBone && (n.includes('head') || n.includes('cabeza'))){
+          headBone = child;
+        }
+        // Gestionar armas internas nativas de los modelos ZombieKit
+        if(n === 'rifle') internalRifle = child;
+        if(n === 'shotgun') internalShotgun = child;
+        if(n === 'pistol' || n === 'axe' || n === 'knife' || n === 'smg' || n === 'guitar' || n === 'spear' || n.includes('woodenbat') || n.includes('singleweapon')){
+          child.visible = false;
         }
       });
 
-      // Crear grupo de props de armas en mano derecha
+      // Crear grupo de props de armas en mano derecha (para modelos sin armas integradas)
       const weaponPropGroup = new THREE.Group();
       weaponPropGroup.name = 'soldierWeaponProps';
       
@@ -3072,29 +3130,34 @@ function initGameEngine() {
       weaponPropGroup.add(wGun);
       weaponPropGroup.add(wShotgun);
 
-      if(rightHandBone){
-        rightHandBone.add(weaponPropGroup);
-      } else {
-        soldierClone.add(weaponPropGroup);
-        weaponPropGroup.position.set(0.3, 1.0, 0.3);
+      if(!internalRifle && !internalShotgun){
+        if(rightHandBone){
+          rightHandBone.add(weaponPropGroup);
+        } else {
+          soldierClone.add(weaponPropGroup);
+          weaponPropGroup.position.set(0.3, 1.0, 0.3);
+        }
       }
 
       let mixer = null, actions = {};
       if(cachedSoldierGLTF.animations && cachedSoldierGLTF.animations.length > 0){
         mixer = new THREE.AnimationMixer(soldierClone);
         actions = mapGLTFAnimationClips(cachedSoldierGLTF.animations, mixer);
-        if(actions['Idle']) actions['Idle'].play();
+        const defaultAction = actions['Idle_Gun'] || actions['Idle'];
+        if(defaultAction) defaultAction.play();
       }
       return {
         mixer,
         actions,
-        activeAction: 'Idle',
+        activeAction: actions['Idle_Gun'] ? 'Idle_Gun' : 'Idle',
         soldierClone,
         rightHandBone,
         headBone,
         weaponPropGroup,
         wGun,
         wShotgun,
+        internalRifle,
+        internalShotgun,
         recoilT: 0,
         punchT: 0
       };
@@ -3107,21 +3170,27 @@ function initGameEngine() {
   function mapGLTFAnimationClips(animations, mixer) {
     const actions = {};
     if (!animations || !animations.length || !mixer) return actions;
-    const STANDARD_KEYS = ['Idle', 'Walk', 'Run', 'Punch', 'Death', 'Wave', 'Dance', 'Sitting'];
+    const STANDARD_KEYS = ['Idle', 'Walk', 'Run', 'Punch', 'Death', 'Idle_Gun', 'Walk_Gun', 'Run_Gun', 'HitReact', 'Jump', 'Wave', 'Dance', 'Sitting'];
     animations.forEach(clip => {
       actions[clip.name] = mixer.clipAction(clip);
       const lower = clip.name.toLowerCase();
       STANDARD_KEYS.forEach(stdKey => {
-        if (!actions[stdKey] && lower.includes(stdKey.toLowerCase())) {
+        if (!actions[stdKey] && lower === stdKey.toLowerCase()) {
           actions[stdKey] = actions[clip.name];
         }
       });
-      if (!actions['Idle'] && (lower.includes('stand') || lower.includes('wait'))) actions['Idle'] = actions[clip.name];
-      if (!actions['Walk'] && lower.includes('move')) actions['Walk'] = actions[clip.name];
-      if (!actions['Run'] && lower.includes('sprint')) actions['Run'] = actions[clip.name];
-      if (!actions['Punch'] && (lower.includes('attack') || lower.includes('shoot') || lower.includes('fire') || lower.includes('hit'))) actions['Punch'] = actions[clip.name];
-      if (!actions['Death'] && (lower.includes('die') || lower.includes('down'))) actions['Death'] = actions[clip.name];
+      if (!actions['Idle_Gun'] && (lower.includes('idle_gun') || lower.includes('idlegun') || lower.includes('idle_rifle'))) actions['Idle_Gun'] = actions[clip.name];
+      if (!actions['Walk_Gun'] && (lower.includes('walk_gun') || lower.includes('walkgun') || lower.includes('walk_rifle'))) actions['Walk_Gun'] = actions[clip.name];
+      if (!actions['Run_Gun'] && (lower.includes('run_gun') || lower.includes('rungun') || lower.includes('run_rifle'))) actions['Run_Gun'] = actions[clip.name];
+      if (!actions['Idle'] && (lower.includes('idle') || lower.includes('stand') || lower.includes('wait'))) actions['Idle'] = actions[clip.name];
+      if (!actions['Walk'] && (lower.includes('walk') || lower.includes('move'))) actions['Walk'] = actions[clip.name];
+      if (!actions['Run'] && (lower.includes('run') || lower.includes('sprint'))) actions['Run'] = actions[clip.name];
+      if (!actions['Punch'] && (lower.includes('punch') || lower.includes('attack') || lower.includes('shoot') || lower.includes('fire') || lower.includes('hit'))) actions['Punch'] = actions[clip.name];
+      if (!actions['Death'] && (lower.includes('death') || lower.includes('die') || lower.includes('down'))) actions['Death'] = actions[clip.name];
     });
+    if (!actions['Idle_Gun']) actions['Idle_Gun'] = actions['Idle'];
+    if (!actions['Walk_Gun']) actions['Walk_Gun'] = actions['Walk'];
+    if (!actions['Run_Gun']) actions['Run_Gun'] = actions['Run'];
     if (!actions['Idle'] && animations.length > 0) {
       actions['Idle'] = mixer.clipAction(animations[0]);
     }
@@ -3140,6 +3209,8 @@ function initGameEngine() {
       group.userData.weaponPropGroup = res.weaponPropGroup;
       group.userData.wGun = res.wGun;
       group.userData.wShotgun = res.wShotgun;
+      group.userData.internalRifle = res.internalRifle;
+      group.userData.internalShotgun = res.internalShotgun;
       group.userData.recoilT = 0;
       group.userData.punchT = 0;
     }
@@ -3148,10 +3219,11 @@ function initGameEngine() {
 
 
   const SOLDIER_GLB_URLS = [
-    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
     'src/ZombieKit2024/Characters/glTF/Characters_Shaun.gltf',
     'src/ZombieKit2024/Characters/glTF/Characters_Matt.gltf',
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
+    'src/ZombieKit2024/Characters/glTF/Characters_Lis.gltf',
+    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb',
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb'
   ];
 
   function loadSoldierGLTFForPlayers(){
@@ -3168,22 +3240,19 @@ function initGameEngine() {
     isSoldierLoading = true;
     
     const isFile = window.location.protocol === 'file:';
-    let urlList = SOLDIER_GLB_URLS;
-    if(isFile){
-      urlList = urlList.filter(u => u.startsWith('http://') || u.startsWith('https://'));
-    }
+    let urlList = isFile ? SOLDIER_GLB_URLS : SOLDIER_GLB_URLS.filter(u => u.startsWith('http://') || u.startsWith('https://') || !u.startsWith('src/'));
 
     (function attempt(idx){
       if(idx >= urlList.length){
         isSoldierLoading = false;
-        logDiag('Modelo de Soldado externo no alcanzado (usando modelo táctico procedimental enriquecido).', 'info');
+        logDiag('Modelo de Personaje exterior no alcanzado (usando modelo táctico procedimental enriquecido).', 'info');
         return;
       }
       const url = urlList[idx];
       loader.load(url, (gltf) => {
         cachedSoldierGLTF = gltf;
         isSoldierLoading = false;
-        logDiag('✓ Modelo Soldado 3D cargado: ' + url.split('/').pop() + ' (' + (gltf.animations ? gltf.animations.length : 0) + ' animaciones)', 'ok');
+        logDiag('✓ Modelo de Personaje 3D cargado: ' + url.split('/').pop() + ' (' + (gltf.animations ? gltf.animations.length : 0) + ' animaciones)', 'ok');
         if(typeof remotePlayers !== 'undefined' && remotePlayers){
           for(const rp of Object.values(remotePlayers)) if(rp && rp.mesh) applySoldierToGroup(rp.mesh);
         }
@@ -3199,9 +3268,10 @@ function initGameEngine() {
 
 
   const ROBOT_GLB_URLS = [
-    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
-    'src/ZombieKit2024/Characters/glTF/Characters_Lis.glTF',
+    'src/ZombieKit2024/Characters/glTF/Characters_Matt.gltf',
+    'src/ZombieKit2024/Characters/glTF/Characters_Lis.gltf',
     'src/ZombieKit2024/Characters/glTF/Characters_Sam.gltf',
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
     'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
   ];
   // cachedRobotGLTF e isRobotLoading declarados en cabecera de motor
@@ -3223,8 +3293,9 @@ function initGameEngine() {
       if(cachedRobotGLTF.animations && cachedRobotGLTF.animations.length > 0){
         b.mixer = new THREE.AnimationMixer(robotClone);
         b.actions = mapGLTFAnimationClips(cachedRobotGLTF.animations, b.mixer);
-        if(b.actions['Idle']) b.actions['Idle'].play();
-        b.activeAction = 'Idle';
+        const defAct = b.actions['Idle_Gun'] || b.actions['Idle'];
+        if(defAct) defAct.play();
+        b.activeAction = b.actions['Idle_Gun'] ? 'Idle_Gun' : 'Idle';
       }
 
       logDiag('Bot ' + b.name + ' actualizado a Modelo 3D animado', 'ok');
@@ -3244,10 +3315,7 @@ function initGameEngine() {
     isRobotLoading = true;
     
     const isFile = window.location.protocol === 'file:';
-    let urlList = ROBOT_GLB_URLS;
-    if(isFile){
-      urlList = urlList.filter(u => u.startsWith('http://') || u.startsWith('https://'));
-    }
+    let urlList = isFile ? ROBOT_GLB_URLS : ROBOT_GLB_URLS.filter(u => u.startsWith('http://') || u.startsWith('https://') || !u.startsWith('src/'));
 
     (function attempt(idx){
       if(idx >= urlList.length){
@@ -3449,9 +3517,12 @@ function initGameEngine() {
       }
       if (bot.fLight) bot.fLight.intensity = 45;
       sfx.shot();
-      if (bot.actions['Punch']) {
+      if (bot.actions && bot.actions['Punch']) {
         bot.actions['Punch'].stop().play();
       }
+      _v1.copy(bot.group.position); _v1.y += 1.2;
+      _v2.copy(target.g.position); _v2.y += (target.isCrawling ? 0.35 : 1.1);
+      fireTracer(_v1, _v2);
       const dist = bot.group.position.distanceTo(target.g.position);
       const hitChance = Math.max(0.25, 0.88 - (dist * 0.02));
       if (Math.random() < hitChance && !target.dead) {
@@ -5455,14 +5526,16 @@ function initGameEngine() {
           }
         }
       }else{
-        const envHits=ray.intersectObjects(sectorGroups,true);
+        const colList = environmentColliders.length ? environmentColliders : sectorGroups;
+        const envHits = ray.intersectObjects(colList, true);
         if(envHits.length){
-          end=envHits[0].point;
-          burst(end,'spark',8,3);
+          end = envHits[0].point;
+          burst(end, 'spark', 8, 3);
           addImpact(end, envHits[0].face ? envHits[0].face.normal : null, envHits[0].object);
         }
       }
-      tip.getWorldPosition(_v2);fireTracer(_v2.clone(),end.clone());
+      tip.getWorldPosition(_v2);
+      fireTracer(_v2, end);
       hudAmmo();
       if(ammoGun===0&&reserveGun>0){startReload();}
       netSend({type:'shot',pId:peer?.id||'host',isFists:false,fx:_v2.x,fy:_v2.y,fz:_v2.z,tx:end.x,ty:end.y,tz:end.z});
@@ -5487,6 +5560,7 @@ function initGameEngine() {
       
       const validTargets = (window.zombieHitboxes || []).filter(m => m && m.parent && m.userData && m.userData.z && !m.userData.z.dead);
       const camPos = camera.getWorldPosition(_v2);
+      const colList = environmentColliders.length ? environmentColliders : sectorGroups;
       // Disparo de escopeta: 8 perdigones con dispersión cónica
       for(let p=0; p<8; p++){
         _v1.set(0,0,-1).applyQuaternion(camera.quaternion);
@@ -5505,14 +5579,14 @@ function initGameEngine() {
             else hurtZombie(z,h.object.userData.part,h.point,bDmg);
           }
         } else {
-          const envHits=ray.intersectObjects(sectorGroups,true);
+          const envHits=ray.intersectObjects(colList,true);
           if(envHits.length){
             end=envHits[0].point;
             burst(end,'spark',4,2.5);
             addImpact(end, envHits[0].face ? envHits[0].face.normal : null, envHits[0].object);
           }
         }
-        fireTracer(camPos.clone(), end.clone());
+        fireTracer(camPos, end);
       }
       hudAmmo();
       if(ammoShotgun===0&&reserveShotgun>0){startReload();}
@@ -7051,8 +7125,14 @@ function initGameEngine() {
 
           const userData = localPlayerBodyGroup.userData;
 
-          // Visibilidad de armas en la mano del soldado según el arma activa
-          if(userData.wGun && userData.wShotgun){
+          // Visibilidad de armas en el personaje según el arma activa
+          if(userData.internalRifle){
+            userData.internalRifle.visible = (activeWeapon === 'gun');
+          }
+          if(userData.internalShotgun){
+            userData.internalShotgun.visible = (activeWeapon === 'shotgun');
+          }
+          if(userData.wGun && userData.wShotgun && !userData.internalRifle){
             userData.wGun.visible = (activeWeapon === 'gun');
             userData.wShotgun.visible = (activeWeapon === 'shotgun');
           }
@@ -7086,8 +7166,26 @@ function initGameEngine() {
             userData.mixer.update(dt);
             const isDeadOrDowned = (playerState === 'downed' || playerState === 'dead');
             const isMoving = vel.lengthSq() > 0.1;
-            const targetAct = isDeadOrDowned ? 'Death' : (isMoving ? (keys['ShiftLeft'] ? 'Run' : 'Walk') : 'Idle');
-            const actions = userData.actions;
+            const hasGun = (activeWeapon === 'gun' || activeWeapon === 'shotgun');
+            const actions = userData.actions || {};
+            
+            let targetAct = 'Idle';
+            if(isDeadOrDowned){
+              targetAct = 'Death';
+            } else if(userData.punchT > 0 && actions['Punch']){
+              targetAct = 'Punch';
+            } else if(isMoving){
+              const isSprinting = !!keys['ShiftLeft'];
+              if(hasGun && isSprinting && actions['Run_Gun']) targetAct = 'Run_Gun';
+              else if(hasGun && !isSprinting && actions['Walk_Gun']) targetAct = 'Walk_Gun';
+              else if(isSprinting && actions['Run']) targetAct = 'Run';
+              else if(actions['Walk']) targetAct = 'Walk';
+              else targetAct = 'Idle';
+            } else {
+              if(hasGun && actions['Idle_Gun']) targetAct = 'Idle_Gun';
+              else if(actions['Idle']) targetAct = 'Idle';
+            }
+
             let activeAct = userData.activeAction;
             if(actions && actions[targetAct] && activeAct !== targetAct){
               if(actions[activeAct]) actions[activeAct].fadeOut(0.18);
@@ -7095,6 +7193,9 @@ function initGameEngine() {
                 actions['Death'].reset().fadeIn(0.18).setLoop(THREE.LoopOnce, 1);
                 actions['Death'].clampWhenFinished = true;
                 actions['Death'].play();
+              } else if(targetAct === 'Punch'){
+                actions['Punch'].reset().fadeIn(0.10).setLoop(THREE.LoopOnce, 1);
+                actions['Punch'].play();
               } else {
                 actions[targetAct].reset().fadeIn(0.18).play();
               }
@@ -7353,13 +7454,7 @@ function initGameEngine() {
       if(flashT > 0){ flashT -= dt; if(flashT <= 0 && flashSpr) flashSpr.visible = false; }
       if(flashLight) flashLight.intensity *= Math.exp(-28 * dt);
       
-      for(const tr of tracers){
-        if(tr && tr.life > 0){
-          tr.life -= dt;
-          if(tr.m && tr.m.material) tr.m.material.opacity = Math.max(0, tr.life / .065) * .9;
-          if(tr.life <= 0 && tr.m) tr.m.visible = false;
-        }
-      }
+      updateTracers(dt);
       for(const p of parts){
         if(p && p.life > 0){
           p.life -= dt; p.v.y -= 9 * dt;
@@ -7489,13 +7584,21 @@ function initGameEngine() {
           if(shotgunGroup) shotgunGroup.visible = false;
           if(fistsGroup) fistsGroup.visible = false;
           if(camMode === 'tps_back'){
-            _vPos.set(0.35, 0.45, 2.6).applyAxisAngle(_vUp, yaw);
+            _vPos.set(0.38, 0.22, 2.35);
+            _vEuler.set(-pitch * 0.70, yaw, 0, 'YXZ');
+            _vPos.applyEuler(_vEuler);
             camera.position.add(_vPos);
+            const minFloor = getFloorY(camera.position.x, camera.position.z) + 0.35;
+            if(camera.position.y < minFloor) camera.position.y = minFloor;
           } else if(camMode === 'tps_front'){
-            _vPos.set(0, 0.35, -2.6).applyAxisAngle(_vUp, yaw);
+            _vPos.set(0, 0.20, -2.4);
+            _vEuler.set(pitch * 0.50, yaw, 0, 'YXZ');
+            _vPos.applyEuler(_vEuler);
             camera.position.add(_vPos);
             camera.rotation.y += Math.PI;
             camera.rotation.x = -pitch;
+            const minFloor = getFloorY(camera.position.x, camera.position.z) + 0.35;
+            if(camera.position.y < minFloor) camera.position.y = minFloor;
           }
         } else {
           if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
