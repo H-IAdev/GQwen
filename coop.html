@@ -334,7 +334,7 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
   #health{bottom:155px;left:8px;transform:scale(0.78);transform-origin:bottom left}
 
   #ammoPanel{bottom:155px;right:8px;transform:scale(0.78);transform-origin:bottom right}
-  #minimap{bottom:auto;top:8px;left:50%;transform:translateX(-50%) scale(0.72)}
+  #minimap{bottom:14px;left:50%;top:auto;transform:translateX(-50%) scale(0.75)}
   #joyContainer{width:86px;height:86px}
   #joyKnob{width:36px;height:36px;margin-left:-18px;margin-top:-18px}
   #tBtnFlashlight{bottom:98px;width:42px;height:42px}
@@ -2609,14 +2609,12 @@ function initGameEngine() {
     transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
   flashSpr.position.copy(tip.position);flashSpr.visible=false;flashSpr.layers.set(2);weapon.add(flashSpr);
   const flashLight=new THREE.PointLight(0xffb060,0,6,2);flashLight.layers.set(2);camera.add(flashLight);
-  /* Linterna Táctica Frontal montada sobre la cámara con alcance controlado (18m) y cono táctico */
-  const flashlight = new THREE.SpotLight(0xffeedd, 2.0, 18, Math.PI / 8, 0.55, 2.0);
-  flashlight.position.set(0.12, -0.1, -0.1);
-  flashlight.target.position.set(0, 0, -6);
+  /* Linterna Táctica Frontal con orientación dinámica desacoplada de la cámara (18m, cono suave anti-cegamiento) */
+  const flashlight = new THREE.SpotLight(0xffeedd, 1.4, 18, Math.PI / 7, 0.65, 2.0);
   flashlight.visible = false;
-  flashlight.layers.set(2);
-  camera.add(flashlight);
-  camera.add(flashlight.target);
+  flashlight.layers.set(0);
+  scene.add(flashlight);
+  scene.add(flashlight.target);
 
 
   const ray=new THREE.Raycaster();ray.layers.set(0);ray.near=.4;ray.far=90;
@@ -2682,35 +2680,46 @@ function initGameEngine() {
     });
   }
   let trIdx=0;
-  function fireTracer(a,b){
+  function fireTracer(a, b){
     if(!a || !b) return;
-    const t=tracers[trIdx++%TRACER_POOL_SIZE];
-    const dist=a.distanceTo(b);
-    if(dist < 0.05) return;
+    if(!isFinite(a.x) || !isFinite(a.y) || !isFinite(a.z) || !isFinite(b.x) || !isFinite(b.y) || !isFinite(b.z)) return;
+    const dist = a.distanceTo(b);
+    if(dist < 0.15 || dist > 200) return;
+    const t = tracers[trIdx++ % TRACER_POOL_SIZE];
     t.start.copy(a);
     t.dir.subVectors(b, a).normalize();
-    t.maxDist=dist;
-    t.speed=210 + Math.random()*30;
-    t.tracerLen=Math.min(1.8, Math.max(0.3, dist * 0.35));
-    t.distTraveled=0;
-    t.life=Math.min(0.22, (dist / t.speed) + 0.04);
-    t.active=true;
-    t.m.visible=true;
+    t.maxDist = dist;
+    t.speed = 220 + Math.random() * 30;
+    t.tracerLen = Math.min(2.2, Math.max(0.4, dist * 0.35));
+    t.distTraveled = 0;
+    t.life = Math.min(0.25, (dist / t.speed) + 0.04);
+    t.active = true;
+    t.m.visible = true;
     t.m.position.copy(a);
-    t.m.quaternion.setFromUnitVectors(_vUnitZ, t.dir);
-    t.m.scale.set(1, 1, 0.1);
-    t.m.material.opacity=0.95;
+    t.m.lookAt(b);
+    t.m.scale.set(1, 1, 0.001);
+    if(t.m.material) t.m.material.opacity = 0.95;
   }
 
   function updateTracers(dt){
-    for(let i=0;i<TRACER_POOL_SIZE;i++){
-      const tr=tracers[i];
-      if(!tr || !tr.active) continue;
+    for(let i = 0; i < TRACER_POOL_SIZE; i++){
+      const tr = tracers[i];
+      if(!tr) continue;
+      if(!tr.active){
+        if(tr.m && tr.m.visible){
+          tr.m.visible = false;
+          tr.m.scale.set(0.0001, 0.0001, 0.0001);
+        }
+        continue;
+      }
       tr.distTraveled += tr.speed * dt;
       tr.life -= dt;
       if(tr.distTraveled >= tr.maxDist || tr.life <= 0){
         tr.active = false;
-        if(tr.m) tr.m.visible = false;
+        if(tr.m){
+          tr.m.visible = false;
+          tr.m.scale.set(0.0001, 0.0001, 0.0001);
+        }
         continue;
       }
       const curHead = Math.min(tr.distTraveled, tr.maxDist);
@@ -3219,11 +3228,11 @@ function initGameEngine() {
 
 
   const SOLDIER_GLB_URLS = [
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb',
     'src/ZombieKit2024/Characters/glTF/Characters_Shaun.gltf',
     'src/ZombieKit2024/Characters/glTF/Characters_Matt.gltf',
     'src/ZombieKit2024/Characters/glTF/Characters_Lis.gltf',
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb',
-    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb'
+    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
   ];
 
   function loadSoldierGLTFForPlayers(){
@@ -3268,10 +3277,10 @@ function initGameEngine() {
 
 
   const ROBOT_GLB_URLS = [
+    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
     'src/ZombieKit2024/Characters/glTF/Characters_Matt.gltf',
     'src/ZombieKit2024/Characters/glTF/Characters_Lis.gltf',
     'src/ZombieKit2024/Characters/glTF/Characters_Sam.gltf',
-    'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
     'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
   ];
   // cachedRobotGLTF e isRobotLoading declarados en cabecera de motor
@@ -4516,16 +4525,16 @@ function initGameEngine() {
         z.g.visible = (_vCam.distanceTo(z.g.position) < 65.0);
       }
 
-      // Mecánica de Sprint Temporal Periódico (Surge Frenzy)
-      z.sprintCd = (z.sprintCd || R(3, 7)) - dt;
-      if(z.sprintCd <= 0 && dist3D > 4.5 && dist3D < 18 && !z.isCrawling && !z.dead){
-        z.sprintT = R(1.8, 2.5); // 2 segundos de sprint acelerado
-        z.sprintCd = R(7, 12);  // Cooldown de 7 a 12 segundos
+      // Mecánica de Sprint Temporal Periódico (Surge Frenzy Equilibrado)
+      z.sprintCd = (z.sprintCd || R(8, 14)) - dt;
+      if(z.sprintCd <= 0 && dist3D > 5.0 && dist3D < 18 && !z.isCrawling && !z.dead){
+        z.sprintT = R(1.5, 2.2);
+        z.sprintCd = R(9, 16);  // Cooldown de 9 a 16 segundos
       }
       let sprintBoost = 1.0;
       if(z.sprintT > 0){
         z.sprintT -= dt;
-        sprintBoost = z.type === 'runner' ? 1.45 : 1.35; // +35-45% velocidad durante el sprint temporal
+        sprintBoost = z.type === 'runner' ? 1.22 : 1.18; // Multiplicador de sprint orgánico calibrado (+18-22%)
       }
 
       // Modificador de velocidad y postura para Crawlers y Biters
@@ -4533,18 +4542,18 @@ function initGameEngine() {
       if(z.isCrawling){
         effectiveBaseSpd = z.speed * 0.45; // -55% velocidad al gatear
       }
-      z.curSpd = lerp(z.curSpd || (effectiveBaseSpd * 0.25), effectiveBaseSpd, dt * 2.2);
+      z.curSpd = lerp(z.curSpd || (effectiveBaseSpd * 0.25), effectiveBaseSpd, dt * 1.8);
       z.fade=Math.min(1,z.fade+dt*2);z.g.scale.setScalar(z.scale*(.5+.5*z.fade));
       z.cool-=dt;z.hitT-=dt;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      let windupMax = z.type.includes('juggernaut') ? 1.30 :
-                      z.type.includes('stalker') ? 1.15 :
-                      z.type.includes('rockhurler') ? 1.10 :
-                      z.type === 'brute' ? 1.25 :
-                      z.type === 'runner' ? 0.85 : 1.05;
-      if(z.isBiting) windupMax = 0.65; // Ataque ágil de mordida
-      if(z.isCrawling) windupMax = 1.10;
+      let windupMax = z.type.includes('juggernaut') ? 1.40 :
+                      z.type.includes('stalker') ? 1.25 :
+                      z.type.includes('rockhurler') ? 1.20 :
+                      z.type === 'brute' ? 1.35 :
+                      z.type === 'runner' ? 0.95 : 1.15;
+      if(z.isBiting) windupMax = 0.90; // Anticipación telegrafiada para mordida
+      if(z.isCrawling) windupMax = 1.20;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -4560,15 +4569,15 @@ function initGameEngine() {
           z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
         }
         if(z.type.includes('stalker')&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
-        const windupMoveSpd = z.type.startsWith('boss_') ? 0.35 : 0.50;
+        const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const baseCool = z.isBiting ? 2.0 :
-                           z.type.includes('juggernaut') ? 3.6 :
-                           z.type.includes('stalker') ? 3.2 :
-                           z.type.includes('rockhurler') ? 3.0 :
-                           z.type === 'brute' ? 3.0 :
-                           z.type === 'runner' ? 2.2 : 2.6;
+          const baseCool = z.isBiting ? 2.4 :
+                           z.type.includes('juggernaut') ? 3.8 :
+                           z.type.includes('stalker') ? 3.4 :
+                           z.type.includes('rockhurler') ? 3.2 :
+                           z.type === 'brute' ? 3.2 :
+                           z.type === 'runner' ? 2.5 : 2.8;
           z.cool = baseCool;
 
           if(dist3D < meleeR){
@@ -5230,13 +5239,15 @@ function initGameEngine() {
   let reloading=false,relT=0,fireCd=0,dryCd=0,firing=false;
   let wKick=0,flashT=0,dmgFlash=0,lastHit=-99;
   let queue=[],spawnT=0,spawnInt=2,clearing=false,clearT=0,hpMul=1,spMul=1;
-  let playerState='alive';let downTimer=0,reviveProgress=0,reviveInvuln=0;
+  let playerState='alive';let downTimer=0,reviveProgress=0,reviveInvuln=0,playerInvulnT=0;
   let yaw=0,pitch=0,kickP=0,kickY=0,shake=0;
   const keys={};const vel=new THREE.Vector3();
   let vy=0,jumpY=0,bobT=0,stepAcc=0;
   let playerT=0,playerLat=3;
 
-  function damagePlayer(d){if(playerState!=='alive'||reviveInvuln>0)return;
+  function damagePlayer(d){
+    if(playerState!=='alive'||reviveInvuln>0||playerInvulnT>0)return;
+    playerInvulnT=0.32; // Período de gracia de 320ms para evitar multi-golpes simultáneos
     const playerArmor = (wave >= 4) ? Math.min(0.25, (wave - 3) * 0.035) : 0;
     const effectiveDmg = Math.max(1, Math.round(d * (1 - playerArmor)));
     hp -= effectiveDmg; lastHit=elapsed; dmgFlash=Math.min(1,dmgFlash+.7);
@@ -5376,7 +5387,7 @@ function initGameEngine() {
     }
     if((e.code==='KeyF'||e.key==='f'||e.key==='F')&&playing){
       flashlight.visible = !flashlight.visible;
-      flashlight.intensity = flashlight.visible ? 2.5 : 0;
+      flashlight.intensity = flashlight.visible ? 1.4 : 0;
       sfx.click();
       feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
     }
@@ -5793,31 +5804,105 @@ function initGameEngine() {
 
   function buildPlayerMesh(id, isRemote = false, isBot = false){
     try {
-      const g=new THREE.Group();
-      const col=std({color:PCOLORS[id],roughness:0.6,metalness:0.2},.35);
-      const legM=std({color:0x2a2d33,roughness:0.8});
-      const add=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;};
-      add(new THREE.BoxGeometry(0.40,0.55,0.25),col,0,0.725,0);            // [0] torso
-      add(new THREE.BoxGeometry(0.22,0.24,0.22),skinM,0,1.175,0);          // [1] cabeza
-      const armL=add(new THREE.BoxGeometry(0.10,0.40,0.10),col,-0.28,0.725,0); // [2]
-      const armR=add(new THREE.BoxGeometry(0.10,0.40,0.10),col, 0.28,0.725,0); // [3]
-      const legL=add(new THREE.BoxGeometry(0.12,0.45,0.12),legM,-0.10,0.225,0);// [4]
-      const legR=add(new THREE.BoxGeometry(0.12,0.45,0.12),legM, 0.10,0.225,0);// [5]
-      const gun=new THREE.Group();gun.position.set(0.22,0.705,-0.22);g.add(gun); // [6]
+      const g = new THREE.Group();
+      const pColor = PCOLORS[id % PCOLORS.length] || 0x3f8cff;
+      const col = std({color: pColor, roughness: 0.6, metalness: 0.2}, 0.35);
+      const vestM = std({color: 0x1f242c, roughness: 0.7, metalness: 0.3}, 0.3);
+      const legM = std({color: 0x2e353f, roughness: 0.85});
+      const bootM = std({color: 0x111317, roughness: 0.9});
+      const skinM = std({color: 0xd4a574, roughness: 0.75});
+      const helmM = std({color: 0x242a33, roughness: 0.5, metalness: 0.4});
+      const visorM = std({color: 0x051a24, emissive: 0x00ccaa, emissiveIntensity: 0.6, roughness: 0.2, metalness: 0.9});
 
-      const gb=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.06,0.26),gm);gun.add(gb);
-      const gbar=new THREE.Mesh(new THREE.BoxGeometry(0.035,0.04,0.30),gm2);gbar.position.z=-0.24;gun.add(gbar);
-      const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:FLASH_TEX,color:0xffd080,
-        blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));
-      flash.scale.setScalar(0.22);flash.position.set(0,0.04,-0.42);flash.visible=false;gun.add(flash);
-      const fLight=new THREE.PointLight(0xffb060,0,5,2);fLight.position.set(0,0.04,-0.42);gun.add(fLight);
-      g.traverse(o=>{if(o.isMesh)o.castShadow=!isRemote;});
-      g.userData.refs = {armL,armR,legL,legR};
+      // Torso principal & Chaleco táctico
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.48, 0.24), col);
+      torso.position.set(0, 0.88, 0); torso.castShadow = true; g.add(torso);
+      const vest = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.38, 0.26), vestM);
+      vest.position.set(0, 0.89, 0); vest.castShadow = true; g.add(vest);
+      // Bolsillos de munición frontal
+      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 0.08), vestM);
+      pouch.position.set(0, 0.78, 0.14); g.add(pouch);
+
+      // Cabeza articulada + Casco + Visor táctico
+      const headGroup = new THREE.Group();
+      headGroup.position.set(0, 1.20, 0);
+      const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.22, 0.20), skinM);
+      headMesh.position.set(0, 0.08, 0); headMesh.castShadow = true; headGroup.add(headMesh);
+      const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.23), helmM);
+      helmet.position.set(0, 0.16, 0); helmet.castShadow = true; headGroup.add(helmet);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.06), visorM);
+      visor.position.set(0, 0.09, 0.11); headGroup.add(visor);
+      g.add(headGroup);
+
+      // Brazo Izquierdo (Pivote de hombro)
+      const armL = new THREE.Group(); armL.position.set(-0.25, 1.08, 0);
+      const armLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.42, 0.11), col);
+      armLMesh.position.set(0, -0.18, 0); armLMesh.castShadow = true; armL.add(armLMesh);
+      g.add(armL);
+
+      // Brazo Derecho (Pivote de hombro con arma)
+      const armR = new THREE.Group(); armR.position.set(0.25, 1.08, 0);
+      const armRMesh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.42, 0.11), col);
+      armRMesh.position.set(0, -0.18, 0); armRMesh.castShadow = true; armR.add(armRMesh);
+      
+      // Fusil de asalto en mano derecha
+      const gun = new THREE.Group(); gun.position.set(0, -0.32, -0.16); gun.rotation.x = -0.45;
+      const gb = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.06, 0.32), gm); gb.position.z = 0; gun.add(gb);
+      const gbar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.34), gm2); gbar.position.z = -0.18; gun.add(gbar);
+      const flash = new THREE.Sprite(new THREE.SpriteMaterial({map: FLASH_TEX, color: 0xffd080, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true}));
+      flash.scale.setScalar(0.22); flash.position.set(0, 0.02, -0.42); flash.visible = false; gun.add(flash);
+      const fLight = new THREE.PointLight(0xffb060, 0, 5, 2); fLight.position.set(0, 0.02, -0.42); gun.add(fLight);
+      armR.add(gun);
+
+      // Escopeta táctica en mano derecha
+      const shotgunProp = new THREE.Group(); shotgunProp.position.set(0, -0.32, -0.16); shotgunProp.rotation.x = -0.45;
+      const sgBody = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.36), gm); shotgunProp.add(sgBody);
+      const sgBar = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.40, 8), gm2); sgBar.rotation.x = Math.PI * 0.5; sgBar.position.set(0, 0.02, -0.22); shotgunProp.add(sgBar);
+      shotgunProp.visible = false;
+      armR.add(shotgunProp);
+      g.add(armR);
+
+      // Pierna Izquierda (Pivote de cadera)
+      const legL = new THREE.Group(); legL.position.set(-0.11, 0.64, 0);
+      const legLMesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.45, 0.13), legM);
+      legLMesh.position.set(0, -0.20, 0); legLMesh.castShadow = true; legL.add(legLMesh);
+      const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.18), bootM);
+      bootL.position.set(0, -0.40, 0.02); bootL.castShadow = true; legL.add(bootL);
+      g.add(legL);
+
+      // Pierna Derecha (Pivote de cadera)
+      const legR = new THREE.Group(); legR.position.set(0.11, 0.64, 0);
+      const legRMesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.45, 0.13), legM);
+      legRMesh.position.set(0, -0.20, 0); legRMesh.castShadow = true; legR.add(legRMesh);
+      const bootR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.18), bootM);
+      bootR.position.set(0, -0.40, 0.02); bootR.castShadow = true; legR.add(bootR);
+      g.add(legR);
+
+      g.traverse(o => {
+        if(o.isMesh){
+          o.castShadow = !isRemote;
+          o.receiveShadow = true;
+          o.frustumCulled = false;
+          o.layers.set(0);
+        }
+      });
+
+      g.userData = {
+        headBone: headGroup,
+        rightHandBone: armR,
+        leftArm: armL,
+        legL: legL,
+        legR: legR,
+        wGun: gun,
+        wShotgun: shotgunProp,
+        recoilT: 0,
+        punchT: 0,
+        walkCycle: R(0, 6),
+        refs: { armL, armR, legL, legR }
+      };
+
       scene.add(g);
-      return {group:g,gun,flash,fLight,refs:{armL,armR,legL,legR},walk:R(0,6)};
-
-
-
+      return { group: g, gun, flash, fLight, refs: { armL, armR, legL, legR }, walk: R(0, 6) };
     } catch(err) {
       logDiag('Aviso buildPlayerMesh: ' + err.message, 'err');
       const fbGroup = new THREE.Group();
@@ -6897,7 +6982,10 @@ function initGameEngine() {
     ammoGun=30;reserveGun=120;ammoShotgun=6;reserveShotgun=36;ammo=MAG;reserve=reserveGun;wave=0;score=0;kills=0;headshots=0;
 
     grenades=3;hudGrenades();if(typeof activeGrenades!=='undefined'&&Array.isArray(activeGrenades)){activeGrenades.forEach(g=>{if(g.mesh)scene.remove(g.mesh);});activeGrenades.length=0;}
-    reloading=false;fireCd=0;firing=false;wKick=0;dmgFlash=0;shake=0;
+    reloading=false;fireCd=0;firing=false;wKick=0;dmgFlash=0;shake=0;playerInvulnT=0;
+    if(typeof tracers!=='undefined'&&Array.isArray(tracers)){
+      tracers.forEach(tr=>{tr.active=false;if(tr.m){tr.m.visible=false;tr.m.scale.set(0.0001,0.0001,0.0001);}});
+    }
 
     playerState='alive';downTimer=0;
     $('#relBar').classList.remove('on');$('#relTxt').textContent='';$('#feed').innerHTML='';
@@ -7036,6 +7124,9 @@ function initGameEngine() {
     function fixedUpdate(dt){
     const t=_fixedElapsed;
     elapsed=t;
+    if(playerInvulnT > 0) playerInvulnT -= dt;
+    if(reviveInvuln > 0) reviveInvuln -= dt;
+    updateTracers(dt);
 
     // 1. MÓDULO: MÓVIL Y FÍSICAS DE CÁMARA
     safeExec('CameraPhysics', () => {
@@ -7200,6 +7291,27 @@ function initGameEngine() {
                 actions[targetAct].reset().fadeIn(0.18).play();
               }
               userData.activeAction = targetAct;
+            }
+          } else {
+            // Animación procedimental fluida para modelo táctico de respaldo
+            const isDeadOrDowned = (playerState === 'downed' || playerState === 'dead');
+            const isMoving = vel.lengthSq() > 0.1;
+            if(isMoving && !isDeadOrDowned){
+              userData.walkCycle = (userData.walkCycle || 0) + dt * (keys['ShiftLeft'] ? 12 : 8);
+              const wSin = Math.sin(userData.walkCycle);
+              if(userData.legL) userData.legL.rotation.x = wSin * 0.65;
+              if(userData.legR) userData.legR.rotation.x = -wSin * 0.65;
+              if(userData.leftArm) userData.leftArm.rotation.x = -wSin * 0.45;
+              if(userData.rightHandBone && userData.recoilT <= 0 && userData.punchT <= 0){
+                userData.rightHandBone.rotation.x = -0.45 + wSin * 0.12;
+              }
+            } else {
+              if(userData.legL) userData.legL.rotation.x = THREE.MathUtils.lerp(userData.legL.rotation.x, 0, dt * 10);
+              if(userData.legR) userData.legR.rotation.x = THREE.MathUtils.lerp(userData.legR.rotation.x, 0, dt * 10);
+              if(userData.leftArm) userData.leftArm.rotation.x = THREE.MathUtils.lerp(userData.leftArm.rotation.x, 0, dt * 10);
+              if(userData.rightHandBone && userData.recoilT <= 0 && userData.punchT <= 0){
+                userData.rightHandBone.rotation.x = THREE.MathUtils.lerp(userData.rightHandBone.rotation.x, -0.35, dt * 10);
+              }
             }
           }
 
@@ -7560,6 +7672,26 @@ function initGameEngine() {
           keyLight.target.position.copy(camera.position).addScaledVector(_kd,8);
           keyLight.target.updateMatrixWorld();
         }
+
+        // Orientación y posición desacoplada de la linterna táctica anti-cegamiento
+        if(typeof flashlight !== 'undefined' && flashlight && flashlight.visible){
+          if(camMode === 'tps_back' || camMode === 'tps_front'){
+            _v1.set(0.25, 1.35, 0.20).applyAxisAngle(_vUp, yaw);
+            const pX = (localPlayerBodyGroup ? localPlayerBodyGroup.position.x : camera.position.x);
+            const pZ = (localPlayerBodyGroup ? localPlayerBodyGroup.position.z : camera.position.z);
+            const pY = getFloorY(pX, pZ);
+            flashlight.position.set(pX + _v1.x, pY + _v1.y, pZ + _v1.z);
+            _v2.set(0, 0, -10).applyAxisAngle(_vUp, yaw);
+            flashlight.target.position.copy(flashlight.position).add(_v2);
+            flashlight.target.updateMatrixWorld();
+          } else {
+            flashlight.position.copy(camera.position);
+            const _flKd = _vFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+            flashlight.target.position.copy(camera.position).addScaledVector(_flKd, 10);
+            flashlight.target.updateMatrixWorld();
+          }
+        }
+
         _vCam.copy(camera.position);
         const _origCamRotY = camera.rotation.y;
         const _origCamRotX = camera.rotation.x;
@@ -7774,7 +7906,7 @@ function initGameEngine() {
   bindTouchBtn('#tBtnFlashlight', () => {
     if(flashlight){
       flashlight.visible = !flashlight.visible;
-      flashlight.intensity = flashlight.visible ? 2.5 : 0;
+      flashlight.intensity = flashlight.visible ? 1.4 : 0;
       sfx.click();
       feed(flashlight.visible?'LINTERNA: ACTIVADA ●':'LINTERNA: APAGADA','h');
     }
