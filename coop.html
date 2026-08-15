@@ -155,8 +155,8 @@ border-left:3px solid var(--amber)}
 #paused.show{opacity:1}
 #minimap{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);border:1px solid var(--line);
 background:#0a0c0fcc;border-radius:4px}
-#teamPanel{position:absolute;top:76px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10}
-.tm{padding:5px 10px;font-size:9px;letter-spacing:.1em;border-top:2px solid var(--amber);min-width:90px;text-align:center}
+#teamPanel{position:absolute;top:140px;left:14px;display:flex;flex-direction:column;gap:6px;z-index:10;pointer-events:none}
+.tm{padding:4px 8px;font-size:9px;letter-spacing:.1em;border-left:3px solid var(--amber);background:rgba(12,16,22,0.85);backdrop-filter:blur(4px);min-width:110px;text-align:left}
 .tm .tn{font-weight:600;margin-bottom:3px}
 .tm .tb{height:4px;background:#1b2129}.tm .tf{height:100%;background:var(--green);transition:width .2s}
 .tm.down{border-top-color:var(--red)}.tm.down .tf{background:var(--red)}
@@ -267,9 +267,11 @@ border:1px solid var(--line);margin:20px 0 26px;max-width:420px}
 #chatBox::-webkit-scrollbar{display:none}
 .cMsg{padding:6px 12px;background:rgba(12,16,22,0.90);border-left:3.5px solid var(--amber);border-radius:4px;color:var(--paper);word-break:break-word;text-shadow:0 1px 3px rgba(0,0,0,0.8);backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(0,0,0,0.45);animation:fin .2s ease both,msgFade 6.0s 0.2s forwards;overflow:hidden}
 .cMsg b{color:var(--amber2);margin-right:6px}
-#chatInputRow{display:none;align-items:center;background:rgba(13,17,22,0.95);border:1.5px solid var(--amber);padding:4px 8px;border-radius:3px;pointer-events:auto;box-shadow:0 0 14px rgba(255,180,0,0.35)}
+#chatInputRow{display:none;align-items:center;gap:6px;background:rgba(13,17,22,0.95);border:1.5px solid var(--amber);padding:4px 8px;border-radius:3px;pointer-events:auto;box-shadow:0 0 14px rgba(255,180,0,0.35)}
 #chatInputRow.open{display:flex}
 #chatInput{flex:1;background:transparent;border:none;color:var(--paper);font-family:var(--mono);font-size:11px;padding:4px;outline:none}
+#chatCloseBtn{background:rgba(255,75,62,0.2);border:1px solid var(--red);color:var(--paper);font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:2px;cursor:pointer;line-height:1}
+#chatCloseBtn:hover{background:var(--red);color:#fff}
 #pttIndicator{position:absolute;top:72px;left:50%;transform:translateX(-50%);padding:6px 16px;background:linear-gradient(135deg,rgba(16,185,129,0.95),rgba(5,150,105,0.95));color:#fff;font-family:var(--disp);font-size:10px;font-weight:700;letter-spacing:.18em;border-radius:20px;display:none;align-items:center;gap:8px;z-index:25;box-shadow:0 0 20px rgba(16,185,129,0.7);border:1px solid rgba(255,255,255,0.3)}
 #pttIndicator.active{display:flex;animation:pttGlow 1.2s ease-in-out infinite alternate}
 @keyframes pttGlow{0%{transform:translateX(-50%) scale(0.98);box-shadow:0 0 12px rgba(16,185,129,0.5)}100%{transform:translateX(-50%) scale(1.03);box-shadow:0 0 24px rgba(16,185,129,0.9)}}
@@ -441,6 +443,7 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
     <div id="chatBox"></div>
     <div id="chatInputRow">
       <input id="chatInput" maxlength="120" placeholder="Escribe un mensaje... [ENTER enviar, ESC salir]" spellcheck="false" autocomplete="off">
+      <button id="chatCloseBtn" type="button" title="Cerrar chat [ESC]">✕</button>
     </div>
   </div>
 
@@ -2516,7 +2519,8 @@ function initGameEngine() {
    weapon.add(setTF(box(.04,.11,.06,gm),[0,-.07,.11],[-.35,0,0]));
    const fs=setTF(box(.007,.018,.007,std({color:0x111111,emissive:0xffb400,emissiveIntensity:2},.2)),[0,.085,-.18]);
    addE(fs.material,2,true);weapon.add(fs);
-   weapon.traverse(o=>{if(o.isMesh)o.layers.set(2);});}
+   weapon.traverse(o=>{if(o.isMesh)o.layers.set(2);});
+   weapon.visible = false;}
 
   // MODELO 3D DE ESCOPETA EN PRIMERA PERSONA
   const shotgunGroup = new THREE.Group(); camera.add(shotgunGroup);
@@ -3068,15 +3072,13 @@ function initGameEngine() {
   const SOLDIER_GLB_URL = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/models/gltf/Soldier.glb';
   // cachedSoldierGLTF e isSoldierLoading declarados en cabecera de motor
   let localPlayerBodyGroup = null;
-  let camMode = 'fps'; // 'fps' | 'fps_body' | 'tps_back' | 'tps_front'
+  let camMode = 'fps'; // 'fps' | 'tps_back' | 'tps_front'
 
   function toggleCamMode(){
-    if(camMode === 'fps') camMode = 'fps_body';
-    else if(camMode === 'fps_body') camMode = 'tps_back';
+    if(camMode === 'fps') camMode = 'tps_back';
     else if(camMode === 'tps_back') camMode = 'tps_front';
     else camMode = 'fps';
-    const label = camMode === 'fps_body' ? '1ª PERSONA INMERSIVA (FULL BODY 3D)' :
-                  camMode === 'tps_back' ? '3ª PERSONA (POSTERIOR)' :
+    const label = camMode === 'tps_back' ? '3ª PERSONA (POSTERIOR)' :
                   camMode === 'tps_front' ? '3ª PERSONA (FRONTAL)' : '1ª PERSONA (FPS CLÁSICO)';
     feed('CÁMARA: ' + label, 'h');
     banner('CÁMARA', label, false, 1500);
@@ -5365,25 +5367,38 @@ function initGameEngine() {
       if(e.key==='Shift') keys['ShiftLeft']=isDown;
     }
   }
-  window.addEventListener('keydown',e=>{
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Escape' || e.key === 'Escape'){
+      if(isChatting){
+        e.preventDefault();
+        toggleChat(false);
+        if(playing) requestLock();
+        return;
+      }
+      if(playing){
+        e.preventDefault();
+        if(locked){ try{ document.exitPointerLock(); }catch(err){} }
+        else { requestLock(); }
+        return;
+      }
+    }
     updateKey(e, true);
-    if(e.code==='Space'&&playing)e.preventDefault();
-    if(e.code==='Tab'&&playing){e.preventDefault();if(e.shiftKey)toggleFireMode();else switchWeapon();}
-    if((e.code==='Digit1'||e.code==='Numpad1')&&playing)switchWeapon('gun');
-    if((e.code==='Digit2'||e.code==='Numpad2')&&playing)switchWeapon('shotgun');
-    if((e.code==='Digit3'||e.code==='Numpad3')&&playing)switchWeapon('fists');
+    if(e.code==='Space'&&playing&&!isChatting)e.preventDefault();
+    if(e.code==='Tab'&&playing&&!isChatting){e.preventDefault();if(e.shiftKey)toggleFireMode();else switchWeapon();}
+    if((e.code==='Digit1'||e.code==='Numpad1')&&playing&&!isChatting)switchWeapon('gun');
+    if((e.code==='Digit2'||e.code==='Numpad2')&&playing&&!isChatting)switchWeapon('shotgun');
+    if((e.code==='Digit3'||e.code==='Numpad3')&&playing&&!isChatting)switchWeapon('fists');
     if((e.code==='KeyC'||e.key==='c'||e.key==='C')&&playing&&!isChatting){
       e.preventDefault(); toggleCamMode();
     }
-    if((e.code==='KeyT'||e.key==='t'||e.key==='T') && playing){
-      e.preventDefault(); toggleChat(!isChatting); return;
+    if((e.code==='KeyT'||e.key==='t'||e.key==='T') && playing && !isChatting){
+      e.preventDefault(); toggleChat(true); return;
     }
 
     if((e.code==='KeyV'||e.key==='v'||e.key==='V') && playing && !isChatting){
       setPTTState(true);
     }
-    if((e.code==='KeyP'||e.code==='Escape')&&playing){
-      if(isChatting) { toggleChat(false); return; }
+    if((e.code==='KeyP')&&playing&&!isChatting){
       e.preventDefault();
       if(locked){ try{ document.exitPointerLock(); }catch(err){} }
       else { requestLock(); }
@@ -5713,8 +5728,11 @@ function initGameEngine() {
 
   function bindChatInputEvents(){
     const input = $('#chatInput');
+    const row = $('#chatInputRow');
+    const closeBtn = $('#chatCloseBtn');
     if(!input || input.dataset.bound) return;
     input.dataset.bound = 'true';
+
     input.addEventListener('keydown', e => {
       e.stopPropagation();
       if(e.key === 'Enter'){
@@ -5733,6 +5751,30 @@ function initGameEngine() {
         if(playing) requestLock();
       }
     });
+
+    if(closeBtn){
+      closeBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleChat(false);
+        if(playing) requestLock();
+      });
+    }
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        if(isChatting && document.activeElement !== input){
+          toggleChat(false);
+        }
+      }, 100);
+    });
+
+    document.addEventListener('pointerdown', e => {
+      if(isChatting && row && !row.contains(e.target)){
+        toggleChat(false);
+        if(playing) requestLock();
+      }
+    });
   }
 
   function toggleChat(show){
@@ -5741,13 +5783,15 @@ function initGameEngine() {
     const input = $('#chatInput');
     if(show){
       if(row) row.classList.add('open');
-      bindChatInputEvents(); if(input) { input.focus(); }
+      bindChatInputEvents();
+      if(input) { input.value = ''; input.focus(); }
       firing = false;
       for(const k in keys) keys[k] = false;
       if(document.pointerLockElement) { try{ document.exitPointerLock(); }catch(e){} }
     } else {
       if(row) row.classList.remove('open');
-      if(input) input.blur();
+      if(input) { input.blur(); }
+      isChatting = false;
     }
   }
 
@@ -5953,14 +5997,13 @@ function initGameEngine() {
 
   function updateRemotePlayers(dt){
     for(const [, rp] of Object.entries(remotePlayers)){
-      if(!rp || !rp.mesh) continue;
-      // FIX-3: Omitir interpolación hasta recibir primera posición real
-      if(!rp.posReceived || rp.x === null) continue;
+      if(!rp || !rp.mesh || !rp.mesh.position) continue;
+      if(!rp.posReceived || typeof rp.x !== 'number' || typeof rp.y !== 'number' || typeof rp.z !== 'number') continue;
 
       // Interpolación más suave en mobile (dt*8 vs dt*12)
       const lerpSpeed = dt * 9;
       const eyeH = rp.state === 'downed' ? 0.5 : rp.state === 'dead' ? 0.3 : 1.7;
-      const feetY = (rp.y ?? 1.7) - eyeH;
+      const feetY = rp.y - eyeH;
       rp.mesh.position.x = lerp(rp.mesh.position.x, rp.x, lerpSpeed);
       rp.mesh.position.y = lerp(rp.mesh.position.y, feetY, lerpSpeed);
       rp.mesh.position.z = lerp(rp.mesh.position.z, rp.z, lerpSpeed);
@@ -5968,43 +6011,45 @@ function initGameEngine() {
 
       const children = rp.mesh.children;
       // Inclinación vertical (pitch) de cabeza y torso
-      if(children && children.length >= 2){
+      if(children && children.length >= 2 && children[1] && children[1].rotation){
         const pitchVal = rp.pitch || 0;
         children[1].rotation.x = lerp(children[1].rotation.x, pitchVal * 0.7, lerpSpeed);
       }
 
       // Visibilidad y postura de fusil / puños / recarga / destello
-      if(children && children.length >= 7){
+      if(children && children.length >= 7 && children[6]){
         const rGun = children[6];
         rGun.visible = (rp.weapon !== 'fists');
         const rFlashSpr = rGun.children ? rGun.children[0] : null;
         const rFlashLight = rGun.children ? rGun.children[1] : null;
         if(rp.flashT > 0){
           rp.flashT -= dt;
-          if(rFlashSpr) { rFlashSpr.visible = true; rFlashSpr.material.rotation = Math.random() * 6.28; }
+          if(rFlashSpr && rFlashSpr.material) { rFlashSpr.visible = true; rFlashSpr.material.rotation = Math.random() * 6.28; }
           if(rFlashLight) rFlashLight.intensity = 45;
         } else {
           if(rFlashSpr) rFlashSpr.visible = false;
           if(rFlashLight) rFlashLight.intensity = 0;
         }
-        if(rp.reloading){
+        if(rp.reloading && children[3] && children[3].rotation && rGun.rotation){
           children[3].rotation.x = lerp(children[3].rotation.x, -1.2, dt * 10);
           rGun.rotation.x = lerp(rGun.rotation.x, -0.5, dt * 10);
-        } else {
+        } else if(children[3] && children[3].rotation && rGun.rotation){
           children[3].rotation.x = lerp(children[3].rotation.x, rp.shotAnim > 0 ? -1.3 : 0, dt * 12);
           rGun.rotation.x = lerp(rGun.rotation.x, rp.shotAnim > 0 ? -0.2 : 0, dt * 12);
         }
       }
 
-      if(rp.state === 'downed' || rp.state === 'dead'){
-        rp.mesh.rotation.x = lerp(rp.mesh.rotation.x, -1.4, dt * 6);
-      } else {
-        rp.mesh.rotation.x = lerp(rp.mesh.rotation.x, 0, dt * 6);
+      if(rp.mesh.rotation){
+        if(rp.state === 'downed' || rp.state === 'dead'){
+          rp.mesh.rotation.x = lerp(rp.mesh.rotation.x, -1.4, dt * 6);
+        } else {
+          rp.mesh.rotation.x = lerp(rp.mesh.rotation.x, 0, dt * 6);
+        }
       }
 
       if(rp.shotAnim > 0) rp.shotAnim -= dt;
       const legRot = Math.sin(performance.now() * 0.008) * 0.4;
-      if(children && children.length >= 6){
+      if(children && children.length >= 6 && children[4] && children[4].rotation && children[5] && children[5].rotation){
         children[4].rotation.x = legRot;
         children[5].rotation.x = -legRot;
       }
@@ -6024,12 +6069,12 @@ function initGameEngine() {
       if(sectorGroups[i]) sectorGroups[i].visible = d <= 2;
     }
     const sEl = $('#sectorId');
-    if(lightsReg && lightsReg.length && camera){
+    if(lightsReg && lightsReg.length && camera && camera.position){
       // Forward Light Budget Controller: ordenar y activar estrictamente las 4 luces más cercanas
       const candidateLights = [];
       for(let li = 0; li < lightsReg.length; li++){
         const l = lightsReg[li];
-        if(!l) continue;
+        if(!l || !l.position || typeof l.position.distanceTo !== 'function') continue;
         const distToCam = camera.position.distanceTo(l.position);
         if(distToCam < 16.0){
           candidateLights.push({ light: l, dist: distToCam });
@@ -6040,21 +6085,21 @@ function initGameEngine() {
       candidateLights.sort((a, b) => a.dist - b.dist);
       for(let i = 0; i < candidateLights.length; i++){
         const item = candidateLights[i];
-        if(i < MAX_ACTIVE_POINT_LIGHTS){
+        if(i < MAX_ACTIVE_POINT_LIGHTS && item.light){
           item.light.visible = true;
           const fade = clamp(1.0 - (item.dist - 7.0) / 9.0, 0.05, 1.0);
-          const base = item.light.userData.base || 1.0;
-          const k = (item.light.userData.k !== undefined) ? item.light.userData.k : 1.0;
+          const base = (item.light.userData && item.light.userData.base) ? item.light.userData.base : 1.0;
+          const k = (item.light.userData && item.light.userData.k !== undefined) ? item.light.userData.k : 1.0;
           item.light.intensity = base * k * fade;
-        } else {
+        } else if(item.light) {
           item.light.visible = false;
         }
       }
     }
-    if(glowReg && glowReg.length && camera){
+    if(glowReg && glowReg.length && camera && camera.position){
       for(let gi = 0; gi < glowReg.length; gi++){
         const g = glowReg[gi];
-        if(!g) continue;
+        if(!g || !g.position || typeof g.position.distanceTo !== 'function') continue;
         const dist = camera.position.distanceTo(g.position);
         g.visible = (dist < 16.0);
       }
@@ -7009,6 +7054,15 @@ function initGameEngine() {
       tracers.forEach(tr=>{tr.active=false;if(tr.m){tr.m.visible=false;tr.m.scale.set(0.0001,0.0001,0.0001);}});
     }
 
+    camMode = 'fps';
+    if(typeof flashlight !== 'undefined' && flashlight){
+      flashlight.visible = false;
+      flashlight.intensity = 0;
+    }
+    if(typeof keyLight !== 'undefined' && keyLight){
+      keyLight.intensity = 0;
+    }
+
     playerState='alive';downTimer=0;
     $('#relBar').classList.remove('on');$('#relTxt').textContent='';$('#feed').innerHTML='';
     $('#downedHud').classList.remove('show');$('#paused').classList.remove('show');
@@ -7592,7 +7646,7 @@ function initGameEngine() {
       
       updateTracers(dt);
       for(const p of parts){
-        if(p && p.life > 0){
+        if(p && p.m && p.m.position && p.v && p.life > 0){
           p.life -= dt; p.v.y -= 9 * dt;
           p.m.position.addScaledVector(p.v, dt);
           if(p.m.position.y < .02){ p.m.position.y = .02; p.v.multiplyScalar(.3); }
@@ -7720,20 +7774,7 @@ function initGameEngine() {
         const _origCamRotY = camera.rotation.y;
         const _origCamRotX = camera.rotation.x;
 
-        if(camMode === 'fps_body' && playing){
-          if(camera.near !== 0.05){ camera.near = 0.05; camera.updateProjectionMatrix(); }
-          if(localPlayerBodyGroup){
-            localPlayerBodyGroup.visible = true;
-            if(localPlayerBodyGroup.userData && localPlayerBodyGroup.userData.headBone && playerState === 'alive'){
-              localPlayerBodyGroup.userData.headBone.getWorldPosition(_vHead);
-              _vHead.y = Math.max(getFloorY(_vHead.x, _vHead.z) + 1.52, _vHead.y);
-              camera.position.copy(_vHead);
-            }
-          }
-          if(weapon) weapon.visible = false;
-          if(shotgunGroup) shotgunGroup.visible = false;
-          if(fistsGroup) fistsGroup.visible = false;
-        } else if(camMode === 'tps_back' || camMode === 'tps_front'){
+        if(camMode === 'tps_back' || camMode === 'tps_front'){
           if(camera.near !== 0.1){ camera.near = 0.1; camera.updateProjectionMatrix(); }
           if(localPlayerBodyGroup) localPlayerBodyGroup.visible = (playing);
           if(weapon) weapon.visible = false;
