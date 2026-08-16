@@ -171,10 +171,7 @@ font-size:16px;color:var(--amber);opacity:0;transition:opacity .2s;text-shadow:0
 #downedHud h3{font-family:var(--disp);font-size:28px;color:var(--red)}
 #downedHud p{font-size:11px;color:var(--dim);margin-top:6px}
 #downedHud .dt{font-size:42px;font-weight:600;color:var(--paper);margin-top:8px}
-#breakerWarn{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:12;font-size:10px;
-letter-spacing:.3em;color:var(--red);opacity:0;transition:opacity .5s;pointer-events:none}
-#breakerWarn.show{opacity:1;animation:bp 1.5s infinite}
-@keyframes bp{0%,100%{opacity:.4}50%{opacity:1}}
+#breakerWarn{display:none !important}
 #netStatus{position:absolute;top:6px;right:170px;font-size:8px;letter-spacing:.2em;
 color:var(--dim);padding:3px 8px;background:#0d1116cc;border-radius:3px}
 #netStatus.ok{color:var(--green)}
@@ -1906,16 +1903,16 @@ function initGameEngine() {
     createStairs(6, 4, mezzH, 6, -mezzW / 2 - 2, 0, Math.PI / 2);
     createStairs(6, 4, mezzH, 6,  mezzW / 2 + 2, 0, -Math.PI / 2);
 
-    // 4. PANTALLA CENTRAL LED SUSPENDIDA DE HORARIOS (DEPARTURES / ARRIVALS)
+    // 4. PANTALLA CENTRAL LED SUSPENDIDA DE HORARIOS (ELEVADA EN CÚPULA - COTA Y = 8.8m - PASO 100% DESPEJADO)
     const ledInfoMat = std({map: mk(T.led), emissiveMap: mk(T.led), emissive: 0xffffff, emissiveIntensity: 2.4, roughness: .2}, .3);
     addE(ledInfoMat, 2.4, true);
     const infoBoard = box(8.5, 2.4, 0.6, ledInfoMat);
-    infoBoard.position.set(0, 4.8, 0);
+    infoBoard.position.set(0, 8.8, 0);
     g.add(infoBoard);
     const cableMat = std({color: 0x111317, metalness: 0.9, roughness: 0.2});
     for(let cx of [-3.8, 3.8]){
-      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 5.4, 6), cableMat);
-      cable.position.set(cx, 7.5, 0); g.add(cable);
+      const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 4.8, 6), cableMat);
+      cable.position.set(cx, 11.2, 0); g.add(cable);
     }
 
     // 5. QUIOSCOS Y PUESTOS DE INFORMACIÓN (SIN INTERFERENCIA EN PASILLOS)
@@ -1998,13 +1995,15 @@ function initGameEngine() {
       g.add(ribGroup);
     }
 
-    // 7. ILUMINACIÓN CENITAL CÁLIDA MASTER (4 LÁMPARAS COLGANTES CALIBRADAS PARA ALTO RENDIMIENTO)
+    // 7. ILUMINACIÓN CENITAL CÁLIDA MASTER (LÁMPARAS CENITALES DEL CONCOURSE CENTRAL CON CICLO DE FALLA Y SOBRETENSIÓN)
+    window.centralStationLights = [];
     for(let lx of [-16, 16]){
       for(let lz of [-6, 6]){
-        const cLight = new THREE.PointLight(0xffeedd, 1.1, 10, 2.0);
+        const cLight = new THREE.PointLight(0xffeedd, 1.4, 14, 2.0);
         cLight.position.set(lx, 6.2, lz);
         g.add(cLight);
-        addL(cLight, 1.1);
+        addL(cLight, 1.4);
+        window.centralStationLights.push({ light: cLight, base: 1.4, origColor: 0xffeedd });
 
         const spotGlow = new THREE.Sprite(new THREE.SpriteMaterial({
           map: mk(T.glow), color: 0xffeedd, transparent: true, blending: THREE.AdditiveBlending, opacity: 0.25
@@ -2296,7 +2295,7 @@ function initGameEngine() {
   buildSteamSystems();
   
   function updateStationFX(dt,time){
-    // Vapor ascendente con Culling por Proximidad (<25m de cámara)
+    // 1. Vapor ascendente con Culling por Proximidad (<25m de cámara)
     if(!camera) return;
     const cPos = camera.position;
     for(const ss of steamSystems){
@@ -2314,6 +2313,55 @@ function initGameEngine() {
       }
       ss.points.geometry.attributes.position.needsUpdate=true;
       ss.points.material.opacity=0.08+0.15*Math.sin(time*0.3+ss.speed);
+    }
+
+    // 2. Patrón Atmosférico de Iluminación Central: Sobretensión, Falla por Arco Eléctrico y Apagón
+    const cycleT = (time % 28.0);
+    let centerMul = 1.0;
+    let isFlicker = false;
+    let flickerColor = 0xffeedd;
+
+    if(cycleT < 14.0){
+      // Fase 1: Iluminación estable con sutil vibración de línea (100% nominal)
+      centerMul = 0.96 + Math.sin(time * 2.2) * 0.06;
+    } else if(cycleT < 18.0){
+      // Fase 2: Sobretensión / Surge luminoso en el centro (enciende con intensidad 140%)
+      const surgeP = (cycleT - 14.0) / 4.0;
+      centerMul = 1.05 + Math.sin(surgeP * Math.PI) * 0.45;
+      flickerColor = 0xfffae8;
+    } else if(cycleT < 21.5){
+      // Fase 3: Falla de relé / Brownout errático (luces parpadean y caen)
+      isFlicker = true;
+      const noise = Math.sin(time * 52.0) * Math.cos(time * 29.0);
+      if(noise > 0.22){
+        centerMul = 0.85 + Math.random() * 0.4;
+        flickerColor = 0xffe0a0;
+      } else if(noise > -0.25){
+        centerMul = 0.12 + Math.random() * 0.18;
+        flickerColor = 0xff5511; // Destellos anaranjados de arco
+      } else {
+        centerMul = 0.01; // Micro corte a oscuras
+      }
+    } else {
+      // Fase 4: Apagón / Emergencia tenue en recuperación gradual
+      const recP = (cycleT - 21.5) / 6.5;
+      centerMul = 0.18 + recP * 0.78;
+      flickerColor = 0xffaa55;
+    }
+
+    if(window.centralStationLights && window.centralStationLights.length){
+      for(let ci = 0; ci < window.centralStationLights.length; ci++){
+        const cl = window.centralStationLights[ci];
+        if(cl && cl.light){
+          const regK = (cl.light.userData && cl.light.userData.k !== undefined) ? cl.light.userData.k : 1.0;
+          cl.light.intensity = cl.base * regK * centerMul;
+          if(isFlicker || cycleT >= 18.0){
+            cl.light.color.setHex(flickerColor);
+          } else {
+            cl.light.color.setHex(cl.origColor || 0xffeedd);
+          }
+        }
+      }
     }
   }
   
@@ -2337,7 +2385,6 @@ function initGameEngine() {
       brEl.value = Math.round(v);
       brEl.style.setProperty('--p', v + '%');
     }
-    $('#breakerWarn').classList.toggle('show', B < .38 && playing);
     updateBreakerHysteresis(v);
   }
 
@@ -3654,11 +3701,11 @@ function initGameEngine() {
           // Modificadores de especialización táctica individual por bot
           if (bot.role === 'marksman') {
             if (z.type === 'runner' || z.type.includes('stalker')) threat *= 2.4;
-            if (d > 8.0) threat *= 1.35;
+            if (dist > 8.0) threat *= 1.35;
           } else if (bot.role === 'heavy' || bot.role === 'anchor') {
             if (z.type.includes('juggernaut') || z.type.includes('rockhurler') || z.type === 'brute') threat *= 2.8;
           } else if (bot.role === 'flanker') {
-            if (d < 7.0) threat *= 1.75;
+            if (dist < 7.0) threat *= 1.75;
           }
 
           // ── COBERTURA POR SECTOR: rebanada de 120° por bot (VEGA izq, RUIZ frente, KIDO der) ──
@@ -8255,7 +8302,6 @@ function initGameEngine() {
             const brkDecay=(0.5+wave*0.06)*dt;
             B=Math.max(5,B-brkDecay);
             applyBrightness(B);
-            if(B<30&&Math.random()<dt*0.3)feed('⚠ ENERGÍA BAJA — REACTIVA LOS BREAKERS','k');
           }
 
           updateImpacts(dt);

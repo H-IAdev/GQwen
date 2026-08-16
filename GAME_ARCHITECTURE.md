@@ -192,3 +192,10 @@ Full mesh peer-to-peer data synchronization over WebRTC Data Channels using comp
 - Activated and restored special attack routines: Rock Hurler projectile charge/throw and grab, Juggernaut and Mini Juggernaut linear seismic charge with wall impact damage, and Shadow Stalker / Mini Stalker *Shadow Warp* flank teleportation.
 - Certified 100% test pass on damage hitscan, array slot splicing, and real browser WebGL runtime loops.
 
+### Milestone 44 — Dynamic Central Station Lighting Surge, Sign Elevation & Resilience Fix (Phase 16)
+- Resolved `[Resilience Notice - ZombiesAI]: d is not defined` bug in bot threat evaluation by replacing undeclared identifier `d` with `dist`.
+- Elevated central LED departures signboard (`infoBoard`) from $y=4.8\text{m}$ to $y=8.8\text{m}$ into the soaring dome apex, clearing 100% of the mezzanine platform walking space.
+- Implemented cinematic 28-second central lighting cycle: Nominal Voltage $\rightarrow$ Power Surge ($140\%$) $\rightarrow$ Arc-Fault Brownout / Flickering $\rightarrow$ Low Voltage Emergency Recovery.
+- Completely removed HUD breaker warnings and speed buff notification banners (`#breakerWarn`).
+
+
