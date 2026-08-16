@@ -2944,122 +2944,146 @@ function initGameEngine() {
   /* ===== CANALIZACIÓN CDN PARA MODELOS DE ZOMBI Y ENTRADA EXTERNA ===== */
 
 
-  const CDN_ZOMBIE_URLS = [
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Basic.gltf',
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Chubby.gltf',
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Ribcage.gltf',
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Arm.gltf',
-    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb',
-    'src/ZombieKit2024/Characters/glTF/Zombie_Basic.gltf',
-    'src/ZombieKit2024/Characters/glTF/Zombie_Chubby.gltf',
-    'src/ZombieKit2024/Characters/glTF/Zombie_Ribcage.gltf',
-    'src/ZombieKit2024/Characters/glTF/Zombie_Arm.gltf',
-    'src/3dmodels/skeleton_-_lowpoly_character.glb',
-    'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/BrainStem/glTF-Binary/BrainStem.glb'
-  ];
+  const ZOMBIE_MODEL_DEFS = {
+    basic: {
+      name: 'Common Zombie',
+      urls: [
+        'src/ZombieKit2024/Characters/glTF/Zombie_Basic.gltf',
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Basic.gltf',
+        'src/3dmodels/skeleton_-_lowpoly_character.glb',
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
+      ]
+    },
+    chubby: {
+      name: 'Juggernaut Boss',
+      urls: [
+        'src/ZombieKit2024/Characters/glTF/Zombie_Chubby.gltf',
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Chubby.gltf'
+      ]
+    },
+    ribcage: {
+      name: 'Stalker Boss',
+      urls: [
+        'src/ZombieKit2024/Characters/glTF/Zombie_Ribcage.gltf',
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Ribcage.gltf'
+      ]
+    },
+    arm: {
+      name: 'Rock Hurler Boss',
+      urls: [
+        'src/ZombieKit2024/Characters/glTF/Zombie_Arm.gltf',
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Arm.gltf'
+      ]
+    }
+  };
 
+  const CACHED_ZOMBIE_MODELS = {
+    basic: null,
+    chubby: null,
+    ribcage: null,
+    arm: null
+  };
 
-  // cachedZombieGLTF e isZombieGLTFLoading declarados en cabecera de motor
-
-
-  function applyGLTFToZombiePool(gltf){
+  function applyModelCategoryToZombiePool(catKey, gltf){
     if(!gltf || !gltf.scene || !ZOMBIE_POOL || ZOMBIE_POOL.length === 0) return;
+    CACHED_ZOMBIE_MODELS[catKey] = gltf;
     const srcScene = gltf.scene;
     for(const slot of ZOMBIE_POOL){
-      if(slot && slot.detailG){
-        try {
-          if(slot.mountAnchor){
-            while(slot.mountAnchor.children.length > 0) slot.mountAnchor.remove(slot.mountAnchor.children[0]);
-          }
-          const zClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
-            ? THREE.SkeletonUtils.clone(srcScene)
-            : srcScene.clone(true);
+      if(!slot || !slot.detailG) continue;
+      try {
+        if(!slot.gltfModels) slot.gltfModels = {};
+        if(!slot.mixers) slot.mixers = {};
+        if(!slot.actionsMap) slot.actionsMap = {};
 
-          normalizeModel(zClone, 1.8);
-          slot.gltfMesh = zClone;
-          zClone.visible = false;
-          if(slot.mountAnchor) slot.mountAnchor.add(zClone);
-          else slot.detailG.add(zClone);
+        if(slot.gltfModels[catKey] && slot.mountAnchor){
+          slot.mountAnchor.remove(slot.gltfModels[catKey]);
+        }
 
-          if(gltf.animations && gltf.animations.length > 0){
-            slot.mixer = new THREE.AnimationMixer(zClone);
-            slot.actions = mapGLTFAnimationClips(gltf.animations, slot.mixer);
-            const walkAction = slot.actions['Walk'] || slot.actions['Run'] || slot.actions['Idle'] || (gltf.animations[0] ? slot.mixer.clipAction(gltf.animations[0]) : null);
-            if (walkAction) {
-              walkAction.play();
-              slot.activeAction = walkAction._clip ? walkAction._clip.name : 'Walk';
+        const zClone = (typeof THREE.SkeletonUtils !== 'undefined' && THREE.SkeletonUtils.clone)
+          ? THREE.SkeletonUtils.clone(srcScene)
+          : srcScene.clone(true);
+
+        const targetH = (catKey === 'chubby') ? 2.3 : (catKey === 'arm') ? 2.1 : (catKey === 'ribcage') ? 1.9 : 1.8;
+        normalizeModel(zClone, targetH);
+        zClone.visible = false;
+
+        if(slot.mountAnchor) slot.mountAnchor.add(zClone);
+        else slot.detailG.add(zClone);
+
+        slot.gltfModels[catKey] = zClone;
+
+        if(gltf.animations && gltf.animations.length > 0){
+          const mixer = new THREE.AnimationMixer(zClone);
+          const acts = mapGLTFAnimationClips(gltf.animations, mixer);
+          const walkAct = acts['Walk'] || acts['Run'] || acts['Idle'] || (gltf.animations[0] ? mixer.clipAction(gltf.animations[0]) : null);
+          if(walkAct) walkAct.play();
+          slot.mixers[catKey] = mixer;
+          slot.actionsMap[catKey] = acts;
+        }
+
+        zClone.traverse(c => {
+          if(c.isMesh){
+            c.userData.z = slot;
+            c.castShadow = true;
+            c.frustumCulled = false;
+            const name = (c.name || '').toLowerCase();
+            const box = new THREE.Box3().setFromObject(c);
+            if(name.includes('head') || box.min.y > 1.25){
+              c.userData.part = 'head';
+            } else if(name.includes('leg') || name.includes('thigh') || name.includes('foot') || box.max.y < 0.65){
+              c.userData.part = (box.min.x > 0) ? 'legR' : 'legL';
+            } else if(name.includes('arm') || name.includes('hand') || name.includes('shoulder')){
+              c.userData.part = (box.min.x > 0) ? 'armR' : 'armL';
+            } else {
+              c.userData.part = 'torso';
             }
           }
+        });
 
-
-          // Registrar sub-meshes en hitboxes para disparos y raycast con etiquetado anatómico
-          zClone.traverse(c => {
-            if(c.isMesh){
-              c.userData.z = slot;
-              c.castShadow = true;
-              c.frustumCulled = false;
-              const name = (c.name || '').toLowerCase();
-              const box = new THREE.Box3().setFromObject(c);
-              if(name.includes('head') || box.min.y > 1.25){
-                c.userData.part = 'head';
-              } else if(name.includes('leg') || name.includes('thigh') || name.includes('foot') || box.max.y < 0.65){
-                c.userData.part = (box.min.x > 0) ? 'legR' : 'legL';
-              } else if(name.includes('arm') || name.includes('hand') || name.includes('shoulder')){
-                c.userData.part = (box.min.x > 0) ? 'armR' : 'armL';
-              } else {
-                c.userData.part = 'torso';
-              }
-            }
-          });
-
-
-          // Re-aplicar visibilidad de tipo de zombie inmediatamente para slots activos
-          if(slot.active && slot.type){
-            applyZombieType(slot, slot.type);
-          }
-        } catch(e){}
-      }
+        if(slot.active && slot.type){
+          applyZombieType(slot, slot.type);
+        }
+      } catch(e){}
     }
   }
 
-
-
+  function applyGLTFToZombiePool(gltf){
+    applyModelCategoryToZombiePool('basic', gltf);
+  }
 
   function loadZombieGLTFAssets(customUrl = null){
-    if(cachedZombieGLTF && !customUrl){
-      applyGLTFToZombiePool(cachedZombieGLTF);
-      return;
-    }
-    if(isZombieGLTFLoading) return;
     const loader = getCDNLoader();
     if(!loader) return;
-
     const isFile = window.location.protocol === 'file:';
-    let rawList = customUrl ? [customUrl, ...CDN_ZOMBIE_URLS] : CDN_ZOMBIE_URLS;
-    // Si se ejecuta desde el protocolo file://, omitir rutas relativas locales (src/...) para evitar ruido de CORS en la consola del navegador
-    if(isFile){
-      rawList = rawList.filter(u => u.startsWith('http://') || u.startsWith('https://'));
+
+    if(customUrl){
+      loader.load(customUrl, (gltf) => {
+        applyModelCategoryToZombiePool('basic', gltf);
+        logDiag('✓ Modelo GLTF personalizado inyectado: ' + customUrl.split('/').pop(), 'ok');
+      }, undefined, () => {});
+      return;
     }
 
-    isZombieGLTFLoading = true;
-
-    (function attempt(idx){
-      if(idx >= rawList.length){
-        isZombieGLTFLoading = false;
-        logDiag('Malla 3D externa no alcanzada (ejecutando motor procedural resiliente).', 'info');
+    Object.entries(ZOMBIE_MODEL_DEFS).forEach(([catKey, def]) => {
+      if(CACHED_ZOMBIE_MODELS[catKey]) {
+        applyModelCategoryToZombiePool(catKey, CACHED_ZOMBIE_MODELS[catKey]);
         return;
       }
-      const targetUrl = rawList[idx];
-      loader.load(targetUrl, (gltf) => {
-        cachedZombieGLTF = gltf;
-        isZombieGLTFLoading = false;
-        logDiag('✓ Modelo GLTF 3D cargado exitosamente: ' + targetUrl.split('/').pop(), 'ok');
-        applyGLTFToZombiePool(gltf);
-      }, undefined, (err) => {
-        logDiag('Modelo 3D (' + (targetUrl.split('/').pop() || 'GLTF') + ') no disponible (CORS/404), evaluando alternativa...', 'info');
-        attempt(idx + 1);
-      });
-    })(0);
+      let urls = [...def.urls];
+      if(isFile){
+        urls = [...def.urls.filter(u => u.startsWith('src/')), ...def.urls.filter(u => u.startsWith('http'))];
+      }
+      (function tryUrl(idx){
+        if(idx >= urls.length) return;
+        const targetUrl = urls[idx];
+        loader.load(targetUrl, (gltf) => {
+          logDiag('✓ Modelo 3D activo (' + def.name + '): ' + targetUrl.split('/').pop(), 'ok');
+          applyModelCategoryToZombiePool(catKey, gltf);
+        }, undefined, () => {
+          tryUrl(idx + 1);
+        });
+      })(0);
+    });
   }
 
 
@@ -4050,7 +4074,8 @@ function initGameEngine() {
     const defCloth=std({color:0x3a3f46,roughness:.95},.08).clone();
     const defDark=std({color:0x111317,roughness:.9},.08);
     const mkMesh=(geo,mat)=>{const b=new THREE.Mesh(geo,mat);b.castShadow=true;return b;};
-    // Ambos torsos (normal + juggernaut). Juggernaut empieza oculto.
+
+    // Torsos (normal + juggernaut)
     const torso=mkMesh(GEO_POOL.torso,defCloth);torso.position.y=1.02;g.add(torso);
     const torJug=mkMesh(GEO_POOL.torJug,defCloth);torJug.position.y=1.02;torJug.visible=false;g.add(torJug);
     const coreJug=mkMesh(GEO_POOL.core,CORE_NEON);coreJug.position.set(0,1.02,.08);
@@ -4067,7 +4092,7 @@ function initGameEngine() {
       p.visible=false;g.add(p);pauldrons.push(p);
     });
 
-    // Dos pares de ojos (normal + boss), boss oculto
+    // Ojos (normal + boss)
     const eyes=[],eyeB=[];
     [-1,1].forEach(s=>{
       const e=new THREE.Mesh(GEO_POOL.eye,EYE_M);e.position.set(s*.06,1.53,.12);
@@ -4075,7 +4100,8 @@ function initGameEngine() {
       const eb=new THREE.Mesh(GEO_POOL.eyeB,EYE_M);eb.position.set(s*.06,1.53,.12);
       eb.layers.set(2);eb.visible=false;g.add(eb);eyeB.push(eb);
     });
-    // Extremidades procedimentales simplificadas (1 sola sub-malla por extremidad)
+
+    // Extremidades procedurales
     function arm(s){
       const p=new THREE.Group();p.position.set(s*.3,1.28,0);g.add(p);
       const cyl=mkMesh(GEO_POOL.armCyl,defSkin);cyl.position.y=-.17;p.add(cyl);
@@ -4090,12 +4116,12 @@ function initGameEngine() {
 
     const aL=arm(-1),aR=arm(1),lL=leg(-1),lR=leg(1);
 
-    // Apéndices de Shadow Stalker (Cuchillas de hueso en antebrazos y cresta craneal)
+    // Apéndices de Stalker
     const bladeL=mkMesh(GEO_POOL.blade,defDark);bladeL.position.set(0,-.28,.14);bladeL.rotation.x=Math.PI*.45;bladeL.visible=false;aL.p.add(bladeL);
     const bladeR=mkMesh(GEO_POOL.blade,defDark);bladeR.position.set(0,-.28,.14);bladeR.rotation.x=Math.PI*.45;bladeR.visible=false;aR.p.add(bladeR);
     const crest=mkMesh(GEO_POOL.crest,defDark);crest.position.set(0,1.62,-.05);crest.visible=false;g.add(crest);
 
-    // Apéndices de Rock Hurler / Stone Hurler (Hombreras de roca, Puño triturador y Núcleo de magma)
+    // Apéndices de Rock Hurler
     const stoneShoulders=[];
     [-1,1].forEach(s=>{
       const ss=mkMesh(GEO_POOL.stoneShoulder,defCloth);ss.position.set(s*.34,1.32,0);ss.visible=false;g.add(ss);stoneShoulders.push(ss);
@@ -4104,17 +4130,26 @@ function initGameEngine() {
     const magmaMat=std({color:0xff4400,emissive:0xff5500,emissiveIntensity:4.5},.2);
     const magmaCore=mkMesh(GEO_POOL.magmaCore,magmaMat);magmaCore.position.set(0,1.05,.09);magmaCore.layers.set(2);magmaCore.visible=false;g.add(magmaCore);
 
-    // Aura Stalker (siempre en la escena, oculta por defecto)
+    // Roca pre-ensamblada para carga de Rock Hurler (Zero-GC)
+    const chargeRock = mkMesh(new THREE.OctahedronGeometry(.3, 0), std({color:0x8b5c2a,roughness:.95,metalness:.05,emissive:0xff5500,emissiveIntensity:0.2},.1));
+    chargeRock.position.set(.34, 1.35, .2);
+    chargeRock.scale.setScalar(0.7);
+    chargeRock.visible = false;
+    g.add(chargeRock);
+
+    // Aura Stalker
     const aura=new THREE.PointLight(0xff00cc,0,6,1.8);
     aura.position.set(0,1.2,0);aura.visible=false;g.add(aura);
-    // LOD completo + simplificado
+
+    // LOD
     const lod=new THREE.LOD();
     lod.addLevel(g,0);
     const lo=new THREE.Group();
     const loBody=mkMesh(GEO_POOL.loBody,defCloth);loBody.position.y=1.0;lo.add(loBody);
     const loHead=mkMesh(GEO_POOL.loHead,defSkin);loHead.position.y=1.5;lo.add(loHead);
     lod.addLevel(lo,45);
-    // Hitboxes: etiquetado detallado para Gore Físico Táctico
+
+    // Hitboxes
     g.traverse(c=>{if(c.isMesh){c.userData.part='torso';c.userData.z=null;}});
     head.userData.part='head'; jaw.userData.part='head';
     if(aL.f) aL.f.userData.part='armL';
@@ -4122,12 +4157,13 @@ function initGameEngine() {
     if(lL.s) lL.s.userData.part='legL';
     if(lR.s) lR.s.userData.part='legR';
 
-    // Guardar TODAS las referencias en el slot
+    // Guardar referencias en slot
     slot.g=lod;slot.detailG=g;slot.mountAnchor=mountAnchor;
     slot.torso=torso;slot.torJugMesh=torJug;slot.coreMesh=coreJug;
     slot.horns=horns;slot.pauldrons=pauldrons;
     slot.bladeL=bladeL;slot.bladeR=bladeR;slot.crest=crest;
     slot.stoneShoulders=stoneShoulders;slot.stoneFist=stoneFist;slot.magmaCore=magmaCore;
+    slot.chargeRockMesh=chargeRock;
     slot.head=head;slot.jaw=jaw;slot.eyes=eyes;slot.eyeB=eyeB;
     slot.aL=aL;slot.aR=aR;slot.lL=lL;slot.lR=lR;
     slot.loBody=loBody;slot.loHead=loHead;slot.aura=aura;
@@ -4156,6 +4192,7 @@ function initGameEngine() {
   const _instPos=new THREE.Vector3();
   const _instScl=new THREE.Vector3();
   const _instZero=new THREE.Vector3(0,0,0);
+
   function acquireZombieSlot(){
     for(const s of ZOMBIE_POOL){if(!s.active){s.active=true;return s;}}
     return null;
@@ -4164,63 +4201,86 @@ function initGameEngine() {
     if(!z||!z.slot)return;
     z.active=false;
     if(z.g){z.g.visible=false;z.g.position.set(0,-99,0);}
-    if(z.chargeRockMesh){scene.remove(z.chargeRockMesh);z.chargeRockMesh=null;}
+    if(z.chargeRockMesh){z.chargeRockMesh.visible=false;}
     if(z.grabbed){z.grabbed.grabbed=false;z.grabbed=null;}
     z.frustumHidden=false;z.spawning=false;z.isThrown=false;z.grabVictim=null;
   }
-  /* Intercambiar materiales en un slot pre-construido según el tipo de zombie */
-  /* Intercambiar materiales en un slot pre-construido según el tipo de zombie */
+
+  /* Intercambiar materiales y mallas 3D en un slot según el tipo de zombie */
   function applyZombieType(slot,type){
     const isJuggernaut = type === 'boss_juggernaut' || type === 'mini_juggernaut';
     const isStalker = type === 'boss_stalker' || type === 'mini_stalker';
     const isRockHurler = type === 'boss_rockhurler' || type === 'mini_rockhurler';
     const isBoss = isJuggernaut || isStalker || isRockHurler;
+
+    const catKey = isJuggernaut ? 'chubby' : isStalker ? 'ribcage' : isRockHurler ? 'arm' : 'basic';
+    const hasGLTF = !!(slot.gltfModels && slot.gltfModels[catKey]);
+    const useGLTF = hasGLTF;
+
+    // 1. Conmutar visibilidad de modelos GLTF en el mountAnchor
+    if(slot.gltfModels){
+      Object.entries(slot.gltfModels).forEach(([k, m]) => {
+        if(m) m.visible = (k === catKey && useGLTF);
+      });
+    }
+
+    // 2. Conectar AnimationMixer y Clips para el modelo activo
+    if(useGLTF && slot.mixers && slot.mixers[catKey]){
+      slot.mixer = slot.mixers[catKey];
+      slot.actions = slot.actionsMap[catKey] || {};
+      const walkAct = slot.actions['Walk'] || slot.actions['Run'] || slot.actions['Idle'];
+      if(walkAct){
+        walkAct.reset().play();
+        slot.activeAction = walkAct._clip ? walkAct._clip.name : 'Walk';
+      }
+    }
+
+    // 3. Si hay modelo GLTF activo, ocultar la anatomía procedural base
+    slot.torso.visible = !useGLTF && !isJuggernaut;
+    slot.head.visible = !useGLTF;
+    if(slot.jaw) slot.jaw.visible = !useGLTF;
+    if(slot.aL && slot.aL.p) slot.aL.p.visible = !useGLTF;
+    if(slot.aR && slot.aR.p) slot.aR.p.visible = !useGLTF;
+    if(slot.lL && slot.lL.p) slot.lL.p.visible = !useGLTF;
+    if(slot.lR && slot.lR.p) slot.lR.p.visible = !useGLTF;
+
+    // 4. Componentes y efectos de Juggernaut (cuernos, hombreras y núcleo neón)
+    slot.torJugMesh.visible = isJuggernaut && !useGLTF;
+    slot.coreMesh.visible = isJuggernaut;
+    if(slot.horns) slot.horns.forEach(h => { h.visible = isJuggernaut; });
+    if(slot.pauldrons) slot.pauldrons.forEach(p => { p.visible = isJuggernaut && !useGLTF; });
+
+    // 5. Componentes y efectos de Stalker (cuchillas de hueso, cresta y aura)
+    if(slot.bladeL) slot.bladeL.visible = isStalker && !useGLTF;
+    if(slot.bladeR) slot.bladeR.visible = isStalker && !useGLTF;
+    if(slot.crest) slot.crest.visible = isStalker;
+    slot.aura.visible = isStalker;
+
+    // 6. Componentes y efectos de Rock Hurler (hombreras de roca, puño y núcleo de magma)
+    if(slot.stoneShoulders) slot.stoneShoulders.forEach(s => { s.visible = isRockHurler && !useGLTF; });
+    if(slot.stoneFist) slot.stoneFist.visible = isRockHurler && !useGLTF;
+    if(slot.magmaCore) slot.magmaCore.visible = isRockHurler;
+
+    const useBossEyes=isBoss;
+    const eyeMat=isJuggernaut?EYE_BOSS_GREEN:isStalker?EYE_BOSS_PURPLE:EYE_M;
+    slot.eyes.forEach(e=>{e.visible=!useBossEyes && !useGLTF;e.material=eyeMat;});
+    slot.eyeB.forEach(e=>{e.visible=useBossEyes && !useGLTF;e.material=eyeMat;});
+
+    // 7. Materiales procedurales (Swap por referencia para fallback)
     const skinColor=isJuggernaut?0x0c120e:isStalker?0x2e0828:isRockHurler?0x38322c:pick(SKINS);
     const clothColor=isJuggernaut?0x05070a:isStalker?0x180516:isRockHurler?0x1c1714:pick(CLOTH);
     const newSkin=std({color:skinColor,roughness:.8},.1);
     const newCloth=std({color:clothColor,roughness:.95},.08).clone();
     const newDark=std({color:0x111317,roughness:.9},.08);
-    // Recorrer TODOS los meshes del grupo detallado y swap materiales por referencia
+
     slot.detailG.traverse(c=>{
       if(!c.isMesh)return;
       if(c.material===slot.skin)c.material=newSkin;
       else if(c.material===slot.clothM)c.material=newCloth;
       else if(c.material===slot.dark)c.material=newDark;
     });
-    // LOD simplificado
     slot.loBody.material=newCloth;
     slot.loHead.material=newSkin;
-    // Visibilidad 100% garantizada de piezas anatómicas 3D
-    slot.torso.visible = !isJuggernaut;
-    slot.head.visible = true;
-    if(slot.jaw) slot.jaw.visible = true;
-    if(slot.aL && slot.aL.p) slot.aL.p.visible = true;
-    if(slot.aR && slot.aR.p) slot.aR.p.visible = true;
-    if(slot.lL && slot.lL.p) slot.lL.p.visible = true;
-    if(slot.lR && slot.lR.p) slot.lR.p.visible = true;
-
-    // 1. Juggernaut 3D Components
-    slot.torJugMesh.visible = isJuggernaut;
-    slot.coreMesh.visible = isJuggernaut;
-    if(slot.horns) slot.horns.forEach(h => { h.visible = isJuggernaut; });
-    if(slot.pauldrons) slot.pauldrons.forEach(p => { p.visible = isJuggernaut; });
-
-    // 2. Stalker 3D Components
-    if(slot.bladeL) slot.bladeL.visible = isStalker;
-    if(slot.bladeR) slot.bladeR.visible = isStalker;
-    if(slot.crest) slot.crest.visible = isStalker;
-    slot.aura.visible = isStalker;
-
-    // 3. Rock Hurler 3D Components
-    if(slot.stoneShoulders) slot.stoneShoulders.forEach(s => { s.visible = isRockHurler; });
-    if(slot.stoneFist) slot.stoneFist.visible = isRockHurler;
-    if(slot.magmaCore) slot.magmaCore.visible = isRockHurler;
-
-    const useBossEyes=isJuggernaut||isStalker||isRockHurler;
-    const eyeMat=isJuggernaut?EYE_BOSS_GREEN:isStalker?EYE_BOSS_PURPLE:EYE_M;
-    slot.eyes.forEach(e=>{e.visible=!useBossEyes;e.material=eyeMat;});
-    slot.eyeB.forEach(e=>{e.visible=useBossEyes;e.material=eyeMat;});
-    // Actualizar referencias de materiales en el slot
     slot.skin=newSkin;slot.clothM=newCloth;slot.dark=newDark;
 
     slot.type=type;
@@ -4771,14 +4831,24 @@ function initGameEngine() {
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
         if(z.actions && z.actions['Punch'] && z.activeAction !== 'Punch' && !z.isBiting){
           if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.15);
+          const punchClip = z.actions['Punch'].getClip();
+          const punchDur = (punchClip && punchClip.duration) ? punchClip.duration : 1.0;
+          z.actions['Punch'].setEffectiveTimeScale(punchDur / windupMax);
           z.actions['Punch'].reset().fadeIn(0.15).play();
           z.activeAction = 'Punch';
         }
         if(z.isBiting && z.head && z.jaw){
-          z.head.rotation.x = Math.sin(w * Math.PI * 4) * 0.35;
-          z.jaw.position.y = 1.35 + Math.sin(w * Math.PI * 4) * 0.08;
+          z.head.rotation.x = Math.sin(w * Math.PI * 2) * 0.35;
+          z.jaw.position.y = 1.35 + Math.sin(w * Math.PI * 2) * 0.08;
         } else if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
-          z.aL.p.rotation.x=z.aR.p.rotation.x=-2.1+(w>.70?(w-.70)*3.3*1.6:0);
+          let armRot = -1.05;
+          if(w < 0.65){
+            armRot = -1.05 - (w / 0.65) * 0.95; // Sube de -1.05 a -2.00 suavemente (telegrafiado fluido)
+          } else {
+            const swingW = (w - 0.65) / 0.35;
+            armRot = -2.00 + swingW * 1.80;    // Golpe frontal fluido
+          }
+          z.aL.p.rotation.x = z.aR.p.rotation.x = armRot;
         }
         if(z.type.includes('stalker')&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
@@ -4884,32 +4954,27 @@ function initGameEngine() {
           }
         }
 
-        const finalLen = Math.hypot(moveDx, moveDz) || 1.0;
-        if(dist3D > stopR){
-          const step = z.curSpd * boost * (z.windup > 0 ? 0.35 : 1.0) * dt;
-          z.g.position.x += (moveDx / finalLen) * step;
-          z.g.position.z += (moveDz / finalLen) * step;
-        }
-        const floorY = getFloorY(z.g.position.x, z.g.position.z);
-        let targetPosY = floorY;
-        if(z.isCrawling){
-          targetPosY = floorY + 0.16;
-          z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, -Math.PI * 0.42, dt * 8);
-        } else {
-          z.g.rotation.x = THREE.MathUtils.lerp(z.g.rotation.x, 0, dt * 8);
-        }
-        z.g.position.y = z.isThrown ? Math.max(floorY, z.g.position.y) : targetPosY;
-        resolveWorldCollisions(z.g.position, 0.45);
-        
-        // Rotación suave inteligente hacia el vector de avance
-        const desiredYaw = Math.atan2(moveDx, moveDz);
-        z.g.rotation.y = lerpAngle(z.g.rotation.y, desiredYaw, dt * 10);
+        const moveLen = Math.hypot(moveDx, moveDz) || 1.0;
+        const normDx = moveDx / moveLen;
+        const normDz = moveDz / moveLen;
+        const step = z.curSpd * boost * (z.windup > 0 ? 0.35 : 1.0) * dt;
 
-        // Sincronizar track coords para coherencia
+        z.g.position.x += normDx * step;
+        z.g.position.z += normDz * step;
+
+        const nextY = getFloorY(z.g.position.x, z.g.position.z);
+        z.g.position.y = lerp(z.g.position.y, nextY, dt * 10);
         z.t = closestT(z.g.position.x, z.g.position.z);
-        const pClosest = trackPos(z.t), nClosest = outN(z.t);
-        z.lat = (z.g.position.x - pClosest.x) * nClosest.x + (z.g.position.z - pClosest.z) * nClosest.z;
-      } else {
+
+        if(!z.isCrawling && (Math.abs(normDx) > 0.01 || Math.abs(normDz) > 0.01)){
+          const targetRot = Math.atan2(normDx, normDz);
+          let diff = targetRot - z.g.rotation.y;
+          while(diff > Math.PI) diff -= Math.PI * 2;
+          while(diff < -Math.PI) diff += Math.PI * 2;
+          z.g.rotation.y += diff * Math.min(1.0, dt * 6.5);
+        }
+      } else if(!z.isCharging && !z.isThrown){
+        // Movimiento a lo largo del track perimetral
         z.t += Math.sign(dir) * z.curSpd * boost * (z.windup > 0 ? 0.35 : 1.0) * dt / TRACK_LEN;
         z.t = ((z.t % 1) + 1) % 1;
         const targetLat = nearest.trackLat !== undefined ? nearest.trackLat : 3;
@@ -4971,24 +5036,19 @@ function initGameEngine() {
         if(z.rockT<=0 && dist>4.0 && !z.grabbed){
           if(!z.charging){
             z.charging=true; z.chargeT=0.9;
-            if(!z.chargeRockMesh){
-              const crm=new THREE.Mesh(rockGeo,rockMat);crm.scale.setScalar(0.7);
-              z.chargeRockMesh=crm; scene.add(crm);
-            }
+            if(z.chargeRockMesh) z.chargeRockMesh.visible = true;
             feed('ROCK HURLER cargando ataque!','k');
           } else {
             z.chargeT-=dt;
             if(z.chargeRockMesh){
-              /* OPT: posición mano estimada sin getWorldPosition (travesía escena costosa) */
-              _vHand.copy(z.g.position);_vHand.y+=1.3+Math.sin(elapsed*8)*.08;
-              z.chargeRockMesh.position.copy(_vHand);
+              z.chargeRockMesh.visible = true;
               z.chargeRockMesh.rotation.y+=dt*3;
+              if(z.chargeRockMesh.material) z.chargeRockMesh.material.emissiveIntensity=0.4+Math.max(0,0.9-z.chargeT)*1.8;
             }
             z.aR.p.rotation.x=-2.6;
-            /* GQW-VIS-5.0: Emissive telegraph ramp during rock charge */
-            if(z.chargeRockMesh&&z.chargeRockMesh.material){z.chargeRockMesh.material.emissiveIntensity=0.4+Math.max(0,0.9-z.chargeT)*1.8;}
             if(z.chargeT<=0){
-              if(z.chargeRockMesh){scene.remove(z.chargeRockMesh);z.chargeRockMesh=null;}
+              if(z.chargeRockMesh) z.chargeRockMesh.visible = false;
+              z.charging = false;
               doRockThrow(z,nearest);
             }
           }
