@@ -651,15 +651,15 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 65, spd: [1.15, 1.25], dmg: 10, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 48, spd: [1.70, 1.90], dmg: 8, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 120, spd: [0.95, 1.10], dmg: 15, score: 30, sc: 1.35, armor: 0 },
-      mini_stalker: { hp: 200, spd: [1.30, 1.50], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
-      mini_rockhurler: { hp: 280, spd: [0.75, 0.95], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
-      mini_juggernaut: { hp: 380, spd: [0.85, 1.05], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
-      boss_juggernaut: { hp: 880, spd: [0.90, 1.10], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 460, spd: [1.45, 1.70], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 580, spd: [0.80, 1.00], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
+      walker: { hp: 65, spd: [0.95, 1.10], dmg: 10, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 48, spd: [1.35, 1.50], dmg: 8, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 120, spd: [0.80, 0.95], dmg: 15, score: 30, sc: 1.35, armor: 0 },
+      mini_stalker: { hp: 200, spd: [1.15, 1.30], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
+      mini_rockhurler: { hp: 280, spd: [0.70, 0.85], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
+      mini_juggernaut: { hp: 380, spd: [0.75, 0.90], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
+      boss_juggernaut: { hp: 880, spd: [0.80, 0.95], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 460, spd: [1.20, 1.35], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 580, spd: [0.75, 0.90], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
     },
 
 
@@ -3069,10 +3069,12 @@ function initGameEngine() {
         applyModelCategoryToZombiePool(catKey, CACHED_ZOMBIE_MODELS[catKey]);
         return;
       }
-      let urls = [...def.urls];
-      if(isFile){
-        urls = [...def.urls.filter(u => u.startsWith('src/')), ...def.urls.filter(u => u.startsWith('http'))];
-      }
+      let urls = isFile
+        ? def.urls.filter(u => u.startsWith('http://') || u.startsWith('https://'))
+        : [...def.urls];
+
+      if(urls.length === 0) return;
+
       (function tryUrl(idx){
         if(idx >= urls.length) return;
         const targetUrl = urls[idx];
@@ -4193,17 +4195,65 @@ function initGameEngine() {
   const _instScl=new THREE.Vector3();
   const _instZero=new THREE.Vector3(0,0,0);
 
+  function resetZombieSlotTransforms(slot){
+    if(!slot) return;
+    if(slot.g){
+      slot.g.rotation.set(0, 0, 0);
+      slot.g.position.set(0, -99, 0);
+      slot.g.scale.set(1, 1, 1);
+    }
+    if(slot.detailG) slot.detailG.rotation.set(0, 0, 0);
+    // 1. Detener y limpiar todos los AnimationMixers y acciones esqueléticas
+    if(slot.mixers){
+      Object.values(slot.mixers).forEach(m => { if(m) m.stopAllAction(); });
+    }
+    if(slot.mixer) slot.mixer.stopAllAction();
+    slot.activeAction = null;
+
+    // 2. Restaurar rotaciones y posturas procedurales neutras a cero
+    if(slot.torso) slot.torso.rotation.set(0, 0, 0);
+    if(slot.head) { slot.head.rotation.set(0, 0, 0); slot.head.position.set(0, 1.5, 0); }
+    if(slot.jaw) { slot.jaw.rotation.set(0, 0, 0); slot.jaw.position.set(0, 1.35, 0.09); }
+    if(slot.aL && slot.aL.p) { slot.aL.p.rotation.set(0, 0, 0); slot.aL.p.position.set(-0.3, 1.28, 0); }
+    if(slot.aR && slot.aR.p) { slot.aR.p.rotation.set(0, 0, 0); slot.aR.p.position.set(0.3, 1.28, 0); }
+    if(slot.lL && slot.lL.p) { slot.lL.p.rotation.set(0, 0, 0); slot.lL.p.position.set(-0.11, 0.72, 0); }
+    if(slot.lR && slot.lR.p) { slot.lR.p.rotation.set(0, 0, 0); slot.lR.p.position.set(0.11, 0.72, 0); }
+
+    // 3. Resetear flags de estado
+    slot.dead = false;
+    slot.deathT = 0;
+    slot.loosened = false;
+    slot.isCrawling = false;
+    slot.isBiting = false;
+    slot.isCharging = false;
+    slot.isThrown = false;
+    slot.isHurler = false;
+    slot.grabbed = null;
+    slot.grabVictim = null;
+    slot.windup = 0;
+    slot.animT = 0;
+    slot.curSpd = 0;
+    slot.fade = 1.0;
+    if(slot.chargeRockMesh) slot.chargeRockMesh.visible = false;
+  }
+
   function acquireZombieSlot(){
-    for(const s of ZOMBIE_POOL){if(!s.active){s.active=true;return s;}}
+    for(const s of ZOMBIE_POOL){
+      if(!s.active){
+        s.active = true;
+        resetZombieSlotTransforms(s);
+        return s;
+      }
+    }
     return null;
   }
+
   function releaseZombieSlot(z){
-    if(!z||!z.slot)return;
-    z.active=false;
-    if(z.g){z.g.visible=false;z.g.position.set(0,-99,0);}
-    if(z.chargeRockMesh){z.chargeRockMesh.visible=false;}
-    if(z.grabbed){z.grabbed.grabbed=false;z.grabbed=null;}
-    z.frustumHidden=false;z.spawning=false;z.isThrown=false;z.grabVictim=null;
+    if(!z || !z.slot) return;
+    z.active = false;
+    resetZombieSlotTransforms(z);
+    if(z.g){ z.g.visible = false; z.g.position.set(0, -99, 0); }
+    z.frustumHidden = false; z.spawning = false;
   }
 
   /* Intercambiar materiales y mallas 3D en un slot según el tipo de zombie */
@@ -4306,6 +4356,7 @@ function initGameEngine() {
   function spawnZombie(type,hpMul,spMul){
     const slot=acquireZombieSlot();
     if(!slot)return null;
+    resetZombieSlotTransforms(slot);
     /* Aplicar tipo al LOD pre-construido (solo intercambia materiales, sin new THREE) */
     applyZombieType(slot,type);
 
@@ -4316,8 +4367,8 @@ function initGameEngine() {
 
     slot.dead=false;slot.deathT=0;slot.loosened=false;
     slot.isCrawling=false;slot.isBiting=false;slot.legDmg=0;slot.armDmg=0;
-    slot.cool=R(.8,1.8);slot.windup=0;slot.hitT=0;slot.fade=1.0;
-    slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(3,5);slot.grabT=R(4,6);
+    slot.cool=R(1.0,2.0);slot.windup=0;slot.hitT=0;slot.fade=1.0;
+    slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(3.5,5.5);slot.grabT=R(4,6);
     slot.spawning=true;slot.spawnT=.3;
     slot.frustumHidden=false;
     slot.isThrown=false;slot.grabbed=null;slot.grabVictim=null;slot.throwVel=undefined;
@@ -4819,13 +4870,14 @@ function initGameEngine() {
       z.cool-=dt;z.hitT-=dt;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      let windupMax = z.type.includes('juggernaut') ? 1.85 :
-                      z.type.includes('rockhurler') ? 1.55 :
-                      z.type.includes('stalker') ? 1.40 :
-                      z.type === 'brute' ? 1.70 :
-                      z.type === 'runner' ? 1.25 : 1.45;
-      if(z.isBiting) windupMax = 1.10; // Anticipación telegrafiada para mordida
-      if(z.isCrawling) windupMax = 1.40;
+      let windupMax = z.type.includes('juggernaut') ? 2.00 :
+                      z.type.includes('rockhurler') ? 1.70 :
+                      z.type.includes('stalker') ? 1.50 :
+                      z.type === 'brute' ? 1.85 :
+                      z.type === 'runner' ? 1.40 : 1.60;
+      if(z.isBiting) windupMax = 1.30; // Anticipación telegrafiada para mordida
+      if(z.isCrawling) windupMax = 1.50;
+      windupMax = Math.max(1.30, windupMax); // Límite estricto infranqueable
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -4854,13 +4906,13 @@ function initGameEngine() {
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const baseCool = (z.isBiting ? 3.2 :
-                           z.type.includes('juggernaut') ? 4.8 :
-                           z.type.includes('rockhurler') ? 4.2 :
-                           z.type.includes('stalker') ? 4.0 :
-                           z.type === 'brute' ? 4.2 :
-                           z.type === 'runner' ? 3.2 : 3.6) + R(-0.15, 0.15);
-          z.cool = Math.max(2.6, baseCool);
+          const baseCool = (z.isBiting ? 3.5 :
+                           z.type.includes('juggernaut') ? 5.0 :
+                           z.type.includes('rockhurler') ? 4.5 :
+                           z.type.includes('stalker') ? 4.2 :
+                           z.type === 'brute' ? 4.5 :
+                           z.type === 'runner' ? 3.5 : 4.0) + R(-0.15, 0.15);
+          z.cool = Math.max(3.2, baseCool); // Límite estricto infranqueable
 
           if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 8, 2.8);
@@ -4900,7 +4952,7 @@ function initGameEngine() {
           activeAttackersPerTarget.set(z.targetId, currentAttackers + 1);
           sfx.moan(2);
         } else {
-          z.cool = R(0.6, 1.1);
+          z.cool = R(0.8, 1.4);
         }
       }
       else{
@@ -4942,14 +4994,14 @@ function initGameEngine() {
           const odx = obs.x - z.g.position.x;
           const odz = obs.z - z.g.position.z;
           const oDist = Math.hypot(odx, odz);
-          if(oDist < (obs.hw + obs.hd + 1.8)){
+          if(oDist < (obs.hw + obs.hd + 2.2)){
             const dot = (moveDx * odx + moveDz * odz) / (toLen * oDist || 1);
-            if(dot > 0.45){
+            if(dot > 0.25){
               const perpX = -odz / oDist;
               const perpZ = odx / oDist;
               const side = (moveDx * perpX + moveDz * perpZ) >= 0 ? 1.0 : -1.0;
-              moveDx += perpX * side * 2.4;
-              moveDz += perpZ * side * 2.4;
+              moveDx += perpX * side * 3.5;
+              moveDz += perpZ * side * 3.5;
             }
           }
         }
@@ -4964,6 +5016,7 @@ function initGameEngine() {
 
         const nextY = getFloorY(z.g.position.x, z.g.position.z);
         z.g.position.y = lerp(z.g.position.y, nextY, dt * 10);
+        resolveWorldCollisions(z.g.position, 0.45);
         z.t = closestT(z.g.position.x, z.g.position.z);
 
         if(!z.isCrawling && (Math.abs(normDx) > 0.01 || Math.abs(normDz) > 0.01)){
