@@ -5480,6 +5480,8 @@ function initGameEngine() {
   let playerState='alive';let downTimer=0,reviveProgress=0,reviveInvuln=0,playerInvulnT=0;
   let yaw=0,pitch=0,kickP=0,kickY=0,shake=0;
   const keys={};const vel=new THREE.Vector3();
+  let vy=0,jumpY=0,bobT=0,stepAcc=0;
+  let playerT=0,playerLat=3;
   let dashCd = 0, dashTimer = 0;
   const dashDir = new THREE.Vector3();
   function performDash(){
@@ -7780,7 +7782,7 @@ function initGameEngine() {
           const fill = $('#reviveFill');
           if(fill) fill.style.width = '0%';
           const revBtn = $('#tBtnRevive');
-          if(revBtn && !revBtn.matches(':active')) revBtn.classList.remove('active');
+          if(revBtn && !keys['KeyE_touch'] && !keys['KeyE']) revBtn.classList.remove('active');
           reviveProgress = 0;
         }
       });
