@@ -184,3 +184,11 @@ Full mesh peer-to-peer data synchronization over WebRTC Data Channels using comp
 - Implemented transactional wave queue consumption (`queue.pop()` only commits upon successful entity instantiation).
 - Hardened HUD notification engine (`feed()`) and coordinate fallback to prevent any runtime interruption of enemy spawning.
 - Validated 100% test coverage across all 9 infected host archetypes and active wave progression loops.
+
+### Milestone 43 — Dual-Pass Cylinder Hitscan, Array Splice Purge & Boss Special Attacks (Phase 15)
+- Implemented Dual-Pass Hitscan Detection for Rifle and Shotgun: dedicated `hitboxMesh` ($r=0.52\text{m}, h=1.85\text{m}$) proxy plus swept-ray horizontal/vertical cylinder collision check.
+- Fixed zombie array duplicate reference leak by splicing dead slots upon `releaseZombieSlot` expiry ($z.\text{deathT} > 2.4\text{s}$).
+- Purged uninitialized `_vCam` reference from player entity list, preventing false $(0, 0, 0)$ player anchors.
+- Activated and restored special attack routines: Rock Hurler projectile charge/throw and grab, Juggernaut and Mini Juggernaut linear seismic charge with wall impact damage, and Shadow Stalker / Mini Stalker *Shadow Warp* flank teleportation.
+- Certified 100% test pass on damage hitscan, array slot splicing, and real browser WebGL runtime loops.
+

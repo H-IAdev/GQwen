@@ -185,3 +185,24 @@ Para garantizar la estabilidad ininterrumpida de las oleadas y prevenir excepcio
    - Si `spawnZombie` no puede instanciar la entidad en ese instante (por ejemplo, pool temporalmente saturado), el tipo de zombi permanece en la cola y reintenta en el siguiente ciclo ($0.5\text{s}$).
 3. **Manejo Defensivo en `feed()`**:
    - `feed(msg, type)` encapsulado con salvaguardas contra colecciones DOM nulas o ausentes, asegurando que los anuncios de jefes y avisos de HUD nunca interrumpan la instanciación de infectados.
+
+---
+
+## 9. SISTEMA DE DETECCIÓN BALÍSTICA DUAL-PASS Y ATAQUES ESPECIALES DE JEFES (FASE 15)
+
+### 9.1 Detección Balística Dual-Pass (Hitbox Proxy + Swept-Ray Cylinder Test)
+Para eliminar el problema clásico de Three.js donde las mallas deformadas por huesos (`SkinnedMesh`) no actualizan sus bounding boxes en CPU durante animaciones complejas:
+1. **Proxy Hitbox Cilíndrico Dedicado**: Cada slot del pool de 60 zombis incluye una malla cilíndrica invisible centrada en su torso (`userData.isHitbox = true`, $r=0.52\text{m}, h=1.85\text{m}$) que escala con `slot.scale` y rota con la entidad.
+2. **Swept-Ray Cylinder Intersection**:
+   - Pasada 1: Raycasting Three.js directo contra `window.zombieHitboxes`.
+   - Pasada 2 (Fallback Proximidad): Si el raycast no colisiona directamente por desfasaje de vértices, se evalúa la distancia horizontal $d_{\text{horiz}} \le 0.68\text{m} \cdot \text{scale}$ sobre el segmento de rayo proyectado y altura $y \in [y_z - 0.15, y_z + 2.15 \cdot \text{scale}]$.
+   - **Cálculo de Headshot**: Si el punto de impacto proyectado $y_{\text{pt}} > y_z + 1.30\text{m} \cdot \text{scale}$, se aplica el multiplicador de impacto crítico a la cabeza ($50\text{ DMG}$).
+
+### 9.2 Purga de Ranuras y Ciclo de Vida en Arreglo `zombies`
+- Al expirar la animación de muerte ($z.\text{deathT} > 2.4\text{s}$), se invoca `releaseZombieSlot(z)` y de forma simultánea `zombies.splice(i, 1)`. Esto previene duplicaciones de slots muertos que generaban anomalías de spawn en el centro.
+- La entidad global `_vCam` fue eliminada de las listas de jugadores activos, garantizando que el punto $(0, 0, 0)$ no sea considerado un jugador estacionario.
+
+### 9.3 Catálogo y Dinámicas de Ataques Especiales
+- **Rock Hurler / Mini Rock Hurler**: Ciclo de carga (`z.charging = true`, roca incandescente en mano derecha `z.chargeRockMesh`), lanzamiento parabólico balístico y agarre de infectados débiles como proyectiles vivos. Preservación estricta de la malla de carga a través de reciclajes del pool.
+- **Juggernaut / Mini Juggernaut**: Embestida sísmica en línea recta a $15.0\text{m/s}$ ($12.0\text{m/s}$ para mini) que aplasta infectados normales en su trayectoria y arrastra al jugador contra los muros perimetrales infligiendo daño masivo y sacudida de pantalla.
+- **Shadow Stalker / Mini Stalker**: Ataque de desvanecimiento y teletransporte táctico (*Shadow Warp / Flank Dash*), disolviéndose en partículas de icor para reaparecer súbitamente en la retaguardia o flanco del jugador a una distancia de $3.8\text{m} - 5.5\text{m}$.
