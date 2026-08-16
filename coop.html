@@ -651,15 +651,15 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 45, spd: [1.15, 1.25], dmg: 10, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 32, spd: [1.75, 1.95], dmg: 8, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 95, spd: [0.95, 1.10], dmg: 15, score: 30, sc: 1.35, armor: 0 },
-      mini_stalker: { hp: 160, spd: [1.35, 1.55], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
-      mini_rockhurler: { hp: 220, spd: [0.75, 0.95], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
-      mini_juggernaut: { hp: 300, spd: [0.85, 1.05], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
-      boss_juggernaut: { hp: 750, spd: [0.90, 1.10], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 380, spd: [1.50, 1.75], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 480, spd: [0.80, 1.00], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
+      walker: { hp: 65, spd: [1.15, 1.25], dmg: 10, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 48, spd: [1.70, 1.90], dmg: 8, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 120, spd: [0.95, 1.10], dmg: 15, score: 30, sc: 1.35, armor: 0 },
+      mini_stalker: { hp: 200, spd: [1.30, 1.50], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
+      mini_rockhurler: { hp: 280, spd: [0.75, 0.95], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
+      mini_juggernaut: { hp: 380, spd: [0.85, 1.05], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
+      boss_juggernaut: { hp: 880, spd: [0.90, 1.10], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 460, spd: [1.45, 1.70], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 580, spd: [0.80, 1.00], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
     },
 
 
@@ -4113,7 +4113,7 @@ function initGameEngine() {
     const lo=new THREE.Group();
     const loBody=mkMesh(GEO_POOL.loBody,defCloth);loBody.position.y=1.0;lo.add(loBody);
     const loHead=mkMesh(GEO_POOL.loHead,defSkin);loHead.position.y=1.5;lo.add(loHead);
-    lod.addLevel(lo,22);
+    lod.addLevel(lo,45);
     // Hitboxes: etiquetado detallado para Gore Físico Táctico
     g.traverse(c=>{if(c.isMesh){c.userData.part='torso';c.userData.z=null;}});
     head.userData.part='head'; jaw.userData.part='head';
@@ -4190,21 +4190,14 @@ function initGameEngine() {
     // LOD simplificado
     slot.loBody.material=newCloth;
     slot.loHead.material=newSkin;
-    // Visibilidad por tipo y optimización GLTF CDN
-    const hasGLTF = !!slot.gltfMesh;
-    const useGLTF = hasGLTF && !isBoss;
-
-    if(slot.gltfMesh){
-      slot.gltfMesh.visible = useGLTF;
-    }
-    // Si se usa malla GLTF unificada, ocultar extremidades procedurales complejas para ahorrar Draw Calls
-    slot.torso.visible = !isJuggernaut && !useGLTF;
-    slot.head.visible = !useGLTF;
-    if(slot.jaw) slot.jaw.visible = !useGLTF;
-    if(slot.aL && slot.aL.p) slot.aL.p.visible = !useGLTF;
-    if(slot.aR && slot.aR.p) slot.aR.p.visible = !useGLTF;
-    if(slot.lL && slot.lL.p) slot.lL.p.visible = !useGLTF;
-    if(slot.lR && slot.lR.p) slot.lR.p.visible = !useGLTF;
+    // Visibilidad 100% garantizada de piezas anatómicas 3D
+    slot.torso.visible = !isJuggernaut;
+    slot.head.visible = true;
+    if(slot.jaw) slot.jaw.visible = true;
+    if(slot.aL && slot.aL.p) slot.aL.p.visible = true;
+    if(slot.aR && slot.aR.p) slot.aR.p.visible = true;
+    if(slot.lL && slot.lL.p) slot.lL.p.visible = true;
+    if(slot.lR && slot.lR.p) slot.lR.p.visible = true;
 
     // 1. Juggernaut 3D Components
     slot.torJugMesh.visible = isJuggernaut;
@@ -4225,7 +4218,7 @@ function initGameEngine() {
 
     const useBossEyes=isJuggernaut||isStalker||isRockHurler;
     const eyeMat=isJuggernaut?EYE_BOSS_GREEN:isStalker?EYE_BOSS_PURPLE:EYE_M;
-    slot.eyes.forEach(e=>{e.visible=!useBossEyes && !useGLTF;e.material=eyeMat;});
+    slot.eyes.forEach(e=>{e.visible=!useBossEyes;e.material=eyeMat;});
     slot.eyeB.forEach(e=>{e.visible=useBossEyes;e.material=eyeMat;});
     // Actualizar referencias de materiales en el slot
     slot.skin=newSkin;slot.clothM=newCloth;slot.dark=newDark;
@@ -4253,9 +4246,6 @@ function initGameEngine() {
   function spawnZombie(type,hpMul,spMul){
     const slot=acquireZombieSlot();
     if(!slot)return null;
-    if(cachedZombieGLTF && !slot.gltfMesh){
-      applyGLTFToZombiePool(cachedZombieGLTF);
-    }
     /* Aplicar tipo al LOD pre-construido (solo intercambia materiales, sin new THREE) */
     applyZombieType(slot,type);
 
@@ -4266,20 +4256,11 @@ function initGameEngine() {
 
     slot.dead=false;slot.deathT=0;slot.loosened=false;
     slot.isCrawling=false;slot.isBiting=false;slot.legDmg=0;slot.armDmg=0;
-    slot.cool=R(.5,1.5);slot.windup=0;slot.hitT=0;slot.fade=1.0; // fade=1 por si viene de pool
-    slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(2,4);slot.grabT=R(4,6);
+    slot.cool=R(.8,1.8);slot.windup=0;slot.hitT=0;slot.fade=1.0;
+    slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(3,5);slot.grabT=R(4,6);
     slot.spawning=true;slot.spawnT=.3;
     slot.frustumHidden=false;
     slot.isThrown=false;slot.grabbed=null;slot.grabVictim=null;slot.throwVel=undefined;
-
-    // Restaurar visibilidad de todas las extremidades desmembradas del pool
-    if(slot.lL && slot.lL.p) slot.lL.p.visible = !slot.gltfMesh;
-    if(slot.lR && slot.lR.p) slot.lR.p.visible = !slot.gltfMesh;
-    if(slot.aL && slot.aL.p) slot.aL.p.visible = !slot.gltfMesh;
-    if(slot.aR && slot.aR.p) slot.aR.p.visible = !slot.gltfMesh;
-    if(slot.gltfMesh){
-      slot.gltfMesh.traverse(c => { if(c.isMesh) c.visible = true; });
-    }
 
     if(type==='boss_rockhurler' || type==='mini_rockhurler'){
       slot.isHurler=true;slot.rockT=R(2.5,4.5);slot.grabT=R(3.5,6);slot.chargeT=0;
@@ -4642,6 +4623,14 @@ function initGameEngine() {
     const boost = (1.0 + Math.max(0, (0.35 - B) * 0.10)) * enrageMul;
     const targets=getAlivePlayers();
 
+    // Coordinador de ataques de horda (evita que más de 2 zombis ataquen simultáneamente al mismo objetivo)
+    const activeAttackersPerTarget = new Map();
+    for(const az of zombies){
+      if(az && !az.dead && az.windup > 0 && az.targetId){
+        activeAttackersPerTarget.set(az.targetId, (activeAttackersPerTarget.get(az.targetId) || 0) + 1);
+      }
+    }
+
     SpatialGrid.clear();
     for(let zi = 0; zi < zombies.length; zi++){
       const sz = zombies[zi];
@@ -4702,14 +4691,13 @@ function initGameEngine() {
         for(const oz of zombies){
           if(oz===z||oz.dead||oz.isHurler||oz.isThrown) continue;
           if(z.g.position.distanceTo(oz.g.position)<1.8){
-            burst(z.g.position,'ichor',18,5.0);
-            feed('💥 ZOMBIE LANZADO impactó a un '+oz.type.toUpperCase()+'!','k');
             killZombie(oz,false);
-            killZombie(z,false);
-            _hitZ=true; break;
+            burst(oz.g.position,'ichor',24,4.0);
+            _hitZ=true;
           }
         }
-        if(_hitZ) continue;
+        if(_hitZ){ killZombie(z,false); continue; }
+        if(z.g.position.y<-0.2){ killZombie(z,false); continue; }
         const thrownFloorY = getFloorY(z.g.position.x, z.g.position.z);
         if(z.g.position.y <= thrownFloorY){
           z.g.position.y = thrownFloorY;
@@ -4718,13 +4706,15 @@ function initGameEngine() {
         }
         if(z.g.position.y<-1){burst(z.g.position,'ichor',10,3.0);killZombie(z,false);continue;}
       }
-      let nearest = null, nearD = Infinity;
-      for(const pl of targets){
-        const plPos = pl.pos || camera.position;
-        const d = z.g.position.distanceTo(plPos);
-        if(d < nearD){ nearD = d; nearest = pl; }
+
+      // 1. Selector de objetivo dinámico
+      let nearest=null,minD2=Infinity;
+      for(const p of targets){
+        const d=trackDist(z.t,p.trackT);
+        if(d<minD2){minD2=d;nearest=p;}
       }
-      if(!nearest) continue;
+      if(!nearest)continue;
+      z.targetId = nearest.id || (nearest.isLocal ? 'local' : (nearest.isBot ? 'bot_' + nearest.bot?.id : 'target'));
 
       const targetPos = nearest.pos || _vCam;
       const dx = targetPos.x - z.g.position.x;
@@ -4743,16 +4733,20 @@ function initGameEngine() {
         z.g.visible = (_vCam.distanceTo(z.g.position) < 65.0);
       }
 
-      // Mecánica de Sprint Temporal Periódico (Surge Frenzy Equilibrado - Límites Ola 6+)
-      z.sprintCd = (z.sprintCd || R(14, 20)) - dt;
-      if(z.sprintCd <= 0 && dist3D > 5.0 && dist3D < 16 && !z.isCrawling && !z.dead){
-        z.sprintT = R(1.0, 1.2);
-        z.sprintCd = R(14, 20);  // Cooldown de 14 a 20 segundos
+      // Mecánica de Sprint Temporal Periódico (Frenesí controlado - solo en Oleada 4+, max 1 runner a la vez)
+      if(wave >= 4 && z.type === 'runner'){
+        z.sprintCd = (z.sprintCd || R(18, 25)) - dt;
+        if(z.sprintCd <= 0 && dist3D > 6.0 && dist3D < 15 && !z.isCrawling && !z.dead){
+          z.sprintT = R(0.8, 1.0);
+          z.sprintCd = R(18, 25);
+        }
+      } else {
+        z.sprintT = 0;
       }
       let sprintBoost = 1.0;
       if(z.sprintT > 0){
         z.sprintT -= dt;
-        sprintBoost = z.type === 'runner' ? 1.12 : 1.08; // Multiplicador acotado (+8-12%)
+        sprintBoost = 1.10; // Multiplicador suave (+10%)
       }
 
       // Modificador de velocidad y postura para Crawlers y Biters
@@ -4765,13 +4759,13 @@ function initGameEngine() {
       z.cool-=dt;z.hitT-=dt;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      let windupMax = z.type.includes('juggernaut') ? 1.45 :
-                      z.type.includes('stalker') ? 1.30 :
-                      z.type.includes('rockhurler') ? 1.25 :
-                      z.type === 'brute' ? 1.35 :
-                      z.type === 'runner' ? 1.00 : 1.20;
-      if(z.isBiting) windupMax = 0.95; // Anticipación telegrafiada para mordida
-      if(z.isCrawling) windupMax = 1.25;
+      let windupMax = z.type.includes('juggernaut') ? 1.85 :
+                      z.type.includes('rockhurler') ? 1.55 :
+                      z.type.includes('stalker') ? 1.40 :
+                      z.type === 'brute' ? 1.70 :
+                      z.type === 'runner' ? 1.25 : 1.45;
+      if(z.isBiting) windupMax = 1.10; // Anticipación telegrafiada para mordida
+      if(z.isCrawling) windupMax = 1.40;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -4790,14 +4784,13 @@ function initGameEngine() {
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const waveAttackDamping = (wave >= 6) ? 0.35 : 0.0;
-          const baseCool = (z.isBiting ? 2.8 :
-                           z.type.includes('juggernaut') ? 4.0 :
-                           z.type.includes('stalker') ? 3.6 :
-                           z.type.includes('rockhurler') ? 3.4 :
-                           z.type === 'brute' ? 3.4 :
-                           z.type === 'runner' ? 2.5 : 2.8) + waveAttackDamping + R(-0.20, 0.20);
-          z.cool = Math.max(2.0, baseCool);
+          const baseCool = (z.isBiting ? 3.2 :
+                           z.type.includes('juggernaut') ? 4.8 :
+                           z.type.includes('rockhurler') ? 4.2 :
+                           z.type.includes('stalker') ? 4.0 :
+                           z.type === 'brute' ? 4.2 :
+                           z.type === 'runner' ? 3.2 : 3.6) + R(-0.15, 0.15);
+          z.cool = Math.max(2.6, baseCool);
 
           if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 8, 2.8);
@@ -4830,7 +4823,16 @@ function initGameEngine() {
           z.aL.p.rotation.x=-1.1+Math.sin(z.animT*1.8+1)*.12;z.aR.p.rotation.x=-1.1+Math.sin(z.animT*1.8)*.12;
         }
         if(z.head) z.head.rotation.z=Math.sin(z.animT*1.2)*.14;
-      }else if(z.cool<=0){z.windup=windupMax;sfx.moan(2);}
+      }else if(z.cool<=0){
+        const currentAttackers = activeAttackersPerTarget.get(z.targetId) || 0;
+        if(currentAttackers < 2 || z.type.startsWith('boss_')){
+          z.windup = windupMax;
+          activeAttackersPerTarget.set(z.targetId, currentAttackers + 1);
+          sfx.moan(2);
+        } else {
+          z.cool = R(0.6, 1.1);
+        }
+      }
       else{
         if(z.actions && z.actions['Idle'] && z.activeAction !== 'Idle' && z.activeAction !== 'Punch' && !z.isCrawling){
           if(z.actions[z.activeAction]) z.actions[z.activeAction].fadeOut(0.2);
@@ -5575,8 +5577,8 @@ function initGameEngine() {
     wave=n;hudWave();queue=[];const N=numPlayers();
     const plan=WAVE_PLAN[Math.min(n,WAVE_PLAN.length)-1];
     
-    // Progresión calibrada de vitalidad enemiga por ola con resistencia de armadura en niveles altos
-    hpMul = (1 + (n >= 8 ? 0.35 : (n >= 5 ? 0.18 : 0))) * (1 + 0.15 * (N - 1));
+    // Progresión lineal suave y balanceada de salud enemiga (+7.5% por oleada, sin picos exponenciales)
+    hpMul = (1.0 + (n - 1) * 0.075) * (1 + 0.10 * (N - 1));
     spMul = 1.0; // Velocidad estándar constante: la aceleración es una mecánica de sprint temporal orgánico
     spawnInt = Math.max(1.15, 1.8 - (n >= 7 ? 0.40 : (n >= 4 ? 0.25 : 0))); spawnT = 0.4;
 
