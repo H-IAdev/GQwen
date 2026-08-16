@@ -4408,6 +4408,10 @@ function initGameEngine() {
     return pList;
   }
 
+  function getActivePlayerPositions(){
+    return getActivePlayerEntities().map(p => ({ x: p.x, z: p.z }));
+  }
+
   function pickSpawnParams(){
     const players = getActivePlayerEntities();
     const candidates = [];
@@ -4496,95 +4500,121 @@ function initGameEngine() {
   }
 
   function spawnZombie(type,hpMul,spMul){
-    const slot=acquireZombieSlot();
-    if(!slot)return null;
-    resetZombieSlotTransforms(slot);
-    /* Aplicar tipo al LOD pre-construido (solo intercambia materiales, sin new THREE) */
-    applyZombieType(slot,type);
+    try {
+      const slot=acquireZombieSlot();
+      if(!slot)return null;
+      resetZombieSlotTransforms(slot);
+      /* Aplicar tipo al LOD pre-construido (solo intercambia materiales, sin new THREE) */
+      applyZombieType(slot,type);
 
-    const sp = pickSpawnParams();
-    slot.id=zId++;
-    slot.type=type;
-    slot.t=sp.t; slot.lat=sp.lat; slot.speed=1;slot.dmg=5;slot.score=10;
+      let sp = null;
+      try {
+        sp = pickSpawnParams();
+      } catch(errSp){
+        console.warn('[SpawnParams Fallback]:', errSp);
+      }
+      if(!sp || sp.t === undefined || sp.lat === undefined){
+        sp = { t: Math.random(), lat: 3.5 };
+      }
 
-    slot.dead=false;slot.deathT=0;slot.loosened=false;
-    slot.isCrawling=false;slot.isBiting=false;slot.legDmg=0;slot.armDmg=0;
-    slot.cool=R(1.0,2.0);slot.windup=0;slot.hitT=0;slot.fade=1.0;
-    slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(3.5,5.5);slot.grabT=R(4,6);
-    slot.spawning=true;slot.spawnT=.3;
-    slot.frustumHidden=false;
-    slot.isThrown=false;slot.grabbed=null;slot.grabVictim=null;slot.throwVel=undefined;
+      slot.id=zId++;
+      slot.type=type;
+      slot.t=sp.t; slot.lat=sp.lat; slot.speed=1;slot.dmg=5;slot.score=10;
 
-    if(type==='boss_rockhurler' || type==='mini_rockhurler'){
-      slot.isHurler=true;slot.rockT=R(2.5,4.5);slot.grabT=R(3.5,6);slot.chargeT=0;
-      slot.charging=false;slot.grabbed=null;slot.grabAnimT=0;slot.grabVictim=null;
+      slot.dead=false;slot.deathT=0;slot.loosened=false;
+      slot.isCrawling=false;slot.isBiting=false;slot.legDmg=0;slot.armDmg=0;
+      slot.cool=R(1.0,2.0);slot.windup=0;slot.hitT=0;slot.fade=1.0;
+      slot.fallDir=Math.random()<.5?-1:1;slot.rockT=R(3.5,5.5);slot.grabT=R(4,6);
+      slot.spawning=true;slot.spawnT=.3;
+      slot.frustumHidden=false;
+      slot.isThrown=false;slot.grabbed=null;slot.grabVictim=null;slot.throwVel=undefined;
+
+      if(type==='boss_rockhurler' || type==='mini_rockhurler'){
+        slot.isHurler=true;slot.rockT=R(2.5,4.5);slot.grabT=R(3.5,6);slot.chargeT=0;
+        slot.charging=false;slot.grabbed=null;slot.grabAnimT=0;slot.grabVictim=null;
+      }
+      const d2=ZDEF[type] || ZDEF.walker;
+      const waveArmor = (wave >= 4) ? Math.min(0.25, (wave - 3) * 0.035) : 0;
+      slot.hp=d2.hp*hpMul;slot.speed=R(...d2.spd)*spMul;slot.curSpd=slot.speed*0.25;slot.dmg=d2.dmg;slot.score=d2.score;
+      slot.armor = (d2.armor || 0) + waveArmor;
+      slot.scale=d2.sc||1;
+
+      // Resetear rotación (muerte deja el zombie caído — g.rotation.x != 0)
+      slot.g.rotation.set(0,0,0);
+
+      // Posicionar en túnel/perímetro exterior (LOD ya está en la escena, solo mover y mostrar)
+      const isAmbushType = (type === 'runner' || type === 'mini_stalker' || type === 'boss_stalker');
+      const pPositions = getActivePlayerPositions();
+      let safeAmbushGrate = null;
+      if(isAmbushType && window.ambushGratePositions && window.ambushGratePositions.length && Math.random() < 0.20){
+        const safeGrates = window.ambushGratePositions.filter(g => {
+          const inCenter = Math.abs(g.x) < 22 && Math.abs(g.z) < 16;
+          if(inCenter) return false;
+          for(const pp of pPositions){
+            if(Math.hypot(g.x - pp.x, g.z - pp.z) < 26.0) return false;
+          }
+          return true;
+        });
+        if(safeGrates.length) safeAmbushGrate = pick(safeGrates);
+      }
+
+      if(safeAmbushGrate){
+        const _y0 = getFloorY(safeAmbushGrate.x, safeAmbushGrate.z);
+        slot.g.position.set(safeAmbushGrate.x, _y0, safeAmbushGrate.z);
+        burst(slot.g.position, 'ichor', 12, 3.2);
+      } else {
+        const p2=trackPos(slot.t),n2=outN(slot.t);
+        const _y0=getFloorY(p2.x+n2.x*slot.lat,p2.z+n2.z*slot.lat);
+        slot.g.position.set(p2.x+n2.x*slot.lat,_y0,p2.z+n2.z*slot.lat);
+      }
+      /* userData.z + re-registrar hitboxes en el pool global (se pierden tras killZombie) */
+      window.zombieHitboxes=(window.zombieHitboxes||[]).filter(m=>m&&m.userData&&m.userData.z!==slot);
+      slot.detailG.traverse(c=>{if(c.isMesh){c.userData.z=slot;window.zombieHitboxes.push(c);}});
+      slot.g.visible=true;
+      slot.g.scale.setScalar(slot.scale || 1.0); // visibilidad completa desde el spawn
+      zombies.push(slot);
+
+      // Fase 6C — burst de partículas al spawnear
+      burst(slot.g.position,'spark',10,3.0);
+      if(type==='boss_juggernaut'){
+        feed('🚨 BOSS: ALPHA JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
+        sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_juggernaut'});
+      }else if(type==='mini_juggernaut'){
+        feed('🚨 ELITE: MINI JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
+        sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_juggernaut'});
+      }else if(type==='boss_rockhurler'){
+        feed('🚨 BOSS: VOLCANIC ROCK HURLER ('+Math.round(slot.hp)+' HP)','k');
+        sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_rockhurler'});
+      }else if(type==='mini_rockhurler'){
+        feed('🚨 ELITE: MINI ROCK HURLER ('+Math.round(slot.hp)+' HP)','k');
+        sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_rockhurler'});
+      }else if(type==='boss_stalker'){
+        feed('🚨 BOSS: SHADOW STALKER ('+Math.round(slot.hp)+' HP)','k');
+        sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_stalker'});
+      }else if(type==='mini_stalker'){
+        feed('🚨 ELITE: MINI STALKER ('+Math.round(slot.hp)+' HP)','k');
+        sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_stalker'});
+      }else if(Math.random()<.5){
+        sfx.moan(6); if(isHost) netSend({type:'zsound', sound:'moan'});
+      }
+
+      if(isHost) netSend({type:'zspawn', id:slot.id, ztype:type, hp:slot.hp, speed:slot.speed, t:slot.t, lat:slot.lat});
+      return slot;
+    } catch(spawnErr){
+      console.error('[Spawning Resilience Error]:', spawnErr);
+      return null;
     }
-    const d2=ZDEF[type] || ZDEF.walker;
-    const waveArmor = (wave >= 4) ? Math.min(0.25, (wave - 3) * 0.035) : 0;
-    slot.hp=d2.hp*hpMul;slot.speed=R(...d2.spd)*spMul;slot.curSpd=slot.speed*0.25;slot.dmg=d2.dmg;slot.score=d2.score;
-    slot.armor = (d2.armor || 0) + waveArmor;
-    slot.scale=d2.sc||1;
-
-    // Resetear rotación (muerte deja el zombie caído — g.rotation.x != 0)
-    slot.g.rotation.set(0,0,0);
-
-    // Posicionar en túnel/perímetro exterior (LOD ya está en la escena, solo mover y mostrar)
-    const isAmbushType = (type === 'runner' || type === 'mini_stalker' || type === 'boss_stalker');
-    const pPositions = getActivePlayerPositions();
-    let safeAmbushGrate = null;
-    if(isAmbushType && window.ambushGratePositions && window.ambushGratePositions.length && Math.random() < 0.20){
-      const safeGrates = window.ambushGratePositions.filter(g => {
-        const inCenter = Math.abs(g.x) < 22 && Math.abs(g.z) < 16;
-        if(inCenter) return false;
-        for(const pp of pPositions){
-          if(Math.hypot(g.x - pp.x, g.z - pp.z) < 26.0) return false;
-        }
-        return true;
-      });
-      if(safeGrates.length) safeAmbushGrate = pick(safeGrates);
-    }
-
-    if(safeAmbushGrate){
-      const _y0 = getFloorY(safeAmbushGrate.x, safeAmbushGrate.z);
-      slot.g.position.set(safeAmbushGrate.x, _y0, safeAmbushGrate.z);
-      burst(slot.g.position, 'ichor', 12, 3.2);
-    } else {
-      const p2=trackPos(slot.t),n2=outN(slot.t);
-      const _y0=getFloorY(p2.x+n2.x*slot.lat,p2.z+n2.z*slot.lat);
-      slot.g.position.set(p2.x+n2.x*slot.lat,_y0,p2.z+n2.z*slot.lat);
-    }
-    /* userData.z + re-registrar hitboxes en el pool global (se pierden tras killZombie) */
-    window.zombieHitboxes=(window.zombieHitboxes||[]).filter(m=>m&&m.userData&&m.userData.z!==slot);
-    slot.detailG.traverse(c=>{if(c.isMesh){c.userData.z=slot;window.zombieHitboxes.push(c);}});
-    slot.g.visible=true;
-    slot.g.scale.setScalar(slot.scale || 1.0); // visibilidad completa desde el spawn
-    zombies.push(slot);
-
-    // Fase 6C — burst de partículas al spawnear
-    burst(slot.g.position,'spark',10,3.0);
-    if(type==='boss_juggernaut'){
-      feed('🚨 BOSS: ALPHA JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
-      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_juggernaut'});
-    }else if(type==='mini_juggernaut'){
-      feed('🚨 ELITE: MINI JUGGERNAUT ('+Math.round(slot.hp)+' HP)','k');
-      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_juggernaut'});
-    }else if(type==='boss_stalker'){
-      feed('⚡ BOSS: NEON STALKER ('+Math.round(slot.hp)+' HP)','k');
-      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_stalker'});
-    }else if(type==='mini_stalker'){
-      feed('⚡ ELITE: MINI STALKER ('+Math.round(slot.hp)+' HP)','k');
-      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_stalker'});
-    }else if(type==='boss_rockhurler'){
-      feed('🪨 BOSS: ROCK HURLER ('+Math.round(slot.hp)+' HP)','k');
-      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_rockhurler'});
-    }else if(type==='mini_rockhurler'){
-      feed('🪨 ELITE: MINI HURLER ('+Math.round(slot.hp)+' HP)','k');
-      sfx.down(); if(isHost) netSend({type:'zsound', sound:'boss_rockhurler'});
-    }else if(Math.random()<.5){
-      sfx.moan(6); if(isHost) netSend({type:'zsound', sound:'moan'});
-    }
-    return slot;
   }
+
+  // Bindings para diagnóstico y verificación externa
+  try {
+    window.getActivePlayerEntities = getActivePlayerEntities;
+    window.getActivePlayerPositions = getActivePlayerPositions;
+    window.spawnZombie = spawnZombie;
+    window.getZombies = () => zombies;
+    window.getWaveQueue = () => queue;
+    window.startWave = startWave;
+  } catch(e){}
 
   /* ===== SISTEMA DE BUFFS Y RECOMPENSAS DE ÚLTIMO GOLPE ===== */
   const activeBuffs = {};
@@ -6850,16 +6880,26 @@ function initGameEngine() {
   }
 
   function feed(msg, type) {
-    const el = $('#feed');
-    if (!el) return;
-    const item = document.createElement('div');
-    // CSS usa .fi .fi.k .fi.h — mantener compatibilidad exacta con estilos originales
-    item.className = type ? 'fi ' + type : 'fi';
-    item.textContent = msg;
-    el.prepend(item);
-    setTimeout(() => { if (item.parentNode) el.removeChild(item); }, 3500);
-    // Máximo 6 ítems visibles simultáneos
-    while (el.children.length > 6) el.removeChild(el.lastChild);
+    try {
+      const el = $('#feed');
+      if (!el) return;
+      const item = document.createElement('div');
+      item.className = type ? 'fi ' + type : 'fi';
+      item.textContent = msg;
+      if (typeof el.prepend === 'function') {
+        el.prepend(item);
+      } else if (typeof el.appendChild === 'function') {
+        el.appendChild(item);
+      }
+      setTimeout(() => { if (item.parentNode) item.parentNode.removeChild(item); }, 3500);
+      if (el.children && el.children.length > 6) {
+        while (el.children.length > 6 && el.lastChild) {
+          el.removeChild(el.lastChild);
+        }
+      }
+    } catch(errFeed) {
+      console.warn('[Feed Notice]:', errFeed);
+    }
   }
 
   let _cachedWName = null;
@@ -8067,7 +8107,14 @@ function initGameEngine() {
             const pCount = (typeof numPlayers === 'function') ? numPlayers() : 1;
             const maxActive = Math.min(8, 4 + Math.floor(wave * 0.4) + (pCount - 1) * 2);
             if(spawnT <= 0 && zombies.filter(z => !z.dead).length < maxActive){
-              spawnT = spawnInt; spawnZombie(queue.pop(), hpMul, spMul);
+              const nextType = queue[queue.length - 1];
+              const spawned = spawnZombie(nextType, hpMul, spMul);
+              if(spawned){
+                queue.pop();
+                spawnT = spawnInt;
+              } else {
+                spawnT = 0.5; // Breve reintento si los slots estaban ocupados o hubo un retardo
+              }
             }
           } else if(!clearing && !zombies.some(z => !z.dead)){
             clearing = true; clearT = 3.5; reserve += 45; hp = Math.min(100, hp + 25);

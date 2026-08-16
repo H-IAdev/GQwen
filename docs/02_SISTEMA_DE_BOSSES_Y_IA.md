@@ -170,4 +170,18 @@ El escuadrón de acompañantes IA (`bots`: VEGA, RUIZ, KIDO) opera mediante un m
    - **`retreat`** ($u = 0.85$ / $0.78$): Retirada táctica a sprint ($+30\%$ velocidad) cuando $\text{HP} < 28$ o $\text{HP} < 60$ en regeneración pasiva, efectuando *backpedal* y fuego de supresión.
    - **`combat`** ($u = \min(0.80, \text{threat}/100)$): Mantener distancia idónea de fuego ($9\text{m}$ avance, $3.8\text{m}$ retroceso).
    - **`formation`** ($u = 0.20$ o $0.90$ tether): Cobertura de ángulos muertos + evasión suave de la línea de mira del jugador ($\text{dot} > 0.82$).
-
+
+---
+
+## 8. ARQUITECTURA DE RESILIENCIA DE RESPAWN Y SEGURIDAD DE COLA (FASE 14)
+
+Para garantizar la estabilidad ininterrumpida de las oleadas y prevenir excepciones en tiempo de ejecución:
+
+1. **Definición Dual y Retrocompatibilidad de Detección**:
+   - `getActivePlayerEntities()`: Extrae entidades tridimensionales activas con coordenadas $\{x, z\}$ y vector frontal de visión $\{fwdX, fwdZ\}$ para oclusión de campo visual.
+   - `getActivePlayerPositions()`: Alias nativo expuesto que provee una lista mapeada de posiciones $\{x, z\}$ para cálculo de distancias y rejillas de emboscada.
+2. **Consumo Transaccional de Cola de Oleadas (*Queue Rollback Safety*)**:
+   - `queue.pop()` solo descuenta el enemigo si `spawnZombie()` concluye satisfactoriamente y devuelve un objeto de ranura válido.
+   - Si `spawnZombie` no puede instanciar la entidad en ese instante (por ejemplo, pool temporalmente saturado), el tipo de zombi permanece en la cola y reintenta en el siguiente ciclo ($0.5\text{s}$).
+3. **Manejo Defensivo en `feed()`**:
+   - `feed(msg, type)` encapsulado con salvaguardas contra colecciones DOM nulas o ausentes, asegurando que los anuncios de jefes y avisos de HUD nunca interrumpan la instanciación de infectados.

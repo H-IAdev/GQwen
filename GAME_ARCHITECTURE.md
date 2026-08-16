@@ -173,3 +173,14 @@ Full mesh peer-to-peer data synchronization over WebRTC Data Channels using comp
 - Optimized `normalFromCanvas()` with direct typed array indexing ($10\times$ faster).
 - Added `AnimationMixer` distance timeScale culling for distant zombies ($>28\text{m}$).
 - Created interactive ops console `LUMEN-ST_plan-maestro.html` and master integration documentation.
+
+### Milestone 41 — Smart Outer Perimeter Respawn & Bot Independence
+- Deployed dense 32-node perimeter spawn sampler with direct player FOV occlusion check (`dot > 0.35`).
+- Enforced hard central station exclusion radius ($R > 28.0\text{m}$) and 5-slot angular anti-clustering memory ($37^\circ$).
+- Upgraded bot squad AI with autonomous roles (Marksman, Heavy, Flanker/Medic) and tactical backpedal kiting ($<4.8\text{m}$).
+
+### Milestone 42 — Resilient Spawning Pipeline & Wave Queue Protection (Phase 14)
+- Restored `getActivePlayerPositions()` and `getActivePlayerEntities()` dual API compatibility.
+- Implemented transactional wave queue consumption (`queue.pop()` only commits upon successful entity instantiation).
+- Hardened HUD notification engine (`feed()`) and coordinate fallback to prevent any runtime interruption of enemy spawning.
+- Validated 100% test coverage across all 9 infected host archetypes and active wave progression loops.
