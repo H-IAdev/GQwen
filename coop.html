@@ -7930,7 +7930,8 @@ function initGameEngine() {
         if(isHost){
           if(queue.length){
             spawnT -= dt;
-            const maxActive = Math.min(8, 4 + Math.floor(wave * 0.4) + (N - 1) * 2);
+            const pCount = (typeof numPlayers === 'function') ? numPlayers() : 1;
+            const maxActive = Math.min(8, 4 + Math.floor(wave * 0.4) + (pCount - 1) * 2);
             if(spawnT <= 0 && zombies.filter(z => !z.dead).length < maxActive){
               spawnT = spawnInt; spawnZombie(queue.pop(), hpMul, spMul);
             }
