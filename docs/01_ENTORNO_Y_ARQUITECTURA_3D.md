@@ -1,4 +1,4 @@
-﻿# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: ENTORNO Y ARQUITECTURA 3D
+# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: ENTORNO Y ARQUITECTURA 3D
 # Motor de Geometría Procedural, Matemáticas de Pista y Físicas de Navegación
 # Auditado directamente desde coop.html — Versión 4.7 UX POLISH
 
@@ -21,7 +21,63 @@ Manual de documentación técnica detallado para la generación procedural de la
 
 ---
 
-## 2. PARAMETRIZACIÓN MATEMÁTICA DE LA PISTA (LOOP LINE)
+## 2. PLANO ARQUITECTÓNICO ASCII COMPLETO (VISTA DE PLANTA Y SECCIONES)
+
+```
+                                    NORTE (Z = -30m, t = 0.00)
+                              ══════════════════════════════════════════════
+                              [ SECTOR 0: ESTACIÓN NORTE - SPAWN PERÍMETRO ]
+                                  (Andén de Entrada · Breaker 0 · Generador)
+                                                 │
+               TÚNEL NOROESTE                    │                    TÚNEL NORESTE
+           [ SECTOR 7: SPAWN ]                   │                [ SECTOR 1: SPAWN ]
+            (t = 0.82, X = -38m)                 │                 (t = 0.18, X = +38m)
+                    \                            │                            /
+                     \                           │                           /
+                      \    ┌─────────────────────┴─────────────────────┐    /
+                       \   │        GRAN ESTACIÓN CONCOURSE            │   /
+                        \  │      (Planta Central: 36m x 24m)          │  /
+                         \ │                                           │ /
+                          \│ ┌───────────────────────────────────────┐ │/
+                           │ │      MEZZANINE SUPERIOR (y = 3.5m)    │ │
+                           │ │  - Master Ammo Supply Box (0, -4.0)   │ │
+                           │ │  - Cabina de Control & Pantallas CRTs │ │
+                           │ │  - Spawn Inicial de Jugadores (0, 0)  │ │
+CURVA OESTE                │ └───────────────────┬───────────────────┘ │                CURVA ESTE
+[ SECTOR 6: SPAWN ] <─────>│                     │                     │<─────> [ SECTOR 2: SPAWN ]
+ (t = 0.75, X = -55m)      │ [Escalera Sur Oeste]│ [Escalera Nor-Este] │         (t = 0.25, X = +55m)
+  Graffiti "HOLD THE LINE" │ (x = -16m, z = -4)  │ (x = 16m, z = 4)    │          Vías Electrificadas
+  Vías y Balasto           │                     │                     │          Breaker 2
+                           │ ┌───────────────────┴───────────────────┐ │
+                          /│ │       PLANTA BAJA CONCOURSE (y = 0m)  │ │\
+                         / │ │  - Quioscos Centrales y Máquinas      │ │ \
+                        /  │ │  - Molinetes de Acceso y Pilares      │ │  \
+                       /   │ └───────────────────────────────────────┘ │   \
+                      /    └─────────────────────┬─────────────────────┘    \
+                     /                           │                           \
+                    /                            │                            \
+           [ SECTOR 5: SPAWN ]                   │                [ SECTOR 3: SPAWN ]
+             TÚNEL SUROESTE                      │                   TÚNEL SURESTE
+          (t = 0.68, X = -38m)                   │                (t = 0.32, X = +38m)
+                                                 │
+                              [ SECTOR 4: PORTAL SUR - SPAWN PERÍMETRO ]
+                                  (t = 0.50 · Puerta de Acero M.steel)
+                              ══════════════════════════════════════════════
+                                         SUR (Z = +30m)
+
+                       ESPECIFICACIONES DE COTAS Y DIMENSIONES
+                       ───────────────────────────────────────
+   • Pista Elíptica: Eje Mayor X = 110m (TA = 55m), Eje Menor Z = 60m (TB = 30m).
+   • Perímetro Total: ~271.8 metros.
+   • Bóveda y Altura: Techo continuo wH = 6.4m, Andén Total = 13.7m.
+   • Zona Central Concourse: 36.0m (X) x 24.0m (Z), Mezzanine Elevado a +3.48m.
+   • 6 Sectores de Incursión: Norte (t=0.0), Noreste (t=0.18), Sureste (t=0.32),
+                              Sur (t=0.50), Suroeste (t=0.68), Noroeste (t=0.82).
+```
+
+---
+
+## 3. PARAMETRIZACIÓN MATEMÁTICA DE LA PISTA (LOOP LINE)
 
 La arquitectura del túnel subterráneo no utiliza archivos de modelos 3D estáticos externos (no hay `.obj`, `.gltf` ni `.fbx`). Todo el espacio se sintetiza matemáticamente sobre un bucle cerrado elíptico.
 

@@ -651,15 +651,15 @@ function initGameEngine() {
   const GAME_CONFIG = {
     version: "4.6.1-INTEGRATED",
     zombies: {
-      walker: { hp: 65, spd: [0.95, 1.10], dmg: 10, score: 10, sc: 1.0, armor: 0 },
-      runner: { hp: 48, spd: [1.35, 1.50], dmg: 8, score: 15, sc: 0.88, armor: 0 },
-      brute: { hp: 120, spd: [0.80, 0.95], dmg: 15, score: 30, sc: 1.35, armor: 0 },
-      mini_stalker: { hp: 200, spd: [1.15, 1.30], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
-      mini_rockhurler: { hp: 280, spd: [0.70, 0.85], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
-      mini_juggernaut: { hp: 380, spd: [0.75, 0.90], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
-      boss_juggernaut: { hp: 880, spd: [0.80, 0.95], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
-      boss_stalker: { hp: 460, spd: [1.20, 1.35], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
-      boss_rockhurler: { hp: 580, spd: [0.75, 0.90], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
+      walker: { hp: 65, spd: [1.35, 1.55], dmg: 10, score: 10, sc: 1.0, armor: 0 },
+      runner: { hp: 48, spd: [2.10, 2.35], dmg: 8, score: 15, sc: 0.88, armor: 0 },
+      brute: { hp: 120, spd: [1.15, 1.30], dmg: 15, score: 30, sc: 1.35, armor: 0 },
+      mini_stalker: { hp: 200, spd: [1.70, 1.90], dmg: 12, score: 75, sc: 1.25, armor: 0.15 },
+      mini_rockhurler: { hp: 280, spd: [1.10, 1.25], dmg: 14, score: 90, sc: 1.5, armor: 0.20 },
+      mini_juggernaut: { hp: 380, spd: [1.15, 1.30], dmg: 18, score: 140, sc: 1.7, armor: 0.25 },
+      boss_juggernaut: { hp: 880, spd: [1.20, 1.35], dmg: 28, score: 350, sc: 2.4, armor: 0.45 },
+      boss_stalker: { hp: 460, spd: [1.80, 2.05], dmg: 18, score: 180, sc: 1.6, armor: 0.30 },
+      boss_rockhurler: { hp: 580, spd: [1.15, 1.30], dmg: 22, score: 220, sc: 2.1, armor: 0.35 }
     },
 
 
@@ -4349,45 +4349,65 @@ function initGameEngine() {
 
     slot.type=type;
   }
-  // Coordinador de Sectores de Incursión Estratégica
+  // Coordinador de Sectores de Incursión Estratégica en Perímetro y Túneles
   const SPAWN_SECTORS = [
-    { name: 'Norte Central', baseT: 0.00, latRange: [-2.5, 4.0] },
-    { name: 'Túnel Noreste', baseT: 0.18, latRange: [-3.5, 5.5] },
-    { name: 'Túnel Sureste', baseT: 0.32, latRange: [-3.5, 5.5] },
-    { name: 'Sur Central',   baseT: 0.50, latRange: [-2.5, 4.0] },
-    { name: 'Túnel Suroeste', baseT: 0.68, latRange: [-3.5, 5.5] },
-    { name: 'Túnel Noroeste', baseT: 0.82, latRange: [-3.5, 5.5] }
+    { name: 'Norte Central', baseT: 0.00, latRange: [1.5, 4.8] },
+    { name: 'Túnel Noreste', baseT: 0.18, latRange: [1.0, 5.0] },
+    { name: 'Túnel Sureste', baseT: 0.32, latRange: [1.0, 5.0] },
+    { name: 'Sur Central',   baseT: 0.50, latRange: [1.5, 4.8] },
+    { name: 'Túnel Suroeste', baseT: 0.68, latRange: [1.0, 5.0] },
+    { name: 'Túnel Noroeste', baseT: 0.82, latRange: [1.0, 5.0] }
   ];
 
   let recentSpawnSectors = []; // Historial de rotación anti-clustering (últimos 3 sectores usados)
 
+  function getActivePlayerPositions(){
+    const pList = [];
+    if(typeof camera !== 'undefined' && camera.position){
+      pList.push({ x: camera.position.x, z: camera.position.z });
+    }
+    if(typeof _vCam !== 'undefined'){
+      pList.push({ x: _vCam.x, z: _vCam.z });
+    }
+    if(typeof getAlivePlayers === 'function'){
+      const units = getAlivePlayers();
+      for(const u of units){
+        if(u.pos) pList.push({ x: u.pos.x, z: u.pos.z });
+        else if(u.trackT !== undefined){
+          const tp = trackPos(u.trackT);
+          pList.push({ x: tp.x, z: tp.z });
+        }
+      }
+    }
+    return pList;
+  }
+
   function pickSpawnParams(){
-    const units = typeof getAlivePlayers === 'function' ? getAlivePlayers() : [];
+    const pPositions = getActivePlayerPositions();
     
-    // 1. Evaluar distancia de cada sector a los jugadores y cámara
+    // 1. Evaluar distancia de cada sector a todos los jugadores y verificar que esté en el perímetro
     const sectorScores = SPAWN_SECTORS.map((sec, idx) => {
       const p = trackPos(sec.baseT);
+      const n = outN(sec.baseT);
+      const spX = p.x + n.x * 2.5;
+      const spZ = p.z + n.z * 2.5;
+      const inConcourse = Math.abs(spX) < 22 && Math.abs(spZ) < 16;
+
       let minD = Infinity;
-      for(const u of units){
-        const ux = u.pos ? u.pos.x : (u.trackT !== undefined ? trackPos(u.trackT).x : 0);
-        const uz = u.pos ? u.pos.z : (u.trackT !== undefined ? trackPos(u.trackT).z : 0);
-        const d = Math.hypot(p.x - ux, p.z - uz);
+      for(const pp of pPositions){
+        const d = Math.hypot(spX - pp.x, spZ - pp.z);
         if(d < minD) minD = d;
       }
-      if(typeof _vCam !== 'undefined'){
-        const dCam = Math.hypot(p.x - _vCam.x, p.z - _vCam.z);
-        if(dCam < minD) minD = dCam;
-      }
-      return { sec, idx, minD };
+      return { sec, idx, minD, inConcourse };
     });
 
-    // 2. Filtrar sectores elegibles con distancia segura (mínimo 20m) excluyendo los sectores recientes
-    let eligible = sectorScores.filter(s => s.minD >= 20.0 && !recentSpawnSectors.includes(s.idx));
+    // 2. Filtrar sectores elegibles con distancia segura (mínimo 24m) excluyendo el centro y sectores recientes
+    let eligible = sectorScores.filter(s => s.minD >= 24.0 && !s.inConcourse && !recentSpawnSectors.includes(s.idx));
     if(eligible.length === 0){
-      eligible = sectorScores.filter(s => s.minD >= 18.0 && !recentSpawnSectors.includes(s.idx));
+      eligible = sectorScores.filter(s => s.minD >= 20.0 && !s.inConcourse && !recentSpawnSectors.includes(s.idx));
     }
     if(eligible.length === 0){
-      eligible = sectorScores.filter(s => s.minD >= 18.0);
+      eligible = sectorScores.filter(s => s.minD >= 18.0 && !s.inConcourse);
     }
     if(eligible.length === 0){
       eligible = sectorScores.sort((a, b) => b.minD - a.minD).slice(0, 2);
@@ -4400,10 +4420,10 @@ function initGameEngine() {
     recentSpawnSectors.push(chosenIdx);
     if(recentSpawnSectors.length > 3) recentSpawnSectors.shift();
 
-    // 3. Generar coordenadas con jitter orgánico dentro del sector seleccionado
-    let chosenT = chosenSector.baseT + R(-0.045, 0.045);
+    // 3. Generar coordenadas con jitter orgánico en el carril exterior del sector
+    let chosenT = chosenSector.baseT + R(-0.035, 0.035);
     chosenT = ((chosenT % 1.0) + 1.0) % 1.0;
-    const chosenLat = clamp(R(chosenSector.latRange[0], chosenSector.latRange[1]), -4.5, 7.2);
+    const chosenLat = clamp(R(chosenSector.latRange[0], chosenSector.latRange[1]), 1.0, 5.8);
 
     return { t: chosenT, lat: chosenLat };
   }
@@ -4441,15 +4461,25 @@ function initGameEngine() {
     // Resetear rotación (muerte deja el zombie caído — g.rotation.x != 0)
     slot.g.rotation.set(0,0,0);
 
-    // Posicionar (LOD ya está en la escena, solo mover y mostrar)
+    // Posicionar en túnel/perímetro exterior (LOD ya está en la escena, solo mover y mostrar)
     const isAmbushType = (type === 'runner' || type === 'mini_stalker' || type === 'boss_stalker');
-    const ambushGrate = (isAmbushType && window.ambushGratePositions && window.ambushGratePositions.length && Math.random() < 0.25)
-      ? pick(window.ambushGratePositions)
-      : null;
+    const pPositions = getActivePlayerPositions();
+    let safeAmbushGrate = null;
+    if(isAmbushType && window.ambushGratePositions && window.ambushGratePositions.length && Math.random() < 0.20){
+      const safeGrates = window.ambushGratePositions.filter(g => {
+        const inCenter = Math.abs(g.x) < 22 && Math.abs(g.z) < 16;
+        if(inCenter) return false;
+        for(const pp of pPositions){
+          if(Math.hypot(g.x - pp.x, g.z - pp.z) < 26.0) return false;
+        }
+        return true;
+      });
+      if(safeGrates.length) safeAmbushGrate = pick(safeGrates);
+    }
 
-    if(ambushGrate){
-      const _y0 = getFloorY(ambushGrate.x, ambushGrate.z);
-      slot.g.position.set(ambushGrate.x, _y0, ambushGrate.z);
+    if(safeAmbushGrate){
+      const _y0 = getFloorY(safeAmbushGrate.x, safeAmbushGrate.z);
+      slot.g.position.set(safeAmbushGrate.x, _y0, safeAmbushGrate.z);
       burst(slot.g.position, 'ichor', 12, 3.2);
     } else {
       const p2=trackPos(slot.t),n2=outN(slot.t);
@@ -4925,14 +4955,14 @@ function initGameEngine() {
       z.cool-=dt;z.hitT-=dt;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      let windupMax = z.type.includes('juggernaut') ? 2.00 :
-                      z.type.includes('rockhurler') ? 1.70 :
-                      z.type.includes('stalker') ? 1.50 :
-                      z.type === 'brute' ? 1.85 :
-                      z.type === 'runner' ? 1.40 : 1.60;
-      if(z.isBiting) windupMax = 1.30; // Anticipación telegrafiada para mordida
-      if(z.isCrawling) windupMax = 1.50;
-      windupMax = Math.max(1.30, windupMax); // Límite estricto infranqueable
+      let windupMax = z.type.includes('juggernaut') ? 1.25 :
+                      z.type.includes('rockhurler') ? 1.00 :
+                      z.type.includes('stalker') ? 0.80 :
+                      z.type === 'brute' ? 1.10 :
+                      z.type === 'runner' ? 0.65 : 0.85;
+      if(z.isBiting) windupMax = 0.70; // Anticipación telegrafiada ágil para mordida
+      if(z.isCrawling) windupMax = 0.80;
+      windupMax = Math.max(0.60, windupMax); // Límite calibrado fluido
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -4950,7 +4980,7 @@ function initGameEngine() {
         } else if(z.aL&&z.aL.p&&z.aR&&z.aR.p){
           let armRot = -1.05;
           if(w < 0.65){
-            armRot = -1.05 - (w / 0.65) * 0.95; // Sube de -1.05 a -2.00 suavemente (telegrafiado fluido)
+            armRot = -1.05 - (w / 0.65) * 0.95; // Sube de -1.05 a -2.00 suavemente
           } else {
             const swingW = (w - 0.65) / 0.35;
             armRot = -2.00 + swingW * 1.80;    // Golpe frontal fluido
@@ -4958,16 +4988,16 @@ function initGameEngine() {
           z.aL.p.rotation.x = z.aR.p.rotation.x = armRot;
         }
         if(z.type.includes('stalker')&&z.aura) z.aura.intensity = 12.0 + Math.sin(elapsed * 12) * 5;
-        const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
+        const windupMoveSpd = z.type.startsWith('boss_') ? 0.35 : 0.55;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const baseCool = (z.isBiting ? 3.5 :
-                           z.type.includes('juggernaut') ? 5.0 :
-                           z.type.includes('rockhurler') ? 4.5 :
-                           z.type.includes('stalker') ? 4.2 :
-                           z.type === 'brute' ? 4.5 :
-                           z.type === 'runner' ? 3.5 : 4.0) + R(-0.15, 0.15);
-          z.cool = Math.max(3.2, baseCool); // Límite estricto infranqueable
+          const baseCool = (z.isBiting ? 2.0 :
+                           z.type.includes('juggernaut') ? 3.0 :
+                           z.type.includes('rockhurler') ? 2.8 :
+                           z.type.includes('stalker') ? 2.2 :
+                           z.type === 'brute' ? 2.5 :
+                           z.type === 'runner' ? 1.8 : 2.2) + R(-0.15, 0.15);
+          z.cool = Math.max(1.6, baseCool);
 
           if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 8, 2.8);
@@ -5349,7 +5379,7 @@ function initGameEngine() {
     if(sl.le) sl.le.light.position.copy(fromPos);
     _rkMtx.identity().compose(sl.pos,_rkQ.identity(),_rkOne);
     instRocks.setMatrixAt(si,_rkMtx);
-    instRocks.count=rockSlots.filter(s=>s.inUse).length;
+    instRocks.count=ROCK_SLOTS;
     if(instRocks.instanceMatrix) instRocks.instanceMatrix.needsUpdate = true;
   }
 
@@ -5403,10 +5433,8 @@ function initGameEngine() {
         if(distToCam < 30.0 && Math.random() < 0.32) burst(sl.pos,'spark',1,1.2);
       }
     }
-    instRocks.count=activeCount;
-    if(activeCount > 0 || instRocks.count > 0){
-      instRocks.instanceMatrix.needsUpdate=true;
-    }
+    instRocks.count=ROCK_SLOTS;
+    if(instRocks.instanceMatrix) instRocks.instanceMatrix.needsUpdate=true;
   }
 
   function getPlayerWorldPos(){
@@ -7545,6 +7573,11 @@ function initGameEngine() {
     $('#stWave').textContent=wave;$('#stKill').textContent=kills;
     $('#stHead').textContent=headshots;$('#stScore').textContent=score;
     $('#overTime').textContent=timeStr;
+    const retryBtn = $('#retryBtn');
+    if(retryBtn){
+      retryBtn.className = 'go green';
+      retryBtn.textContent = 'CONTINUAR DESDE OLA 1 →';
+    }
     setTimeout(()=>$('#over').classList.remove('gone'),500);
     if(isHost)netSend({type:'gameover'});
   }
@@ -7567,6 +7600,11 @@ function initGameEngine() {
     $('#stHead').textContent=headshots;$('#stScore').textContent=score;
     const s=Math.floor(Math.max(0,elapsed-startTime));
     $('#overTime').textContent=String(s/60|0).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    const retryBtn = $('#retryBtn');
+    if(retryBtn){
+      retryBtn.className = 'go red';
+      retryBtn.textContent = 'REDEPLOY →';
+    }
     setTimeout(()=>$('#over').classList.remove('gone'),500);
     if(isHost)netSend({type:'gameover'});}
 

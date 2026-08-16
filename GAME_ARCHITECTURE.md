@@ -41,16 +41,46 @@ Set within a quarantined subterranean transit system (**LUMEN ST · LOOP LINE**)
 The game world consists of a continuous curved subterranean loop track divided into **8 Procedural Sectors (`S0` to `S7`)** connected to a central hidden concourse mezzanine.
 
 ```
-       [SECTOR 0: ENTRY]  <--->  [SECTOR 1: NORTH TUNNEL]  <--->  [SECTOR 2: BEND]
-              ^                                                         |
-              |                                                         v
-  [SECTOR 7: WEST BEND]       +---------------------------+       [SECTOR 3: TUNNEL]
-              ^               | CENTRAL SECRET MEZZANINE  |             |
-              |               |  - Dual 14-Step Stairs    |             v
-  [SECTOR 6: SOUTH TUNNEL]    |  - Master Ammo Supply     |     [SECTOR 4: ACCESS PORTAL]
-              ^               |  - Control Booth & Screens|             |
-              |               +---------------------------+             v
-       [SECTOR 5: BEND]   <--------------------------------------- [SECTOR 5: EAST BEND]
+                                    NORTH (Z = -30m, t = 0.00)
+                              ══════════════════════════════════════════════
+                              [ SECTOR 0: NORTH STATION - PERIMETER SPAWN ]
+                                  (Platform Entry · Breaker 0 · Generator)
+                                                 │
+               NORTHWEST TUNNEL                  │                   NORTHEAST TUNNEL
+           [ SECTOR 7: SPAWN ]                   │                [ SECTOR 1: SPAWN ]
+            (t = 0.82, X = -38m)                 │                 (t = 0.18, X = +38m)
+                    \                            │                            /
+                     \                           │                           /
+                      \    ┌─────────────────────┴─────────────────────┐    /
+                       \   │      GRAND CENTRAL METRO CONCOURSE        │   /
+                        \  │        (Floor Area: 36m x 24m)            │  /
+                         \ │                                           │ /
+                          \│ ┌───────────────────────────────────────┐ │/
+                           │ │      UPPER MEZZANINE DECK (y = 3.5m)  │ │
+                           │ │  - Master Ammo Supply Box (0, -4.0)   │ │
+                           │ │  - Security Control Booth & CRTs      │ │
+                           │ │  - Local Player Initial Spawn (0, 0)  │ │
+WEST BEND                  │ └───────────────────┬───────────────────┘ │                EAST BEND
+[ SECTOR 6: SPAWN ] <─────>│                     │                     │<─────> [ SECTOR 2: SPAWN ]
+ (t = 0.75, X = -55m)      │ [South-West Stairs] │ [North-East Stairs] │         (t = 0.25, X = +55m)
+  Graffiti "HOLD THE LINE" │ (x = -16m, z = -4)  │ (x = 16m, z = 4)    │          Electrified Rails
+  Ballast & Rails          │                     │                     │          Breaker 2
+                           │ ┌───────────────────┴───────────────────┐ │
+                          /│ │      LOWER CONCOURSE FLOOR (y = 0m)   │ │\
+                         / │ │  - Center Kiosks & Vending Machines   │ │ \
+                        /  │ │  - Turnstiles & Structural Pillars    │ │  \
+                       /   │ └───────────────────────────────────────┘ │   \
+                      /    └─────────────────────┬─────────────────────┘    \
+                     /                           │                           \
+                    /                            │                            \
+           [ SECTOR 5: SPAWN ]                   │                [ SECTOR 3: SPAWN ]
+             SOUTHWEST TUNNEL                    │                   SOUTHEAST TUNNEL
+          (t = 0.68, X = -38m)                   │                (t = 0.32, X = +38m)
+                                                 │
+                              [ SECTOR 4: SOUTH PORTAL - PERIMETER SPAWN ]
+                                  (t = 0.50 · Reinforced Steel Door)
+                              ══════════════════════════════════════════════
+                                         SOUTH (Z = +30m)
 ```
 
 ### Architectural Specifications
