@@ -138,3 +138,43 @@
 - `#tBtnPtt`: Vinculado a `setPTTState(true/false)` mediante `bindTouchBtn`. El micrófono ahora se activa correctamente al presionar el botón PTT en móvil.
 - `#tBtnPause`: Vinculado manualmente a `touchstart`/`touchend`. Alterna el pointer lock en juego; cierra el chat si está abierto.
 
+---
+
+## 6. Changelog — VER 4.8 FINAL BALANCED & FREQUENT BUG RESOLUTIONS
+
+### [2026-08-16] — Multi-Asset Bosses, Anti-Clustering Spawn, CORS & Pacing
+
+#### 🛡️ 1. Resolución de Errores Frecuentes y Resiliencia (Bugfixes Críticos)
+- **Bloqueo CORS en Protocolo `file:///`**:
+  - *Error*: `Access to XMLHttpRequest at 'file:///...' from origin 'null' has been blocked by CORS policy`.
+  - *Corrección*: `loadZombieGLTFAssets()` detecta `protocol === 'file:'` y omite peticiones AJAX a `src/...`, activando de forma inmediata el motor procedural **Zero-GC** con apéndices 3D completos (cuernos de titan, hombreras de piedra, cuchillas y núcleos luminosos).
+- **Eliminación de Errores 404 en CDN R2**:
+  - *Error*: `Zombie_Ribcage.gltf 404`, `Zombie_Arm.gltf 404`.
+  - *Corrección*: Se eliminaron las rutas inexistentes en el bucket R2 y se registró `skeleton_-_lowpoly_character.glb` (status 200 OK) para dar identidad visual a Shadow Stalkers y Runners.
+- **Corrección de Ámbito en IA de Host (`N is not defined`)**:
+  - *Error*: `[Resilience Notice - ZombiesAI]: N is not defined`.
+  - *Corrección*: Se reemplazó la variable no declarada por la función autoritativa `const pCount = (typeof numPlayers === 'function') ? numPlayers() : 1;`.
+- **Traspaso de Obstáculos en Zona Concourse**:
+  - *Error*: Enemigos atravesando quioscos y máquinas centrales.
+  - *Corrección*: Se integró `resolveWorldCollisions(z.g.position, 0.45)` de forma obligatoria en el avance de la zona concourse y se incrementó el vector de desvío ortogonal anticipatorio a `side * 3.5`.
+- **Herencia de Animaciones de Muerte en Respawn**:
+  - *Error*: Zombis reapareciendo congelados en el suelo, arrastrándose o doblados.
+  - *Corrección*: Creación de `resetZombieSlotTransforms(slot)` para detener y limpiar todos los `AnimationMixer` (`stopAllAction()`), restaurar las articulaciones procedurales a cero erguido y resetear los flags (`dead = false; isCrawling = false; deathT = 0;`).
+
+#### 🧟 2. Variedad de Modelos 3D y Canalización Multi-Asset
+- Asignación diferenciada en `applyZombieType`:
+  - `Zombie_Chubby.gltf` $\rightarrow$ Juggernauts, Titans y Brutos.
+  - `skeleton_-_lowpoly_character.glb` $\rightarrow$ Shadow Stalkers y Runners.
+  - `Zombie_Basic.gltf` $\rightarrow$ Infectados comunes y caminantes.
+  - `Zombie_Arm.gltf` / Proyección procedural $\rightarrow$ Volcanic Rock Hurlers.
+
+#### 📍 3. Coordinador Multi-Sectorial de Incursión (`SPAWN_SECTORS`)
+- Implementados 6 sectores perimetrales estratégicos con historial de memoria `recentSpawnSectors` (últimos 3 sectores utilizados bloqueados para evitar spawn recurrente en un mismo punto).
+- Evaluación tridimensional euclidiana segura ($\ge 20\text{m}$ a todos los jugadores y cámara).
+
+#### ⚡ 4. Balanceo de Velocidades y Oleadas
+- Velocidades promedio calibradas en `GAME_CONFIG.zombies` (Walkers `0.95 - 1.10 m/s`, Runners `1.35 - 1.50 m/s`, Brutes `0.80 - 0.95 m/s`).
+- Límite infranqueable de ataque (`windupMax >= 1.30s`, `baseCool >= 3.2s`).
+- Oleadas reestructuradas en `WAVE_PLAN` (5 a 14 zombis totales por oleada, `maxActive` limitado de 4 a 8 simultáneos, `spawnInt` espaciado a `2.4s - 1.65s`).
+
+

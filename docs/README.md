@@ -13,9 +13,10 @@ Este directorio contiene los registros de progreso, guías visuales y especifica
    - Geometría unificada: techo continuo `wH = 6.4m`, andén de `13.7m` de ancho total.
 
 2. 🧟 **[02_SISTEMA_DE_BOSSES_Y_IA.md](file:///d:/mind/SpaceCode/docs/02_SISTEMA_DE_BOSSES_Y_IA.md)**
-   - Matriz de entidades (`ZDEF`): Walkers, Runners, Brutes, Alpha Juggernaut, Neon Stalker y Rock Hurler.
-   - Sistema de Oleadas Exclusivas para el Boss Final (Juggernaut esmeralda `0x00ffaa`).
-   - Mecánicas del Rock Hurler: Telégrafo de carga de roca con rampa emisiva (0.4 a 2.2) y explosión AoE (3.5m).
+   - Matriz completa de 9 entidades (`GAME_CONFIG.zombies` / `ZDEF`): Walkers, Runners, Brutes, Mini-Bosses y Bosses Élite.
+   - Coordinador Multi-Sectorial de Incursión (`SPAWN_SECTORS`) y rotación anti-clustering con memoria.
+   - Canalización multi-modelo 3D (`Zombie_Basic`, `Zombie_Chubby`, `skeleton_-_lowpoly_character`, `Zombie_Arm`) + Fallback Zero-GC.
+   - Reinicio limpio de transformaciones de respawn (`resetZombieSlotTransforms`) y colisiones en concourse.
 
 3. 🔫 **[03_COMBATE_ARMAS_Y_FISICAS.md](file:///d:/mind/SpaceCode/docs/03_COMBATE_ARMAS_Y_FISICAS.md)**
    - Controlador del Jugador (WASD + Dual Joysticks Táctiles Móviles).
@@ -33,7 +34,8 @@ Este directorio contiene los registros de progreso, guías visuales y especifica
    - Sanitización XSS en Chat (`textContent`) y recubrimiento dinámico de 800 partículas de polvo.
 
 6. 📄 **[06_REPORTE_TECNICO_COOP_HTML.md](file:///d:/mind/SpaceCode/docs/06_REPORTE_TECNICO_COOP_HTML.md)**
-   - Registro forense y desglose detallado bloque por bloque de `coop.html` (VER 4.6 P2P RESILIENT).
+   - Registro forense y desglose detallado bloque por bloque de `coop.html` (VER 4.8 FINAL BALANCED).
+   - Registro y resolución histórica de errores frecuentes (CORS `file:///`, 404s en CDN, `N is not defined`, posture resets).
 
 7. 🎨 **[07_DOCUMENTACION_VISUAL_Y_ELEMENTOS.md](file:///d:/mind/SpaceCode/docs/07_DOCUMENTACION_VISUAL_Y_ELEMENTOS.md)**
    - Guía visual **GQW-VIS-6.0 REV 03**: Paleta ambientCG PBR, IBL reflections (`scene.environment`), iluminación legacy reequilibrada y UnrealBloomPass selectivo en Capa 2.

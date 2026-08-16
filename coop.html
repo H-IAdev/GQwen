@@ -4349,34 +4349,63 @@ function initGameEngine() {
 
     slot.type=type;
   }
-  const MIN_SPAWN_DIST = 26.0; // metros mínimos en espacio 3D real
+  // Coordinador de Sectores de Incursión Estratégica
+  const SPAWN_SECTORS = [
+    { name: 'Norte Central', baseT: 0.00, latRange: [-2.5, 4.0] },
+    { name: 'Túnel Noreste', baseT: 0.18, latRange: [-3.5, 5.5] },
+    { name: 'Túnel Sureste', baseT: 0.32, latRange: [-3.5, 5.5] },
+    { name: 'Sur Central',   baseT: 0.50, latRange: [-2.5, 4.0] },
+    { name: 'Túnel Suroeste', baseT: 0.68, latRange: [-3.5, 5.5] },
+    { name: 'Túnel Noroeste', baseT: 0.82, latRange: [-3.5, 5.5] }
+  ];
+
+  let recentSpawnSectors = []; // Historial de rotación anti-clustering (últimos 3 sectores usados)
 
   function pickSpawnParams(){
     const units = typeof getAlivePlayers === 'function' ? getAlivePlayers() : [];
-    const cands = [];
-    for(let i = 0; i < 24; i++){
-      const ct = Math.random();
-      const cLat = clamp(R(-2.0, 5.8), -4.5, 7.2);
-      const p = trackPos(ct), n = outN(ct);
-      const spX = p.x + n.x * cLat;
-      const spZ = p.z + n.z * cLat;
-
+    
+    // 1. Evaluar distancia de cada sector a los jugadores y cámara
+    const sectorScores = SPAWN_SECTORS.map((sec, idx) => {
+      const p = trackPos(sec.baseT);
       let minD = Infinity;
       for(const u of units){
         const ux = u.pos ? u.pos.x : (u.trackT !== undefined ? trackPos(u.trackT).x : 0);
         const uz = u.pos ? u.pos.z : (u.trackT !== undefined ? trackPos(u.trackT).z : 0);
-        const d = Math.hypot(spX - ux, spZ - uz);
+        const d = Math.hypot(p.x - ux, p.z - uz);
         if(d < minD) minD = d;
       }
       if(typeof _vCam !== 'undefined'){
-        const dCam = Math.hypot(spX - _vCam.x, spZ - _vCam.z);
+        const dCam = Math.hypot(p.x - _vCam.x, p.z - _vCam.z);
         if(dCam < minD) minD = dCam;
       }
-      cands.push({ t: ct, lat: cLat, d: minD });
+      return { sec, idx, minD };
+    });
+
+    // 2. Filtrar sectores elegibles con distancia segura (mínimo 20m) excluyendo los sectores recientes
+    let eligible = sectorScores.filter(s => s.minD >= 20.0 && !recentSpawnSectors.includes(s.idx));
+    if(eligible.length === 0){
+      eligible = sectorScores.filter(s => s.minD >= 18.0 && !recentSpawnSectors.includes(s.idx));
     }
-    const valid = cands.filter(c => c.d >= MIN_SPAWN_DIST && c.d <= 55);
-    const chosen = valid.length ? pick(valid) : cands.reduce((a, b) => b.d > a.d ? b : a);
-    return { t: chosen.t, lat: chosen.lat };
+    if(eligible.length === 0){
+      eligible = sectorScores.filter(s => s.minD >= 18.0);
+    }
+    if(eligible.length === 0){
+      eligible = sectorScores.sort((a, b) => b.minD - a.minD).slice(0, 2);
+    }
+
+    const chosenItem = pick(eligible) || eligible[0] || { sec: SPAWN_SECTORS[0], idx: 0 };
+    const chosenSector = chosenItem.sec;
+    const chosenIdx = chosenItem.idx;
+
+    recentSpawnSectors.push(chosenIdx);
+    if(recentSpawnSectors.length > 3) recentSpawnSectors.shift();
+
+    // 3. Generar coordenadas con jitter orgánico dentro del sector seleccionado
+    let chosenT = chosenSector.baseT + R(-0.045, 0.045);
+    chosenT = ((chosenT % 1.0) + 1.0) % 1.0;
+    const chosenLat = clamp(R(chosenSector.latRange[0], chosenSector.latRange[1]), -4.5, 7.2);
+
+    return { t: chosenT, lat: chosenLat };
   }
 
   function spawnZombie(type,hpMul,spMul){

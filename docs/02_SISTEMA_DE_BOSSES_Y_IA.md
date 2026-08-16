@@ -1,8 +1,8 @@
-# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: SISTEMA DE BOSSES E INTELIGENCIA ARTIFICIAL
-# Lógica de Oleadas, Entidades Infectadas, IA de Combate y Red P2P Host/Client
-# Auditado directamente desde coop.html — Versión 4.7 UX POLISH
+# REGISTRO DE PROGRESO Y DESARROLLO TÉCNICO: SISTEMA DE BOSSES, MODELOS 3D E INTELIGENCIA ARTIFICIAL
+# Lógica de Oleadas, Entidades Infectadas, Coordinador Multi-Sectorial y Red P2P Host/Client
+# Auditado directamente desde coop.html — Versión 4.8 FINAL BALANCED
 
-Manual de referencia técnico completo para el sistema de inteligencia artificial de enemigos, tabla de parámetros `ZDEF`, algoritmo de oleadas, mecánicas especiales de bosses y sincronización de red P2P Host-Cliente en **GQwen Co-Op 3D** (`coop.html`).
+Manual de referencia técnico completo para el sistema de inteligencia artificial de enemigos, tabla de parámetros `GAME_CONFIG.zombies` / `ZDEF`, algoritmo de oleadas balanceadas, coordinador multi-sectorial de incursión, canalización multi-modelo 3D y mecánicas especiales en **GQwen Co-Op 3D** (`coop.html`).
 
 ---
 
@@ -10,94 +10,111 @@ Manual de referencia técnico completo para el sistema de inteligencia artificia
 
 | Parámetro | Especificación Técnica |
 |:---|:---|
-| **Módulo** | IA de Infectados, Spawner de Oleadas, Sistema de Bosses y Hitboxes |
-| **Archivos Impactados** | `coop.html` (`ZDEF` Línea 1030, `buildZombieMesh`, `spawnZombie`, `updateZombies` 1150–1260) |
-| **Arquitectura Red** | **Host-Authoritative**: Solo el Host calcula IA, navegación y colisiones de zombies |
+| **Módulo** | IA de Infectados, Spawner Multi-Sectorial, Sistema de Bosses y Hitboxes |
+| **Archivos Impactados** | `coop.html` (`GAME_CONFIG.zombies`, `applyZombieType`, `resetZombieSlotTransforms`, `pickSpawnParams`, `updateZombies`) |
+| **Arquitectura Red** | **Host-Authoritative**: Solo el Host calcula IA, navegación, colisiones y spawns de zombies |
 | **Tasa de Broadcast** | `zstate` a 10Hz (0.10s) desde Host a todos los Clientes P2P |
-| **Total de Entidades** | 6 tipos de infectados (3 comunes + 3 bosses especiales) |
+| **Modelos 3D GLTF** | Multi-Asset Paralelo (`Zombie_Basic`, `Zombie_Chubby`, `skeleton_-_lowpoly_character`, `Zombie_Arm`) + Fallback Procedural Zero-GC |
+| **Total de Entidades** | 9 tipos de infectados (3 comunes + 3 mini-jefes + 3 jefes de élite) |
 
 ---
 
-## 2. TABLA COMPLETA DE ENTIDADES Y BALANCEO (`ZDEF` — Líneas 1030–1037)
+## 2. TABLA COMPLETA DE ENTIDADES Y BALANCEO (`GAME_CONFIG.zombies` / `ZDEF`)
 
-Todos los parámetros de combate están registrados formalmente en el objeto constante `ZDEF`:
+Todos los parámetros de combate y movimiento han sido calibrados a promedios óptimos para permitir maniobra, recarga y retroceso táctico:
 
-| Entidad ID | HP Base | Rango Velocidad | Daño Ataque | Score | Escala 3D (`sc`) | Armadura (`armor`) | Comportamiento Táctico |
-|:---|:---|:---|:---|:---|:---|:---|:---|
-| `walker` | 25 HP | 1.2 – 1.7 m/s | 10 HP | 10 pts | 1.00× | 0% | Infectado estándar. Avance moderado y predecible. |
-| `runner` | 18 HP | 2.3 – 2.9 m/s | 8 HP | 15 pts | 0.88× | 0% | Trotador ágil pero con tiempo amplio de reacción. |
-| `brute` | 60 HP | 1.1 – 1.5 m/s | 15 HP | 30 pts | 1.35× | 0% | Tanque pesado. Torso ensanchado (40% más ancho). |
-| `boss_juggernaut` | 550 HP | 1.2 – 1.6 m/s | 28 HP | 350 pts | 2.40× | **45%** | **Jefe Final**: Núcleo neón verde, marcha imponente. Windup 1.30s / Cool 3.6s. |
-| `boss_stalker` | 280 HP | 2.0 – 2.5 m/s | 18 HP | 180 pts | 1.60× | **30%** | **Asesino de Neón**: Aureola magenta, ataque tellegrafiado (Windup 1.15s / Cool 3.2s). |
-| `boss_rockhurler` | 380 HP | 1.0 – 1.4 m/s | 22 HP | 220 pts | 2.10× | **35%** | **Jefe de Rango**: Artillería de rocas y agarre. Charge 1.4s / Cool 3.0s. |
-
-
-### Cálculo de Daño Efectivo con Armadura
-Cuando una bala o puñetazo impacta a un boss con armadura:
-$$\text{Daño Recibido} = \text{Daño Base} \cdot (1 - \text{armor})$$
-- Un disparo al torso del Juggernaut ($25\text{ HP}$) inflige: $25 \cdot (1 - 0.45) = 13.75\text{ HP}$.
-- Un headshot de fusil ($50\text{ HP}$) al Juggernaut inflige: $50 \cdot (1 - 0.45) = 27.5\text{ HP}$.
+| Entidad ID | HP Base | Rango Velocidad | Daño Ataque | Score | Escala 3D (`sc`) | Armadura (`armor`) | Modelo 3D Activo | Comportamiento Táctico |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| `walker` | 65 HP | 0.95 – 1.10 m/s | 10 HP | 10 pts | 1.00× | 0% | `Zombie_Basic.gltf` | Infectado común. Avance moderado y constante. Windup 1.60s / Cool 4.0s. |
+| `runner` | 48 HP | 1.35 – 1.50 m/s | 8 HP | 15 pts | 0.88× | 0% | `skeleton_-_lowpoly_character.glb` | Trotador ágil con ojos carmesí brillantes. Windup 1.40s / Cool 3.5s. |
+| `brute` | 120 HP | 0.80 – 0.95 m/s | 15 HP | 30 pts | 1.35× | 0% | `Zombie_Chubby` / `Basic` | Tanque pesado. Armadura reforzada oscura. Windup 1.85s / Cool 4.5s. |
+| `mini_stalker` | 200 HP | 1.15 – 1.30 m/s | 12 HP | 75 pts | 1.25× | 15% | `skeleton_-_lowpoly_character.glb` | Espectro óseo. Cuchillas y aura púrpura. Windup 1.50s / Cool 4.2s. |
+| `mini_rockhurler` | 280 HP | 0.70 – 0.85 m/s | 14 HP | 90 pts | 1.50× | 20% | `Zombie_Arm` / Hombreras Roca | Artillería de rocas media. Charge 0.9s / Cool 4.5s. |
+| `mini_juggernaut` | 380 HP | 0.75 – 0.90 m/s | 18 HP | 140 pts | 1.70× | 25% | `Zombie_Chubby.gltf` | Sub-jefe colosal. Núcleo verde esmeralda. Windup 2.00s / Cool 5.0s. |
+| `boss_stalker` | 460 HP | 1.20 – 1.35 m/s | 18 HP | 180 pts | 1.60× | **30%** | `skeleton_-_lowpoly_character.glb` | **Asesino de Neón**: Aureola magenta, corte lateral doble. |
+| `boss_rockhurler` | 580 HP | 0.75 – 0.90 m/s | 22 HP | 220 pts | 2.10× | **35%** | `Zombie_Arm` / Puño Magma | **Jefe Volcánico**: Proyectiles AoE y agarre de infectados. |
+| `boss_juggernaut` | 880 HP | 0.80 – 0.95 m/s | 28 HP | 350 pts | 2.40× | **45%** | `Zombie_Chubby.gltf` | **Jefe Final Alpha**: Núcleo neón, cuernos de titan, pisadas sísmicas. |
 
 ---
 
-## 3. LÓGICA DE 10 OLEADAS DETERMINISTAS (`WAVE_PLAN`) Y CONDICIÓN DE VICTORIA
+## 3. LÓGICA DE 10 OLEADAS CALIBRADAS (`WAVE_PLAN`) Y RITMO DE COMBATE
 
 ### 3.1 Tabla Determinista de Oleadas (`WAVE_PLAN`)
 
-En lugar de generación estocástica imprevista, el juego implementa una estructura fija de 10 oleadas (`WAVE_PLAN`):
+| Oleada | Comunes | Brutos (`brute`) | Mini-Bosses (`minis`) | Jefe Principal (`boss`) | Total Enemigos | Hostiles Activos Máx (`maxActive`) |
+|:---|:---|:---|:---|:---|:---|:---|
+| **1** | 5 | 0 | Ninguno | Ninguno | **5** | 4 en vivo |
+| **2** | 6 | 0 | `mini_stalker` (1) | Ninguno | **7** | 4 en vivo |
+| **3** | 7 | 1 | `mini_rockhurler` (1) | Ninguno | **9** | 5 en vivo |
+| **4** | 8 | 1 | `mini_juggernaut` (1) | Ninguno | **10** | 5 en vivo |
+| **5** | 8 | 1 | Ninguno | `boss_stalker` (1) | **10** | 6 en vivo |
+| **6** | 9 | 2 | `mini_stalker` (1) | Ninguno | **12** | 6 en vivo |
+| **7** | 10 | 1 | Ninguno | `boss_rockhurler` (1) | **12** | 6 en vivo |
+| **8** | 10 | 2 | `mini_juggernaut` (1) | Ninguno | **13** | 7 en vivo |
+| **9** | 11 | 2 | `mini_rockhurler` (1) | `boss_stalker` (1) | **14** | 7 en vivo |
+| **10 (Final)** | 10 | 2 | `mini_stalker` (1) | **`boss_juggernaut` (1)** | **14** | **8 en vivo** |
 
-| Oleada | Infectados Comunes | Infectados Brutos (`brute`) | Jefe Especial (`boss`) | Multiplicador HP (`hpMul`) | Multiplicador Vel (`spMul`) |
-|:---|:---|:---|:---|:---|:---|
-| **1** | 6 | 0 | Ninguno | $1.00\times$ | $1.000\times$ |
-| **2** | 8 | 0 | Ninguno | $1.16\times$ | $1.012\times$ |
-| **3** | 9 | 0 | `boss_stalker` | $1.32\times$ | $1.024\times$ |
-| **4** | 10 | 2 | Ninguno | $1.48\times$ | $1.036\times$ |
-| **5** | 11 | 0 | `boss_rockhurler` | $1.64\times$ | $1.048\times$ |
-| **6** | 12 | 3 | Ninguno | $1.80\times$ | $1.060\times$ |
-| **7** | 13 | 2 | `boss_stalker` | $1.96\times$ | $1.072\times$ |
-| **8** | 14 | 2 | `boss_rockhurler` | $2.12\times$ | $1.084\times$ |
-| **9** | 15 | 3 | `boss_stalker` | $2.28\times$ | $1.096\times$ |
-| **10 (Final)** | 12 | 2 | **`boss_juggernaut`** | $2.44\times$ | $1.108\times$ |
-
-
-### 3.2 Fórmulas de Escalado y Spawns Inteligentes
-
-- **Escalado de Vida y Velocidad**:
-  $$\text{hpMul} = \left(1 + (N - 1) \cdot 0.16\right) \cdot \left(1 + 0.25 \cdot (P - 1)\right)$$
-  $$\text{spMul} = 1 + \min\left(0.25, \, (N - 1) \cdot 0.03\right)$$
-- **Filtro de Spawn Seguro (`pickSpawnParams`)**: La función de spawn muestrea 14 candidatos y selecciona únicamente posiciones a una distancia de pista de al menos **$26.0\text{m}$** de cualquier jugador o bot vivo, evitando que los infectados emerjan directamente sobre el jugador.
-- **Histéresis de Ataque Melee**:
-  - Distancia de alcance $meleeR = 1.35 \cdot z.scale$.
-  - Punto de detención $stopR = meleeR \cdot 0.7$.
-  - Durante el *windup*, el infectado sigue desplazándose hacia el jugador a velocidad reducida, cerrando la distancia y aplicando el daño al completar el golpe.
-- **Condición de Victoria (`gameVictory()`)**: Al despejar la Oleada 10, el motor no pasa a la oleada 11 sino que activa la victoria `LOOP CLEAR — CONTAINMENT RESTORED` con overlay verde, estadísticas completas y opción de despliegue `REDEPLOY`.
+### 3.2 Fórmulas de Escalado y Pacing
+- **Salud Lineal Suave**: `hpMul = (1.0 + (n - 1) * 0.075) * (1 + 0.10 * (N - 1))` (+7.5% por ola, eliminados los picos exponenciales inmanejables).
+- **Tope de Zombis Simultáneos en Escena**:
+  $$\text{maxActive} = \min\left(8, \, 4 + \lfloor\text{wave} \cdot 0.4\rfloor + (P - 1) \cdot 2\right)$$
+- **Intervalo de Aparición Telegrafiado**:
+  $$\text{spawnInt} = \max\left(1.65\text{s}, \, 2.4\text{s} - (n - 1) \cdot 0.08\text{s}\right)$$
 
 ---
 
-## 4. MECÁNICAS DETALLADAS DEL ROCK HURLER (`boss_rockhurler`)
+## 4. COORDINADOR MULTI-SECTORIAL DE INCURSIÓN (`SPAWN_SECTORS`)
 
-
-El `boss_rockhurler` posee dos patrones de ataque independientes en `updateZombies()` (Líneas 1214–1260):
+Para evitar acumulaciones en un único punto cuando los jugadores limpian el centro de la estación, el motor utiliza un **Coordinador Estratégico de 6 Sectores Perimetrales**:
 
 ```
-                      +-----------------------------------------+
-                      |   IA DEL ROCK HURLER (DECISIÓN DE ATAQUE)|
-                      +--------------------+--------------------+
-                                           |
-                  +------------------------+------------------------+
-                  |                                                 |
-         [DISTANCIA JUGADOR > 4.0m]                       [ZOMBIE CERCANO < 10m]
-      - Carga de Roca (Telegraph 0.9s)                - Intercepción veloz (+40% spd)
-      - Proyectil octaédrico 19 m/s                   - Elevación a y = 2.2m (0.55s)
-      - Explosión AoE (Radio 3.5m)                    - Lanzamiento a 20 m/s (30 dmg)
+                              [0: Norte Central (t=0.00)]
+                                         |
+               [5: Túnel Noroeste]                 [1: Túnel Noreste]
+                      (t=0.82)                         (t=0.18)
+                         \                                 /
+                          \        +-------------+        /
+                           \       |  ESTACIÓN   |       /
+                            \      |  CONCOURSE  |      /
+                           /       +-------------+      \
+                          /                              \
+                         /                                \
+               [4: Túnel Suroeste]                 [2: Túnel Sureste]
+                      (t=0.68)                         (t=0.32)
+                                         |
+                               [3: Sur Central (t=0.50)]
 ```
 
-### 4.1 Ataque Ranged: Lanzamiento de Roca en Área (`doRockThrow` & `rockExplode`)
+### Algoritmo Anti-Clustering:
+1. **Evaluación de Distancia 3D Real**: Se mide la distancia tridimensional exacta $\text{hypot}(spX - px, spZ - pz)$ a todos los jugadores y la cámara.
+2. **Memoria de Rotación (`recentSpawnSectors`)**: Se guardan los últimos 3 sectores utilizados. Un sector recién usado queda bloqueado, forzando a la horda a emerger en pinza desde flancos opuestos.
+3. **Filtro de Seguridad 3D**: Distancia mínima de aparición $\ge 20.0\text{m}$, garantizando que ningún enemigo aparezca en el cono de visión directo del jugador.
 
-1. **Telegraphed Charge ($0.9\text{s}$)**:
-   - Se detiene, eleva el brazo derecho $-150^\circ$ (`aR.p.rotation.x = -2.6`).
-   - Sintetiza la roca octaédrica de piedra lava (`OctahedronGeometry(0.55)`, `0x8b5c2a`, emisivo `0xff4000`) sobre su mano derecha.
-   - Emite aviso en el feed de combate: `ROCK HURLER cargando ataque!`.
+---
+
+## 5. ARQUITECTURA MULTI-MODELO 3D Y RESPAWN LIMPIO
+
+### 5.1 Canalización de Carga y Fallback Zero-GC
+- **CDN R2 / Servidor Local**:
+  - `Zombie_Basic.gltf` (1.7 MB, 16 animaciones): Infectados comunes y caminantes.
+  - `Zombie_Chubby.gltf` (1.6 MB, 16 animaciones): Juggernauts, Titans y Brutos.
+  - `skeleton_-_lowpoly_character.glb` (341 KB): Shadow Stalkers y Runners.
+  - `Zombie_Arm.gltf` (1.3 MB): Rock Hurlers.
+- **Protección de Protocolo `file:///`**: Si el juego se abre por archivo local directo, se suprimen peticiones AJAX locales que producen errores de CORS con origen `null`, activando el motor procedural **Zero-GC** con apéndices completos (cuernos de titan, hombreras de piedra, núcleo neón y cuchillas de hueso).
+
+### 5.2 Reinicio Integral de Transformaciones (`resetZombieSlotTransforms`)
+Al eliminar un zombi (`releaseZombieSlot`) y al reutilizar el slot (`acquireZombieSlot` / `spawnZombie`):
+- Se ejecutan `slot.mixer.stopAllAction()` y se limpian los clamps de la animación `Death`.
+- Se restauran a cero todas las posturas procedurales (`torso`, `head`, `jaw`, `aL.p`, `aR.p`, `lL.p`, `lR.p` y `g.rotation.set(0, 0, 0)`).
+- Se resetean flags: `isCrawling = false; isBiting = false; isThrown = false; dead = false; deathT = 0; loosened = false;`.
+- **Resultado**: 100% de los zombis reaparecen erguidos, caminando con naturalidad y sin deformidades heredadas.
+
+---
+
+## 6. COLISIONES EN CONCOURSE Y NAVEGACIÓN DE OBSTÁCULOS
+
+- **Resolución Autoritativa**: Se ejecuta `resolveWorldCollisions(z.g.position, 0.45)` de forma continua en todas las zonas (pista, túneles y concourse central).
+- **Repulsión Anticipatoria**: Detección de proximidad ante quioscos y máquinas (`OBSTACLES`) con vector de desvío ortogonal reforzado (`side * 3.5`), garantizando que los enemigos rodeen limpiamente esquinas y obstáculos sin atravesarlos.
 2. **Proyección Físico-Parabólica**:
    - Velocidad inicial: $19\text{ m/s}$ dirigida hacia la posición del jugador más cercano.
    - Gravedad aplicada: $9.8\text{ m/s}^2$ en el eje Y.

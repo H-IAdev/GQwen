@@ -67,18 +67,26 @@ The game world consists of a continuous curved subterranean loop track divided i
 
 ---
 
-## 4. Entity & Combat Registries
+## 4. Entity, Model & Combat Registries
 
-### Enemy Entity Matrix (`ZDEF`)
+### Enemy Entity Matrix (`GAME_CONFIG.zombies` / `ZDEF`)
 
-| Entity ID | Base HP | Speed Range | Damage | Score | Armor Res. | Special Ability / Mechanics |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `walker` | 25 | 3.2 - 4.0 m/s | 12 HP | 10 pts | 0% | Basic infected infantry. |
-| `runner` | 18 | 5.5 - 6.8 m/s | 10 HP | 15 pts | 0% | Fast flanker, lower HP. |
-| `brute` | 60 | 2.5 - 3.2 m/s | 20 HP | 30 pts | 0% | Heavy tank zombie. |
-| `boss_juggernaut` | 550 | 2.6 - 3.2 m/s | 45 HP | 350 pts | 45% | **Final Boss**: Emerald core glowing green (`0x00ffaa`), high health & armor. |
-| `boss_stalker` | 280 | 6.5 - 8.0 m/s | 30 HP | 180 pts | 30% | High-speed neon assassin, magenta eyes (`0xff00cc`), ghost aura. |
-| `boss_rockhurler` | 380 | 2.2 - 2.8 m/s | 35 HP | 220 pts | 35% | **Ranged Heavy Boss**: Magma rock glowing charge (0.4 to 2.2 emissive intensity), 19m/s boulders. |
+| Entity ID | Base HP | Speed Range | Damage | Score | Armor Res. | Active 3D Asset | Special Ability / Mechanics |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `walker` | 65 HP | 0.95 - 1.10 m/s | 10 HP | 10 pts | 0% | `Zombie_Basic.gltf` | Standard infected infantry. Windup 1.60s / Cool 4.0s. |
+| `runner` | 48 HP | 1.35 - 1.50 m/s | 8 HP | 15 pts | 0% | `skeleton_-_lowpoly_character.glb` | Agile skeletal sprinter, glowing crimson optics. Windup 1.40s / Cool 3.5s. |
+| `brute` | 120 HP | 0.80 - 0.95 m/s | 15 HP | 30 pts | 0% | `Zombie_Chubby` / `Basic` | Heavy tank zombie. Windup 1.85s / Cool 4.5s. |
+| `mini_stalker` | 200 HP | 1.15 - 1.30 m/s | 12 HP | 75 pts | 15% | `skeleton_-_lowpoly_character.glb` | Skeletal shade. Bone blades & violet aura. |
+| `mini_rockhurler` | 280 HP | 0.70 - 0.85 m/s | 14 HP | 90 pts | 20% | `Zombie_Arm` / Stone Pauldrons | Medium volcanic artillery. |
+| `mini_juggernaut` | 380 HP | 0.75 - 0.90 m/s | 18 HP | 140 pts | 25% | `Zombie_Chubby.gltf` | Colossal sub-boss. Glowing emerald core. |
+| `boss_stalker` | 460 HP | 1.20 - 1.35 m/s | 18 HP | 180 pts | 30% | `skeleton_-_lowpoly_character.glb` | **Neon Assassin**: Magenta aura, telegraphed twin-slash. |
+| `boss_rockhurler` | 580 HP | 0.75 - 0.90 m/s | 22 HP | 220 pts | 35% | `Zombie_Arm` / Magma Fist | **Volcanic Behemoth**: Area-of-effect boulder bombardment & minion toss. |
+| `boss_juggernaut` | 880 HP | 0.80 - 0.95 m/s | 28 HP | 350 pts | 45% | `Zombie_Chubby.gltf` | **Final Alpha Boss**: Emerald power core, seismic ground-pound. |
+
+### Strategic Multi-Sector Incursion Coordinator (`SPAWN_SECTORS`)
+- **6 Peripheral Incursion Sectors**: North Central (`t=0.00`), Northeast Tunnel (`t=0.18`), Southeast Tunnel (`t=0.32`), South Central (`t=0.50`), Southwest Tunnel (`t=0.68`), and Northwest Tunnel (`t=0.82`).
+- **Anti-Clustering Memory**: Prevents consecutive spawns from the same sector by tracking the last 3 active sectors in `recentSpawnSectors`.
+- **True 3D Euclidean Spacing**: Guarantees a $\ge 20\text{m}$ buffer distance from all living players and the active camera.
 
 ---
 
