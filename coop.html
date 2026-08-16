@@ -2948,31 +2948,30 @@ function initGameEngine() {
     basic: {
       name: 'Common Zombie',
       urls: [
-        'src/ZombieKit2024/Characters/glTF/Zombie_Basic.gltf',
         'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Basic.gltf',
-        'src/3dmodels/skeleton_-_lowpoly_character.glb',
-        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb'
+        'src/ZombieKit2024/Characters/glTF/Zombie_Basic.gltf'
       ]
     },
     chubby: {
       name: 'Juggernaut Boss',
       urls: [
-        'src/ZombieKit2024/Characters/glTF/Zombie_Chubby.gltf',
-        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Chubby.gltf'
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Chubby.gltf',
+        'src/ZombieKit2024/Characters/glTF/Zombie_Chubby.gltf'
       ]
     },
-    ribcage: {
-      name: 'Stalker Boss',
+    skeleton: {
+      name: 'Shadow Stalker / Runner',
       urls: [
-        'src/ZombieKit2024/Characters/glTF/Zombie_Ribcage.gltf',
-        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Ribcage.gltf'
+        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb',
+        'src/skeleton/skeleton_-_lowpoly_character.glb',
+        'src/3dmodels/skeleton_-_lowpoly_character.glb',
+        'src/ZombieKit2024/Characters/glTF/Zombie_Ribcage.gltf'
       ]
     },
     arm: {
       name: 'Rock Hurler Boss',
       urls: [
-        'src/ZombieKit2024/Characters/glTF/Zombie_Arm.gltf',
-        'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Arm.gltf'
+        'src/ZombieKit2024/Characters/glTF/Zombie_Arm.gltf'
       ]
     }
   };
@@ -2980,7 +2979,7 @@ function initGameEngine() {
   const CACHED_ZOMBIE_MODELS = {
     basic: null,
     chubby: null,
-    ribcage: null,
+    skeleton: null,
     arm: null
   };
 
@@ -3003,7 +3002,7 @@ function initGameEngine() {
           ? THREE.SkeletonUtils.clone(srcScene)
           : srcScene.clone(true);
 
-        const targetH = (catKey === 'chubby') ? 2.3 : (catKey === 'arm') ? 2.1 : (catKey === 'ribcage') ? 1.9 : 1.8;
+        const targetH = (catKey === 'chubby') ? 2.3 : (catKey === 'arm') ? 2.1 : (catKey === 'skeleton') ? 1.9 : 1.8;
         normalizeModel(zClone, targetH);
         zClone.visible = false;
 
@@ -4263,7 +4262,22 @@ function initGameEngine() {
     const isRockHurler = type === 'boss_rockhurler' || type === 'mini_rockhurler';
     const isBoss = isJuggernaut || isStalker || isRockHurler;
 
-    const catKey = isJuggernaut ? 'chubby' : isStalker ? 'ribcage' : isRockHurler ? 'arm' : 'basic';
+    // Asignación inteligente de categoría de modelo según disponibilidad
+    let catKey = 'basic';
+    if(isJuggernaut){
+      catKey = (slot.gltfModels && slot.gltfModels['chubby']) ? 'chubby' : 'basic';
+    } else if(isStalker){
+      catKey = (slot.gltfModels && slot.gltfModels['skeleton']) ? 'skeleton' :
+               (slot.gltfModels && slot.gltfModels['arm']) ? 'arm' : 'basic';
+    } else if(isRockHurler){
+      catKey = (slot.gltfModels && slot.gltfModels['arm']) ? 'arm' :
+               (slot.gltfModels && slot.gltfModels['chubby']) ? 'chubby' : 'basic';
+    } else if(type === 'runner'){
+      catKey = (slot.gltfModels && slot.gltfModels['skeleton']) ? 'skeleton' : 'basic';
+    } else if(type === 'brute'){
+      catKey = (slot.gltfModels && slot.gltfModels['chubby']) ? 'chubby' : 'basic';
+    }
+
     const hasGLTF = !!(slot.gltfModels && slot.gltfModels[catKey]);
     const useGLTF = hasGLTF;
 
@@ -4335,22 +4349,34 @@ function initGameEngine() {
 
     slot.type=type;
   }
-  const MIN_SPAWN_DIST = 14; // metros mínimos a cualquier unidad viva
+  const MIN_SPAWN_DIST = 26.0; // metros mínimos en espacio 3D real
 
   function pickSpawnParams(){
     const units = typeof getAlivePlayers === 'function' ? getAlivePlayers() : [];
     const cands = [];
-    for(let i = 0; i < 16; i++){
+    for(let i = 0; i < 24; i++){
       const ct = Math.random();
+      const cLat = clamp(R(-2.0, 5.8), -4.5, 7.2);
+      const p = trackPos(ct), n = outN(ct);
+      const spX = p.x + n.x * cLat;
+      const spZ = p.z + n.z * cLat;
+
       let minD = Infinity;
       for(const u of units){
-        if(u.trackT !== undefined) minD = Math.min(minD, trackDist(ct, u.trackT));
+        const ux = u.pos ? u.pos.x : (u.trackT !== undefined ? trackPos(u.trackT).x : 0);
+        const uz = u.pos ? u.pos.z : (u.trackT !== undefined ? trackPos(u.trackT).z : 0);
+        const d = Math.hypot(spX - ux, spZ - uz);
+        if(d < minD) minD = d;
       }
-      cands.push({t: ct, d: minD});
+      if(typeof _vCam !== 'undefined'){
+        const dCam = Math.hypot(spX - _vCam.x, spZ - _vCam.z);
+        if(dCam < minD) minD = dCam;
+      }
+      cands.push({ t: ct, lat: cLat, d: minD });
     }
-    const valid = cands.filter(c => c.d >= MIN_SPAWN_DIST && c.d <= 38);
+    const valid = cands.filter(c => c.d >= MIN_SPAWN_DIST && c.d <= 55);
     const chosen = valid.length ? pick(valid) : cands.reduce((a, b) => b.d > a.d ? b : a);
-    return { t: chosen.t, lat: clamp(R(-2.0, 5.8), -4.5, 7.2) };
+    return { t: chosen.t, lat: chosen.lat };
   }
 
   function spawnZombie(type,hpMul,spMul){
@@ -5674,16 +5700,16 @@ function initGameEngine() {
 
   const MAX_WAVES=10;
   const WAVE_PLAN=[
-    {c:6,  boss:null,              minis:[]},
-    {c:7,  boss:null,              minis:['mini_stalker']},
-    {c:8,  boss:null,              brutes:1, minis:['mini_rockhurler']},
-    {c:9,  boss:null,              brutes:2, minis:['mini_juggernaut']},
-    {c:10, boss:'boss_stalker',    brutes:1, minis:['mini_stalker']},
-    {c:11, boss:null,              brutes:3, minis:['mini_stalker','mini_rockhurler']},
-    {c:12, boss:'boss_rockhurler', brutes:2, minis:['mini_stalker']},
-    {c:13, boss:null,              brutes:3, minis:['mini_juggernaut','mini_stalker']},
-    {c:14, boss:'boss_stalker',    brutes:3, minis:['mini_rockhurler']},
-    {c:12, boss:'boss_juggernaut', brutes:2, minis:['mini_stalker']},   // FINAL WAVE
+    {c:5,  boss:null,              minis:[]},                                         // Ola 1: 5 comunes
+    {c:6,  boss:null,              minis:['mini_stalker']},                           // Ola 2: 7 total
+    {c:7,  boss:null,              brutes:1, minis:['mini_rockhurler']},             // Ola 3: 9 total
+    {c:8,  boss:null,              brutes:1, minis:['mini_juggernaut']},             // Ola 4: 10 total
+    {c:8,  boss:'boss_stalker',    brutes:1, minis:[]},                              // Ola 5: 10 total
+    {c:9,  boss:null,              brutes:2, minis:['mini_stalker']},                // Ola 6: 12 total
+    {c:10, boss:'boss_rockhurler', brutes:1, minis:[]},                              // Ola 7: 12 total
+    {c:10, boss:null,              brutes:2, minis:['mini_juggernaut']},             // Ola 8: 13 total
+    {c:11, boss:'boss_stalker',    brutes:2, minis:['mini_rockhurler']},             // Ola 9: 14 total
+    {c:10, boss:'boss_juggernaut', brutes:2, minis:['mini_stalker']},                // FINAL WAVE: 14 total
   ];
 
   function startWave(n){
@@ -5693,12 +5719,9 @@ function initGameEngine() {
     // Progresión lineal suave y balanceada de salud enemiga (+7.5% por oleada, sin picos exponenciales)
     hpMul = (1.0 + (n - 1) * 0.075) * (1 + 0.10 * (N - 1));
     spMul = 1.0; // Velocidad estándar constante: la aceleración es una mecánica de sprint temporal orgánico
-    spawnInt = Math.max(1.15, 1.8 - (n >= 7 ? 0.40 : (n >= 4 ? 0.25 : 0))); spawnT = 0.4;
+    spawnInt = Math.max(1.65, 2.4 - (n - 1) * 0.08); spawnT = 0.5;
 
-
-
-
-    for(let i=0;i<plan.c;i++){const r=Math.random();queue.push(r<.55?'walker':(r<.85?'runner':'brute'));}
+    for(let i=0;i<plan.c;i++){const r=Math.random();queue.push(r<.60?'walker':(r<.88?'runner':'brute'));}
     for(let i=0;i<(plan.brutes||0);i++)queue.push('brute');
     if(plan.minis && Array.isArray(plan.minis)){
       plan.minis.forEach(m => queue.push(m));
@@ -7907,7 +7930,7 @@ function initGameEngine() {
         if(isHost){
           if(queue.length){
             spawnT -= dt;
-            const maxActive = Math.min(12, 5 + Math.floor(wave * 1.1));
+            const maxActive = Math.min(8, 4 + Math.floor(wave * 0.4) + (N - 1) * 2);
             if(spawnT <= 0 && zombies.filter(z => !z.dead).length < maxActive){
               spawnT = spawnInt; spawnZombie(queue.pop(), hpMul, spMul);
             }
