@@ -21,49 +21,42 @@ Manual de documentación técnica detallado para la generación procedural de la
 
 ---
 
-## 2. PLANO ARQUITECTÓNICO ASCII COMPLETO (VISTA DE PLANTA Y SECCIONES)
+## 2. PLANO ARQUITECTÓNICO ASCII COMPLETO (VISTA DE PLANTA CIRCULAR / ELÍPTICA)
 
 ```
-                                    NORTE (Z = -30m, t = 0.00)
-                              ══════════════════════════════════════════════
-                              [ SECTOR 0: ESTACIÓN NORTE - SPAWN PERÍMETRO ]
-                                  (Andén de Entrada · Breaker 0 · Generador)
-                                                 │
-               TÚNEL NOROESTE                    │                    TÚNEL NORESTE
-           [ SECTOR 7: SPAWN ]                   │                [ SECTOR 1: SPAWN ]
-            (t = 0.82, X = -38m)                 │                 (t = 0.18, X = +38m)
-                    \                            │                            /
-                     \                           │                           /
-                      \    ┌─────────────────────┴─────────────────────┐    /
-                       \   │        GRAN ESTACIÓN CONCOURSE            │   /
-                        \  │      (Planta Central: 36m x 24m)          │  /
-                         \ │                                           │ /
-                          \│ ┌───────────────────────────────────────┐ │/
-                           │ │      MEZZANINE SUPERIOR (y = 3.5m)    │ │
-                           │ │  - Master Ammo Supply Box (0, -4.0)   │ │
-                           │ │  - Cabina de Control & Pantallas CRTs │ │
-                           │ │  - Spawn Inicial de Jugadores (0, 0)  │ │
-CURVA OESTE                │ └───────────────────┬───────────────────┘ │                CURVA ESTE
-[ SECTOR 6: SPAWN ] <─────>│                     │                     │<─────> [ SECTOR 2: SPAWN ]
- (t = 0.75, X = -55m)      │ [Escalera Sur Oeste]│ [Escalera Nor-Este] │         (t = 0.25, X = +55m)
-  Graffiti "HOLD THE LINE" │ (x = -16m, z = -4)  │ (x = 16m, z = 4)    │          Vías Electrificadas
-  Vías y Balasto           │                     │                     │          Breaker 2
-                           │ ┌───────────────────┴───────────────────┐ │
-                          /│ │       PLANTA BAJA CONCOURSE (y = 0m)  │ │\
-                         / │ │  - Quioscos Centrales y Máquinas      │ │ \
-                        /  │ │  - Molinetes de Acceso y Pilares      │ │  \
-                       /   │ └───────────────────────────────────────┘ │   \
-                      /    └─────────────────────┬─────────────────────┘    \
-                     /                           │                           \
-                    /                            │                            \
-           [ SECTOR 5: SPAWN ]                   │                [ SECTOR 3: SPAWN ]
-             TÚNEL SUROESTE                      │                   TÚNEL SURESTE
-          (t = 0.68, X = -38m)                   │                (t = 0.32, X = +38m)
-                                                 │
-                              [ SECTOR 4: PORTAL SUR - SPAWN PERÍMETRO ]
-                                  (t = 0.50 · Puerta de Acero M.steel)
-                              ══════════════════════════════════════════════
-                                         SUR (Z = +30m)
+                                  NORTE (t = 0.00 · Z = -30m)
+                          [ SECTOR 0: ESTACIÓN NORTE - SPAWN ]
+                         . - - ' ' ' ' ' ' ' ' ' ' ' ' ' ' - - .
+                     . '                                         ' .
+                 . '     [S7: TÚNEL NOROESTE]      [S1: TÚNEL NORESTE] ' .
+               /          (t=0.82, x=-38, z=-21)    (t=0.18, x=+38, z=-21)  \
+             /                                                                \
+           /                                                                    \
+         /      ╭────────────────────────────────────────────────────────╮       \
+        /       │                ESTACIÓN CENTRAL LUMEN ST               │        \
+       │        │              (Concourse: 36m x 24m, Suelo y=0)         │         │
+       │        │                                                        │         │
+       │        │  ╭──────────────────────────────────────────────────╮  │         │
+       │        │  │          MEZZANINE SUPERIOR (y = +3.48m)         │  │         │
+[S6: CURVA OESTE│  │  [Master Ammo Crate]      [Security Control Booth]│  │[S2: CURVA ESTE]
+(t=0.75, x=-55) │  │  (0, -4.0, y=3.5)         (0, 0, Terminales CRT) │  │(t=0.25, x=+55)
+Breaker 3       │  │                                                  │  │Breaker 2
+Graffiti "HOLD" │  │      [SPAWN INICIAL JUGADOR / BOTS] (0, 0)       │  │Vías Electrificadas
+       │        │  ╰─────────────────────────┬────────────────────────╯  │         │
+       │        │                            │ Escalera Este (+16m, z=4) │         │
+       │        │  Escalera Oeste (-16m,z=-4)│                           │         │
+       │        │  ╭─────────────────────────┴────────────────────────╮  │         │
+        \       │  │          PLANTA BAJA CONCOURSE (y = 0m)          │  │        /
+         \      │  │  - Molinetes de Acceso    - Quioscos y Máquinas  │  │       /
+           \    │  │  - Columnas de Acero      - Puntos de Cobertura  │  │      /
+             \  ╰──┴──────────────────────────────────────────────────┴──╯     /
+               \                                                              /
+                 . '     [S5: TÚNEL SUROESTE]      [S3: TÚNEL SURESTE]     . '
+                   ' .    (t=0.68, x=-38, z=+21)    (t=0.32, x=+38, z=+21) . '
+                       ' - - . . . . . . . . . . . . . . . . . . . - - '
+                              [ SECTOR 4: PORTAL SUR - SPAWN ]
+                              (t = 0.50 · Puerta de Acero M.steel)
+                                  SUR (t = 0.50 · Z = +30m)
 
                        ESPECIFICACIONES DE COTAS Y DIMENSIONES
                        ───────────────────────────────────────
@@ -71,8 +64,9 @@ CURVA OESTE                │ └───────────────�
    • Perímetro Total: ~271.8 metros.
    • Bóveda y Altura: Techo continuo wH = 6.4m, Andén Total = 13.7m.
    • Zona Central Concourse: 36.0m (X) x 24.0m (Z), Mezzanine Elevado a +3.48m.
-   • 6 Sectores de Incursión: Norte (t=0.0), Noreste (t=0.18), Sureste (t=0.32),
-                              Sur (t=0.50), Suroeste (t=0.68), Noroeste (t=0.82).
+   • 8 Sectores Elípticos: S0 Norte (t=0.0), S1 Noreste (t=0.18), S2 Este (t=0.25),
+                           S3 Sureste (t=0.32), S4 Sur (t=0.50), S5 Suroeste (t=0.68),
+                           S6 Oeste (t=0.75), S7 Noroeste (t=0.82).
 ```
 
 ---

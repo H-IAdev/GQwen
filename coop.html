@@ -3650,6 +3650,17 @@ function initGameEngine() {
           if (z.type.includes('boss')) threat *= (squadOrder === 'focus_boss' ? 6.0 : 2.2);
           if (z.type.includes('mini') || z.type === 'brute') threat *= (squadOrder === 'focus_boss' ? 3.5 : 1.5);
           if (z.grabbed || z.grabVictim) threat *= 3.0;
+          
+          // Modificadores de especialización táctica individual por bot
+          if (bot.role === 'marksman') {
+            if (z.type === 'runner' || z.type.includes('stalker')) threat *= 2.4;
+            if (d > 8.0) threat *= 1.35;
+          } else if (bot.role === 'heavy' || bot.role === 'anchor') {
+            if (z.type.includes('juggernaut') || z.type.includes('rockhurler') || z.type === 'brute') threat *= 2.8;
+          } else if (bot.role === 'flanker') {
+            if (d < 7.0) threat *= 1.75;
+          }
+
           // ── COBERTURA POR SECTOR: rebanada de 120° por bot (VEGA izq, RUIZ frente, KIDO der) ──
           const zAng = Math.atan2(z.g.position.x - playerPos.x, z.g.position.z - playerPos.z);
           const prefAng = (bot.id - 2) * (Math.PI * 2 / 3);
@@ -3759,19 +3770,29 @@ function initGameEngine() {
       const aimSway = Math.sin(elapsed * 1.7 + bot.id * 2.6) * 0.045;
       smoothBotYaw(bot, aimAng + aimSway, dt, distToTarget < 8.0 ? 7.5 : 4.0);
 
-      const combatSpeed = distToTarget > 14 ? bot.baseSpeed : bot.baseSpeed * 0.55;
+      // Kiting e independencia táctica individual por rol
+      const combatSpeed = distToTarget > 12 ? bot.baseSpeed : bot.baseSpeed * 0.70;
 
-      if (bot.role === 'flanker') {
+      if (distToTarget < 4.8 || bot.recentDamageTimer > 0) {
+        // Backpedal táctico con desvío lateral
+        const retreatDir = _vSide.subVectors(botPos, bestTarget.g.position).normalize();
+        const perpDir = _v3.set(-retreatDir.z, 0, retreatDir.x).multiplyScalar(bot.id % 2 === 0 ? 1.8 : -1.8);
+        const retreatTarget = _vTgt.copy(botPos).addScaledVector(retreatDir, 3.8).add(perpDir);
+        moveBotTo(bot, retreatTarget, bot.baseSpeed * 0.95, dt);
+      } else if (bot.role === 'flanker') {
         const sideDir = _v3.subVectors(bestTarget.g.position, botPos).normalize();
-        const perpDir = _vSide.set(-sideDir.z, 0, sideDir.x).multiplyScalar(3.8 * (bot.id % 2 === 0 ? 1 : -1));
+        const perpDir = _vSide.set(-sideDir.z, 0, sideDir.x).multiplyScalar(4.2 * (bot.id % 2 === 0 ? 1 : -1));
         const flankDest = _vTgt.copy(bestTarget.g.position).add(perpDir);
         moveBotTo(bot, flankDest, combatSpeed, dt);
-      } else if (distToTarget > 9.0) {
+      } else if (bot.role === 'marksman') {
+        if (distToTarget < 8.5) {
+          const retreatDir = _vSide.subVectors(botPos, bestTarget.g.position).normalize();
+          moveBotTo(bot, _vTgt.copy(botPos).addScaledVector(retreatDir, 3.0), bot.baseSpeed * 0.8, dt);
+        } else if (distToTarget > 14.0) {
+          moveBotTo(bot, bestTarget.g.position, combatSpeed, dt);
+        }
+      } else if (distToTarget > 8.0) {
         moveBotTo(bot, bestTarget.g.position, combatSpeed, dt);
-      } else if (distToTarget < 3.8 || bot.recentDamageTimer > 0) {
-        const retreatDir = _vSide.subVectors(botPos, bestTarget.g.position).normalize();
-        const retreatTarget = _vTgt.copy(botPos).addScaledVector(retreatDir, 3.0);
-        moveBotTo(bot, retreatTarget, bot.baseSpeed * 0.85, dt);
       } else {
         if (bot.actions['Idle'] && bot.activeAction !== 'Idle' && bot.activeAction !== 'Punch') {
           if (bot.actions[bot.activeAction]) bot.actions[bot.activeAction].fadeOut(0.2);
@@ -4359,23 +4380,28 @@ function initGameEngine() {
     { name: 'Túnel Noroeste', baseT: 0.82, latRange: [1.0, 5.0] }
   ];
 
-  let recentSpawnSectors = []; // Historial de rotación anti-clustering (últimos 3 sectores usados)
+  /* ===== MOTOR DE RESPAWN INTELIGENTE PERIMETRAL Y OCLUSIÓN FOV ===== */
+  const SPAWN_CANDIDATES_COUNT = 32;
+  const recentSpawnAngles = []; // Historial de ángulos de spawn (evita clusters en un arco de 45°)
 
-  function getActivePlayerPositions(){
+  function getActivePlayerEntities(){
     const pList = [];
     if(typeof camera !== 'undefined' && camera.position){
-      pList.push({ x: camera.position.x, z: camera.position.z });
+      const camFwd = new THREE.Vector3();
+      camera.getWorldDirection(camFwd);
+      pList.push({ x: camera.position.x, z: camera.position.z, fwdX: camFwd.x, fwdZ: camFwd.z, isCamera: true });
     }
     if(typeof _vCam !== 'undefined'){
-      pList.push({ x: _vCam.x, z: _vCam.z });
+      pList.push({ x: _vCam.x, z: _vCam.z, fwdX: 0, fwdZ: 0 });
     }
     if(typeof getAlivePlayers === 'function'){
       const units = getAlivePlayers();
       for(const u of units){
-        if(u.pos) pList.push({ x: u.pos.x, z: u.pos.z });
-        else if(u.trackT !== undefined){
+        if(u.pos){
+          pList.push({ x: u.pos.x, z: u.pos.z, fwdX: 0, fwdZ: 0 });
+        } else if(u.trackT !== undefined){
           const tp = trackPos(u.trackT);
-          pList.push({ x: tp.x, z: tp.z });
+          pList.push({ x: tp.x, z: tp.z, fwdX: 0, fwdZ: 0 });
         }
       }
     }
@@ -4383,49 +4409,90 @@ function initGameEngine() {
   }
 
   function pickSpawnParams(){
-    const pPositions = getActivePlayerPositions();
-    
-    // 1. Evaluar distancia de cada sector a todos los jugadores y verificar que esté en el perímetro
-    const sectorScores = SPAWN_SECTORS.map((sec, idx) => {
-      const p = trackPos(sec.baseT);
-      const n = outN(sec.baseT);
-      const spX = p.x + n.x * 2.5;
-      const spZ = p.z + n.z * 2.5;
-      const inConcourse = Math.abs(spX) < 22 && Math.abs(spZ) < 16;
+    const players = getActivePlayerEntities();
+    const candidates = [];
 
-      let minD = Infinity;
-      for(const pp of pPositions){
-        const d = Math.hypot(spX - pp.x, spZ - pp.z);
-        if(d < minD) minD = d;
+    // Muestreo denso de 32 nodos uniformes en el perímetro elíptico
+    for(let i = 0; i < SPAWN_CANDIDATES_COUNT; i++){
+      const sampleT = i / SPAWN_CANDIDATES_COUNT;
+      const sampleLat = R(2.4, 5.5); // Carril exterior y nichos profundos de túnel
+      const p = trackPos(sampleT);
+      const n = outN(sampleT);
+      const spX = p.x + n.x * sampleLat;
+      const spZ = p.z + n.z * sampleLat;
+
+      // 1. Descartar cualquier punto dentro de la estación central (radio de 28m)
+      const distFromStationCenter = Math.hypot(spX, spZ);
+      if(distFromStationCenter < 28.0) continue;
+
+      // 2. Evaluar distancia a cada jugador y cono de visión directo (FOV Occlusion)
+      let minPlayerDist = Infinity;
+      let inDirectFov = false;
+
+      for(const pl of players){
+        const toSpX = spX - pl.x;
+        const toSpZ = spZ - pl.z;
+        const d = Math.hypot(toSpX, toSpZ);
+        if(d < minPlayerDist) minPlayerDist = d;
+
+        // Comprobación de campo visual de la cámara (evitar apariciones directamente frente a los ojos)
+        if(pl.isCamera && d < 48.0 && (pl.fwdX !== 0 || pl.fwdZ !== 0)){
+          const normX = toSpX / (d || 1);
+          const normZ = toSpZ / (d || 1);
+          const dot = normX * pl.fwdX + normZ * pl.fwdZ;
+          if(dot > 0.35){ // En el cono frontal visible
+            inDirectFov = true;
+          }
+        }
       }
-      return { sec, idx, minD, inConcourse };
-    });
 
-    // 2. Filtrar sectores elegibles con distancia segura (mínimo 24m) excluyendo el centro y sectores recientes
-    let eligible = sectorScores.filter(s => s.minD >= 24.0 && !s.inConcourse && !recentSpawnSectors.includes(s.idx));
-    if(eligible.length === 0){
-      eligible = sectorScores.filter(s => s.minD >= 20.0 && !s.inConcourse && !recentSpawnSectors.includes(s.idx));
+      // 3. Comprobación de proximidad a spawns recientes (Anti-clustering angular)
+      const sampleAngle = sampleT * Math.PI * 2;
+      let angleConflict = false;
+      for(const prevAngle of recentSpawnAngles){
+        let diff = Math.abs(sampleAngle - prevAngle);
+        while(diff > Math.PI) diff = Math.abs(diff - Math.PI * 2);
+        if(diff < 0.65){ // ~37° de separación mínima
+          angleConflict = true;
+          break;
+        }
+      }
+
+      // 4. Puntuación ponderada: prioriza puntos fuera del FOV, lejanos (>26m) y en túneles perimetrales
+      let score = minPlayerDist;
+      if(inDirectFov) score *= 0.15; // Gran penalización a apariciones en el campo de visión
+      if(angleConflict) score *= 0.40; // Penalización por proximidad a spawns recientes
+      if(minPlayerDist >= 26.0) score += 15.0;
+
+      candidates.push({ t: sampleT, lat: sampleLat, x: spX, z: spZ, d: minPlayerDist, score, inFov: inDirectFov });
     }
-    if(eligible.length === 0){
-      eligible = sectorScores.filter(s => s.minD >= 18.0 && !s.inConcourse);
+
+    // Filtrar candidatos óptimos (distancia >= 24m y fuera de la vista directa si es posible)
+    let bestPool = candidates.filter(c => c.d >= 26.0 && !c.inFov);
+    if(bestPool.length === 0){
+      bestPool = candidates.filter(c => c.d >= 24.0);
     }
-    if(eligible.length === 0){
-      eligible = sectorScores.sort((a, b) => b.minD - a.minD).slice(0, 2);
+    if(bestPool.length === 0){
+      bestPool = candidates.filter(c => c.d >= 20.0);
+    }
+    if(bestPool.length === 0){
+      bestPool = candidates.sort((a, b) => b.d - a.d).slice(0, 4);
     }
 
-    const chosenItem = pick(eligible) || eligible[0] || { sec: SPAWN_SECTORS[0], idx: 0 };
-    const chosenSector = chosenItem.sec;
-    const chosenIdx = chosenItem.idx;
+    // Selección ponderada por score entre los mejores
+    bestPool.sort((a, b) => b.score - a.score);
+    const topChoices = bestPool.slice(0, Math.min(4, bestPool.length));
+    const chosen = pick(topChoices) || candidates[0] || { t: 0, lat: 3.5 };
 
-    recentSpawnSectors.push(chosenIdx);
-    if(recentSpawnSectors.length > 3) recentSpawnSectors.shift();
+    // Registrar en memoria angular anti-clustering
+    recentSpawnAngles.push(chosen.t * Math.PI * 2);
+    if(recentSpawnAngles.length > 5) recentSpawnAngles.shift();
 
-    // 3. Generar coordenadas con jitter orgánico en el carril exterior del sector
-    let chosenT = chosenSector.baseT + R(-0.035, 0.035);
-    chosenT = ((chosenT % 1.0) + 1.0) % 1.0;
-    const chosenLat = clamp(R(chosenSector.latRange[0], chosenSector.latRange[1]), 1.0, 5.8);
+    // Jitter orgánico
+    let finalT = (chosen.t + R(-0.018, 0.018) + 1.0) % 1.0;
+    let finalLat = clamp(chosen.lat + R(-0.3, 0.3), 2.0, 5.8);
 
-    return { t: chosenT, lat: chosenLat };
+    return { t: finalT, lat: finalLat };
   }
 
   function spawnZombie(type,hpMul,spMul){
