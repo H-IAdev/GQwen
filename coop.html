@@ -328,6 +328,16 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
 #tBtnGrenade{position:absolute;right:72px;bottom:140px;width:46px;height:46px;border-color:#ff4b3e;color:#ff4b3e}
 #tBtnMode{position:absolute;right:134px;bottom:78px;width:44px;height:44px;font-size:8px}
 #tBtnRevive{position:absolute;right:134px;bottom:134px;width:48px;height:48px;border-color:var(--green);color:var(--green)}
+#tBtnDodge{position:absolute;right:134px;bottom:14px;width:52px;height:52px;font-size:9px;border-color:var(--cyan);color:var(--cyan)}
+
+/* Medidor Táctico de Esquiva / Dash */
+#dodgeMeter{position:absolute;left:14px;bottom:96px;display:flex;align-items:center;gap:8px;padding:5px 12px;background:rgba(12,16,22,0.85);backdrop-filter:blur(8px);border:1.5px solid var(--cyan);border-radius:4px;box-shadow:0 0 14px rgba(0,255,200,0.3);z-index:11;pointer-events:none;transition:opacity 0.2s}
+#dodgeMeter.cooling{border-color:rgba(255,255,255,0.2);box-shadow:none;opacity:0.65}
+#dodgeMeter span{font-family:var(--disp);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--cyan)}
+#dodgeMeter.cooling span{color:var(--dim)}
+#dodgeTrack{width:60px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;overflow:hidden}
+#dodgeFill{height:100%;background:var(--cyan);width:100%;transition:width 0.05s linear}
+#dodgeMeter.cooling #dodgeFill{background:var(--amber)}
 
 /* Estilos de Cristal Translúcido Ultra-Inmersivo para Paneles HUD */
 .pnl{background:rgba(10,14,18,0.72) !important;backdrop-filter:blur(10px) !important;border:1.5px solid rgba(255,180,0,0.25) !important;box-shadow:0 6px 20px rgba(0,0,0,0.5) !important;border-radius:4px !important}
@@ -430,12 +440,15 @@ body.is-touch body.playing #touchHud, body.playing.is-touch #touchHud{display:bl
       <div class="tBtn" id="tBtnMode">B<br><small>MODE</small></div>
       <div class="tBtn" id="tBtnRevive">E<br><small>REVIVE</small></div>
       <div class="tBtn" id="tBtnGrenade">💣<br><small>GRANADA</small></div>
+      <div class="tBtn" id="tBtnDodge">Q<br><small>ESQUIVA</small></div>
       <div class="tBtn" id="tBtnWeapon">TAB<br><small>ARMAS</small></div>
       <div class="tBtn" id="tBtnReload">R<br><small>RECARGA</small></div>
       <div class="tBtn" id="tBtnJump">SALTAR</div>
       <div class="tBtn" id="tBtnFire">DISPARO</div>
     </div>
   </div>
+
+  <div id="dodgeMeter"><span>⚡ ESQUIVA [Q]</span><div id="dodgeTrack"><div id="dodgeFill"></div></div></div>
 
 
 
@@ -2934,9 +2947,13 @@ function initGameEngine() {
   const CDN_ZOMBIE_URLS = [
     'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Basic.gltf',
     'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Chubby.gltf',
+    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Ribcage.gltf',
+    'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/Zombie_Arm.gltf',
     'https://pub-dd118aa8936b42e780849ced27b49a50.r2.dev/3d/skeleton_-_lowpoly_character.glb',
     'src/ZombieKit2024/Characters/glTF/Zombie_Basic.gltf',
     'src/ZombieKit2024/Characters/glTF/Zombie_Chubby.gltf',
+    'src/ZombieKit2024/Characters/glTF/Zombie_Ribcage.gltf',
+    'src/ZombieKit2024/Characters/glTF/Zombie_Arm.gltf',
     'src/3dmodels/skeleton_-_lowpoly_character.glb',
     'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@main/Models/BrainStem/glTF-Binary/BrainStem.glb'
   ];
@@ -4726,16 +4743,16 @@ function initGameEngine() {
         z.g.visible = (_vCam.distanceTo(z.g.position) < 65.0);
       }
 
-      // Mecánica de Sprint Temporal Periódico (Surge Frenzy Equilibrado - Límites Ola 4+)
-      z.sprintCd = (z.sprintCd || R(12, 18)) - dt;
+      // Mecánica de Sprint Temporal Periódico (Surge Frenzy Equilibrado - Límites Ola 6+)
+      z.sprintCd = (z.sprintCd || R(14, 20)) - dt;
       if(z.sprintCd <= 0 && dist3D > 5.0 && dist3D < 16 && !z.isCrawling && !z.dead){
-        z.sprintT = R(1.0, 1.4);
-        z.sprintCd = R(12, 18);  // Cooldown ampliado de 12 a 18 segundos
+        z.sprintT = R(1.0, 1.2);
+        z.sprintCd = R(14, 20);  // Cooldown de 14 a 20 segundos
       }
       let sprintBoost = 1.0;
       if(z.sprintT > 0){
         z.sprintT -= dt;
-        sprintBoost = z.type === 'runner' ? 1.15 : 1.10; // Multiplicador acotado (+10-15%)
+        sprintBoost = z.type === 'runner' ? 1.12 : 1.08; // Multiplicador acotado (+8-12%)
       }
 
       // Modificador de velocidad y postura para Crawlers y Biters
@@ -4748,13 +4765,13 @@ function initGameEngine() {
       z.cool-=dt;z.hitT-=dt;
 
       z.animT = (z.animT || 0) + dt * z.curSpd * 2.2;
-      let windupMax = z.type.includes('juggernaut') ? 1.40 :
-                      z.type.includes('stalker') ? 1.25 :
-                      z.type.includes('rockhurler') ? 1.20 :
+      let windupMax = z.type.includes('juggernaut') ? 1.45 :
+                      z.type.includes('stalker') ? 1.30 :
+                      z.type.includes('rockhurler') ? 1.25 :
                       z.type === 'brute' ? 1.35 :
-                      z.type === 'runner' ? 0.95 : 1.15;
-      if(z.isBiting) windupMax = 0.90; // Anticipación telegrafiada para mordida
-      if(z.isCrawling) windupMax = 1.20;
+                      z.type === 'runner' ? 1.00 : 1.20;
+      if(z.isBiting) windupMax = 0.95; // Anticipación telegrafiada para mordida
+      if(z.isCrawling) windupMax = 1.25;
 
       if(z.windup>0){
         z.windup-=dt;const w=1-Math.max(0,z.windup)/windupMax;
@@ -4773,13 +4790,14 @@ function initGameEngine() {
         const windupMoveSpd = z.type.startsWith('boss_') ? 0.25 : 0.40;
         z.t+=Math.sign(dir)*z.curSpd*boost*windupMoveSpd*dt/TRACK_LEN;
         if(z.windup<=0){
-          const baseCool = z.isBiting ? 2.6 :
-                           z.type.includes('juggernaut') ? 3.8 :
-                           z.type.includes('stalker') ? 3.4 :
-                           z.type.includes('rockhurler') ? 3.2 :
-                           z.type === 'brute' ? 3.2 :
-                           z.type === 'runner' ? 2.2 : 2.6;
-          z.cool = Math.max(1.8, baseCool);
+          const waveAttackDamping = (wave >= 6) ? 0.35 : 0.0;
+          const baseCool = (z.isBiting ? 2.8 :
+                           z.type.includes('juggernaut') ? 4.0 :
+                           z.type.includes('stalker') ? 3.6 :
+                           z.type.includes('rockhurler') ? 3.4 :
+                           z.type === 'brute' ? 3.4 :
+                           z.type === 'runner' ? 2.5 : 2.8) + waveAttackDamping + R(-0.20, 0.20);
+          z.cool = Math.max(2.0, baseCool);
 
           if(dist3D < meleeR){
             burst(z.g.position, 'ichor', 8, 2.8);
@@ -5462,12 +5480,33 @@ function initGameEngine() {
   let playerState='alive';let downTimer=0,reviveProgress=0,reviveInvuln=0,playerInvulnT=0;
   let yaw=0,pitch=0,kickP=0,kickY=0,shake=0;
   const keys={};const vel=new THREE.Vector3();
-  let vy=0,jumpY=0,bobT=0,stepAcc=0;
-  let playerT=0,playerLat=3;
+  let dashCd = 0, dashTimer = 0;
+  const dashDir = new THREE.Vector3();
+  function performDash(){
+    if(dashCd > 0 || playerState !== 'alive' || !playing) return;
+    dashCd = 3.2; // 3.2s cooldown
+    dashTimer = 0.32; // 320ms dash duration
+    playerInvulnT = Math.max(playerInvulnT, 0.45); // iframe durante evasión táctica
+    let f = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+    let r = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+    if (typeof isTouchDevice !== 'undefined' && isTouchDevice && (joyVector.x !== 0 || joyVector.y !== 0)) {
+      r = joyVector.x; f = -joyVector.y;
+    }
+    if(f === 0 && r === 0) f = 1;
+    _v1.set(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(f);
+    _v2.set(Math.cos(yaw), 0, -Math.sin(yaw)).multiplyScalar(r);
+    dashDir.copy(_v1).add(_v2).normalize();
+    vel.addScaledVector(dashDir, 16.5);
+    sfx.click();
+    if(IS_TOUCH && navigator.vibrate) try { navigator.vibrate(30); } catch(ex){}
+    burst(camera.position, 'spark', 12, 2.5);
+    feed('⚡ ESQUIVA TÁCTICA EJECUTADA', 'h');
+    if($('#dodgeMeter')) $('#dodgeMeter').classList.add('cooling');
+  }
 
   function damagePlayer(d){
     if(playerState!=='alive'||reviveInvuln>0||playerInvulnT>0)return;
-    playerInvulnT=0.32; // Período de gracia de 320ms para evitar multi-golpes simultáneos
+    playerInvulnT=0.45; // Período de gracia de 450ms para evitar multi-golpes simultáneos
     const playerArmor = (wave >= 4) ? Math.min(0.25, (wave - 3) * 0.035) : 0;
     const effectiveDmg = Math.max(1, Math.round(d * (1 - playerArmor)));
     hp -= effectiveDmg; lastHit=elapsed; dmgFlash=Math.min(1,dmgFlash+.7);
@@ -5537,7 +5576,7 @@ function initGameEngine() {
     // Progresión calibrada de vitalidad enemiga por ola con resistencia de armadura en niveles altos
     hpMul = (1 + (n >= 8 ? 0.35 : (n >= 5 ? 0.18 : 0))) * (1 + 0.15 * (N - 1));
     spMul = 1.0; // Velocidad estándar constante: la aceleración es una mecánica de sprint temporal orgánico
-    spawnInt = Math.max(0.9, 1.8 - (n >= 7 ? 0.5 : (n >= 4 ? 0.3 : 0))); spawnT = 0.4;
+    spawnInt = Math.max(1.15, 1.8 - (n >= 7 ? 0.40 : (n >= 4 ? 0.25 : 0))); spawnT = 0.4;
 
 
 
@@ -5595,6 +5634,9 @@ function initGameEngine() {
     if((e.code==='Digit3'||e.code==='Numpad3')&&playing&&!isChatting)switchWeapon('fists');
     if((e.code==='KeyC'||e.key==='c'||e.key==='C')&&playing&&!isChatting){
       e.preventDefault(); toggleCamMode();
+    }
+    if((e.code==='KeyQ'||e.key==='q'||e.key==='Q')&&playing&&!isChatting){
+      e.preventDefault(); if(typeof performDash === 'function') performDash();
     }
     if((e.code==='KeyT'||e.key==='t'||e.key==='T') && playing && !isChatting){
       e.preventDefault(); toggleChat(true); return;
@@ -7415,6 +7457,14 @@ function initGameEngine() {
     elapsed=t;
     if(playerInvulnT > 0) playerInvulnT -= dt;
     if(reviveInvuln > 0) reviveInvuln -= dt;
+    if(dashCd > 0){
+      dashCd -= dt;
+      if(dashCd <= 0){
+        dashCd = 0;
+        if($('#dodgeMeter')) $('#dodgeMeter').classList.remove('cooling');
+      }
+      if($('#dodgeFill')) $('#dodgeFill').style.width = Math.max(0, Math.min(100, (1 - dashCd / 3.2) * 100)) + '%';
+    }
     updateTracers(dt);
 
     // 1. MÓDULO: MÓVIL Y FÍSICAS DE CÁMARA
@@ -7439,7 +7489,8 @@ function initGameEngine() {
         /* GQW-VIS-5.0: Sprint FOV Kick */
         const tgtFov=sprint&&playerState==='alive'?82:74;
         camera.fov+=(tgtFov-camera.fov)*(1-Math.exp(-12*dt));
-        const baseMaxSp = playerState === 'alive' ? (sprint ? 10.5 : 6.5) : 0.5;
+        camera.updateProjectionMatrix();
+        const baseMaxSp = playerState === 'alive' ? (sprint ? 11.4 : 7.2) : 0.5;
         const maxSp = baseMaxSp * (typeof getBuffSpeedMul === 'function' ? getBuffSpeedMul() : 1.0);
         fwdV.set(-Math.sin(yaw), 0, -Math.cos(yaw));
         rgtV.set(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -8185,6 +8236,7 @@ function initGameEngine() {
   bindTouchBtn('#tBtnReload', () => { if(playing && !reloading && ammo < MAG && reserve > 0) startReload(); });
   bindTouchBtn('#tBtnMode', () => { if(playing && typeof toggleFireMode === 'function') toggleFireMode(); });
   bindTouchBtn('#tBtnGrenade', () => { if(playing && typeof throwGrenade === 'function') throwGrenade(); });
+  bindTouchBtn('#tBtnDodge', () => { if(playing && typeof performDash === 'function') performDash(); });
   bindTouchBtn('#tBtnWeapon', () => { if(playing) switchWeapon(); });
   bindTouchBtn('#tBtnCam', () => { if(playing) toggleCamMode(); });
 
